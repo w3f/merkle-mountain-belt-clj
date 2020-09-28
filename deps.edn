@@ -1,0 +1,6 @@
+{:deps
+ {
+  rhizome {:mvn/version "0.2.9"}
+  ;; rhizome-cljc {:mvn/version "0.1.2"}
+  }
+ }
