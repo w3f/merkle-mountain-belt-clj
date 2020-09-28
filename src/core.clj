@@ -43,14 +43,6 @@
     (node (:left old-node) (mmr-append-leaf (:right old-node) leaf))
     ))
 
-(def example-mmr
-  (node
-   (node (leaf "a") (leaf "b"))
-   (node (leaf "c") (leaf "d")))
-  )
-
-(def extended-mmr (reduce (fn [root leaf-label] (mmr-append-leaf root (leaf leaf-label))) example-mmr ["e" "f" "g" "h"]))
-
 (defn mmr-from-leafcount [leafcount]
   (reduce (fn [root leaf-label]
             (mmr-append-leaf root (leaf leaf-label)))
@@ -60,14 +52,6 @@
 
 (defn mmr-graph [root]
   (apply merge (flatten [ {(:value root) (map :value (children root))} (map mmr-graph (children root)) ]))
-  )
-
-(comment
-  (mmr-leafcount (:left (mmr-from-leafcount 14)))
-  (mmr-leafcount (:right (mmr-from-leafcount 14)))
-
-  (mmr-leafcount (:left (:left (mmr-from-leafcount 14))))
-  (mmr-leafcount (:right (:left (mmr-from-leafcount 14))))
   )
 
 (let [graph (mmr-graph (mmr-from-leafcount 9))]
@@ -87,3 +71,19 @@
                                           } n))
                   )
   )
+
+(comment
+  (mmr-leafcount (:left (mmr-from-leafcount 14)))
+  (mmr-leafcount (:right (mmr-from-leafcount 14)))
+
+  (mmr-leafcount (:left (:left (mmr-from-leafcount 14))))
+  (mmr-leafcount (:right (:left (mmr-from-leafcount 14))))
+  )
+
+(def example-mmr
+  (node
+   (node (leaf "a") (leaf "b"))
+   (node (leaf "c") (leaf "d")))
+  )
+
+(def extended-mmr (reduce (fn [root leaf-label] (mmr-append-leaf root (leaf leaf-label))) example-mmr ["e" "f" "g" "h"]))
