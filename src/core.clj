@@ -54,6 +54,19 @@
   (apply merge (flatten [ {(:value root) (map :value (children root))} (map mmr-graph (children root)) ]))
   )
 
+(defn find-subtree [root node-key]
+  (if (= (:value root) node-key)
+    root
+    (if (has-children? root)
+      (first
+       (flatten
+        (filter
+         #(not (or (nil? %) (empty? %)))
+         (map #(find-subtree % node-key) (children root)))))
+      )))
+
+(find-subtree (mmr-from-leafcount 9) "abcd")
+
 (let [graph (mmr-graph (mmr-from-leafcount 9))]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
