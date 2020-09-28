@@ -67,21 +67,16 @@
 
 (find-subtree (mmr-from-leafcount 9) "abcd")
 
-(let [graph (mmr-graph (mmr-from-leafcount 9))]
+(let [
+      mmr (mmr-from-leafcount 9)
+      graph (mmr-graph mmr)
+      ]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
                   :cluster->descriptor (fn [n] {:label n})
-                  :node->cluster (fn [n] (get
-                                         {"a" "aleph",
-                                          "b" "aleph",
-                                          "c" "aleph",
-                                          "d" "aleph",
-                                          "e" "aleph",
-                                          "f" "aleph",
-                                          "g" "aleph",
-                                          "h" "aleph",
-                                          "i" "aleph",
-                                          } n))
+                  :node->cluster (fn [node-key] (if (not (has-children? (find-subtree mmr node-key)))
+                                                 "aleph"
+                                                 ))
                   )
   )
 
