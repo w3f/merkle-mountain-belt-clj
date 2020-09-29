@@ -8,7 +8,7 @@
    :value (str (:value left) (:value right))})
 
 (defn leaf [value]
-  {:value value})
+  {:value (str value)})
 
 (defn children [node]
   (filter some?
@@ -46,8 +46,8 @@
 (defn mmr-from-leafcount [leafcount]
   (reduce (fn [root leaf-label]
             (mmr-append-leaf root (leaf leaf-label)))
-          (leaf "a")
-          (take (dec leafcount) (map (comp str char) (iterate inc (+ 98)))))
+          (leaf 1)
+          (take (dec leafcount) (range 2 leafcount)))
   )
 
 (defn mmr-graph [root]
