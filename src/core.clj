@@ -12,16 +12,13 @@
     string
     (str "(" string ")")))
 
-(defn node [left right]
+(defn node [left right value]
   {:left left
    :right right
-   :value (str
-           (parentheses-maybe (:value left))
-           "⋁"
-           (parentheses-maybe (:value right)))})
+   :value value})
 
 (defn leaf [value]
-  {:value (str value)})
+  {:value value})
 
 (defn children [node]
   (filter some?
@@ -52,16 +49,16 @@
 (defn mmr-append-leaf [old-node leaf]
   (if
       (is-power-of-two (mmr-leafcount old-node))
-    (node old-node leaf)
-    (node (:left old-node) (mmr-append-leaf (:right old-node) leaf))
+    (node old-node leaf (take-index))
+    (node (:left old-node) (mmr-append-leaf (:right old-node) leaf) (:value old-node))
     ))
 
 (defn mmr-from-leafcount [leafcount]
   (reset! index 0)
-  (reduce (fn [root leaf-label]
-            (mmr-append-leaf root (leaf leaf-label)))
+  (reduce (fn [root _]
+            (mmr-append-leaf root (leaf (take-index))))
           (leaf (take-index))
-          (repeatedly (dec leafcount) take-index))
+          (range (dec leafcount)))
   )
 
 (defn mmr-graph [root]
@@ -103,9 +100,12 @@
   )
 
 (def example-mmr
-  (node
-   (node (leaf "a") (leaf "b"))
-   (node (leaf "c") (leaf "d")))
+  (do
+    (reset! index 0)
+    (node
+     (node (leaf "a") (leaf "b") (take-index))
+     (node (leaf "c") (leaf "d") (take-index))
+     (take-index)))
   )
 
 (def extended-mmr (reduce (fn [root leaf-label] (mmr-append-leaf root (leaf leaf-label))) example-mmr ["e" "f" "g" "h"]))
