@@ -2,6 +2,11 @@
   (:require [rhizome.viz :as viz])
   )
 
+(def index (atom 0))
+
+(defn take-index []
+  (swap! index inc))
+
 (defn parentheses-maybe [string]
   (if (nil? (re-find #"⋁" string))
     string
@@ -52,10 +57,11 @@
     ))
 
 (defn mmr-from-leafcount [leafcount]
+  (reset! index 0)
   (reduce (fn [root leaf-label]
             (mmr-append-leaf root (leaf leaf-label)))
-          (leaf 1)
-          (take (dec leafcount) (range 2 (inc leafcount))))
+          (leaf (take-index))
+          (repeatedly (dec leafcount) take-index))
   )
 
 (defn mmr-graph [root]
