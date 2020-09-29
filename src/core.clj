@@ -2,10 +2,18 @@
   (:require [rhizome.viz :as viz])
   )
 
+(defn parentheses-maybe [string]
+  (if (nil? (re-find #"⋁" string))
+    string
+    (str "(" string ")")))
+
 (defn node [left right]
   {:left left
    :right right
-   :value (str (:value left) (:value right))})
+   :value (str
+           (parentheses-maybe (:value left))
+           "⋁"
+           (parentheses-maybe (:value right)))})
 
 (defn leaf [value]
   {:value (str value)})
