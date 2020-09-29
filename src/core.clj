@@ -55,7 +55,7 @@
   (reduce (fn [root leaf-label]
             (mmr-append-leaf root (leaf leaf-label)))
           (leaf 1)
-          (take (dec leafcount) (range 2 leafcount)))
+          (take (dec leafcount) (range 2 (inc leafcount))))
   )
 
 (defn mmr-graph [root]
