@@ -7,6 +7,9 @@
 (defn take-index []
   (swap! index inc))
 
+(defn decrease-index []
+  (swap! index dec))
+
 (defn parentheses-maybe [string]
   (if (nil? (re-find #"⋁" string))
     string
@@ -50,7 +53,7 @@
   (if
       (is-power-of-two (mmr-leafcount old-node))
     (node old-node leaf (take-index))
-    (node (:left old-node) (mmr-append-leaf (:right old-node) leaf) (:value old-node))
+    (do (decrease-index) (node (:left old-node) (mmr-append-leaf (:right old-node) (assoc leaf :value @index)) (take-index)))
     ))
 
 (defn mmr-from-leafcount [leafcount]
