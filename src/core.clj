@@ -87,10 +87,8 @@
       ]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
-                  :cluster->descriptor (fn [n] {:label n})
-                  :node->cluster (fn [node-key] (if (not (has-children? (find-subtree mmr node-key)))
-                                                 "aleph"
-                                                 ))
+                  ;; :cluster->descriptor (fn [n] {:label n})
+                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key)))
                   )
   )
 
