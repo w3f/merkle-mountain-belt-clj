@@ -2,7 +2,7 @@
   (:require [rhizome.viz :as viz])
   )
 
-(def index (atom 0))
+(def index (atom -1))
 
 (defn take-index []
   (swap! index inc))
@@ -57,7 +57,7 @@
     ))
 
 (defn mmr-from-leafcount [leafcount]
-  (reset! index 0)
+  (reset! index -1)
   (reduce (fn [root _]
             (mmr-append-leaf root (leaf (take-index))))
           (leaf (take-index))
@@ -102,7 +102,7 @@
 
 (def example-mmr
   (do
-    (reset! index 0)
+    (reset! index -1)
     (node
      (node (leaf "a") (leaf "b") (take-index))
      (node (leaf "c") (leaf "d") (take-index))
