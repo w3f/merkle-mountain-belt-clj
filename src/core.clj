@@ -18,11 +18,14 @@
 (s/def ::parent (s/keys :req [::left ::right ::hash ::value]))
 (s/def ::node (s/or :parent ::parent :leaf ::leaf))
 
+;; test
 (sgen/generate (s/gen ::hash))
 (sgen/generate (s/gen ::left))
 (sgen/generate (s/gen ::node))
 
+;; test
 (s/valid? ::node {::left 1 ::right 1 ::hash 1 ::value 1})
+(s/valid? ::node {::value 1})
 
 (s/def ::storage-map (s/map-of ::hash ::leaf))
 (defonce storage (atom {}))
@@ -36,6 +39,17 @@
 
 (reset-storage!)
 (def temp-storage @storage)
+
+(defn children [node]
+  (filter some?
+          ((juxt ::left ::right) node)))
+
+;; test
+(let [parent (sgen/generate (s/gen ::parent))]
+  [parent (children parent)])
+
+(defn has-children? [node]
+  (not-empty (children node)))
 
 (defn hash-node [node]
   (if (has-children? node)
@@ -67,13 +81,6 @@
 (defn leaf [value]
   {::value value})
 
-(defn children [node]
-  (filter some?
-          ((juxt ::left ::right) node)))
-
-(defn has-children? [node]
-  (not-empty (children node)))
-
 (defn mmr-depth [node]
   (if (has-children? node)
     (+ 1
@@ -89,7 +96,7 @@
   (if (has-children? node)
     (conj (children node) (map get-descendants (children node)))))
 
-(get-descendants)
+;; (get-descendants)
 (identity @storage)
 
 (storage-add! (leaf 2))
