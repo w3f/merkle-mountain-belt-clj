@@ -129,6 +129,42 @@
     ;; if this is not the case, preserve the left branch of the old mmr and append the new leaf to the right branch
     (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc new-leaf ::index @index)) (take-index)))))
 
+(def root-storage (atom []))
+(identity @root-storage)
+(defn mmb-append-leaf [old-node new-leaf]
+  (swap! root-storage conj (leaf (take-leaf)))
+  )
+
+(defn mmb-from-leafcount [leafcount]
+  (reset! index -1)
+  (reset! leaf-index -1)
+  (swap! root-storage conj (leaf (take-index)))
+  ;; (partition)
+  @root-storage
+  ;; (reduce (fn [root _]
+  ;;           (mmb-append-leaf root (leaf (take-index))))
+  ;;         (leaf (take-index))
+  ;;         (range (dec leafcount)))
+)
+
+(filter (fn [[a b]] (= (mmr-leafcount a) (mmr-leafcount b))) (partition 2 1 [(leaf 1) (leaf 1) (mmr-from-leafcount 2) (mmr-from-leafcount 2)]))
+
+(defn check-subsequency-and-recurse [accumulator remainder]
+  (if (empty? remainder)
+    accumulator
+    (let [head (first remainder)]
+     (if (= (first head) (second head))
+       ;; merge-trees-and-fold-rest
+       (concat (conj accumulator 1000) (map first (rest remainder)))
+       (check-subsequency-and-recurse (conj accumulator (first head)) (rest remainder))
+       ))
+    )
+  )
+
+(check-subsequency-and-recurse [] (partition 2 1 [0] [1 2 3 3 4 5 6]))
+
+(mmb-from-leafcount 1)
+
 (defn mmr-from-leafcount [leafcount]
   (reset! index -1)
   (reset! leaf-index -1)
