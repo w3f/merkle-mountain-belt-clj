@@ -142,19 +142,19 @@
                           (map (if meet-labeling ::value ::index) (children root))}
                          (map mmr-graph (children root))])))
 
-(defn find-subtree [root node-key]
-  (if (= (::index root) node-key)
+(defn find-subtree [root node-key & value?]
+  (if (= ((if value? ::value ::index) root) node-key)
     root
     (if (has-children? root)
       (first
        (flatten
         (filter
          #(not (or (nil? %) (empty? %)))
-         (map #(find-subtree % node-key) (children root))))))))
+         (map #(find-subtree % node-key value?) (children root))))))))
 
-(mmr-from-leafcount 4)
-(find-subtree (mmr-from-leafcount 9) 9)
-(find-subtree (mmr-from-leafcount 9) "(1⋁2)⋁(3⋁4)")
+(mmr-from-leafcount 5)
+(find-subtree (mmr-from-leafcount 5) 8)
+(find-subtree (mmr-from-leafcount 9) "(0⋁1)⋁(2⋁3)" true)
 
 (mmr-graph (mmr-from-leafcount 4))
 
@@ -163,7 +163,7 @@
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
                   ;; ::cluster->descriptor (fn [n] {::label n})
-                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key))))
+                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key meet-labeling))))
   graph
   )
 
