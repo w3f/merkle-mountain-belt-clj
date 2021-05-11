@@ -7,6 +7,8 @@
 (def index (atom -1))
 (def leaf-index (atom -1))
 
+(def meet-labeling false)
+
 (s/def ::hash int?)
 
 (s/def ::left ::hash)
@@ -74,12 +76,18 @@
 (defn node [left right index]
   {::left left
    ::right right
-   ::value (str (parentheses-maybe (str (::value left))) "⋁" (parentheses-maybe (str (::value right))))
+   ;; ::value (hash (str left right))
+   ;; ::value (str (::value left) "⋁" (::value right))
+   ::value (if meet-labeling
+             (str (parentheses-maybe (str (::value left))) "⋁" (parentheses-maybe (str (::value right))))
+             index)
    ::index index}
   )
 
+;; (mmr-from-leafcount 5)
+
 (defn leaf [index & value]
-  {::value (if value value (swap! leaf-index inc))
+  {::value (if value value (if meet-labeling (swap! leaf-index inc) index))
    ::index index})
 
 (defn mmr-depth [node]
@@ -113,12 +121,12 @@
    (.pow (BigInteger. "2") (int (/ (Math/log num) (Math/log 2))))
    num))
 
-(defn mmr-append-leaf [old-node leaf]
+(defn mmr-append-leaf [old-node new-leaf]
   (if
    (is-power-of-two (mmr-leafcount old-node))
     ;; if number of leafs stemming from old-node is power of two, then create a new node that has the old-node as left child and the new leaf as right child
-    (node old-node leaf (take-index))
-    (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc leaf ::index @index)) (take-index)))))
+    (node old-node new-leaf (take-index))
+    (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc new-leaf ::index @index)) (take-index)))))
 
 (defn mmr-from-leafcount [leafcount]
   (reset! index -1)
@@ -129,7 +137,10 @@
           (range (dec leafcount))))
 
 (defn mmr-graph [root]
-  (apply merge (flatten [{(::value root) (map ::value (children root))} (map mmr-graph (children root))])))
+  (apply merge (flatten [{
+                          ((if meet-labeling ::value ::index) root)
+                          (map (if meet-labeling ::value ::index) (children root))}
+                         (map mmr-graph (children root))])))
 
 (defn find-subtree [root node-key]
   (if (= (::index root) node-key)
@@ -141,13 +152,13 @@
          #(not (or (nil? %) (empty? %)))
          (map #(find-subtree % node-key) (children root))))))))
 
-(mmr-from-leafcount 9)
+(mmr-from-leafcount 4)
 (find-subtree (mmr-from-leafcount 9) 9)
 (find-subtree (mmr-from-leafcount 9) "(1⋁2)⋁(3⋁4)")
 
-(mmr-graph (mmr-from-leafcount 3))
+(mmr-graph (mmr-from-leafcount 4))
 
-(let [mmr (mmr-from-leafcount 11)
+(let [mmr (mmr-from-leafcount 4)
       graph (mmr-graph mmr)]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
