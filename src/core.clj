@@ -69,13 +69,16 @@
 (defn tree-from-storage-map [node]
   ())
 
-(defn node [left right]
+(defn node [left right index]
   {::left left
    ::right right
-   ::value (hash (str left right))})
+   ::value (hash (str left right))
+   ::index index}
+  )
 
-(defn leaf [value]
-  {::value value})
+(defn leaf [index & value]
+  {::value value
+   ::index index})
 
 (defn mmr-depth [node]
   (if (has-children? node)
@@ -95,8 +98,8 @@
 (identity @storage)
 
 (storage-add! (leaf 2))
-(storage-add! (node (leaf 1) (leaf 2)))
-(node (leaf 1) (leaf 2))
+(storage-add! (node (leaf 1) (leaf 2) 3))
+(node (leaf 1) (leaf 2) 3)
 
 (defn mmr-leafcount [node]
   (if (has-children? node)
@@ -123,10 +126,10 @@
           (range (dec leafcount))))
 
 (defn mmr-graph [root]
-  (apply merge (flatten [{(::value root) (map ::value (children root))} (map mmr-graph (children root))])))
+  (apply merge (flatten [{(::index root) (map ::index (children root))} (map mmr-graph (children root))])))
 
 (defn find-subtree [root node-key]
-  (if (= (::value root) node-key)
+  (if (= (::index root) node-key)
     root
     (if (has-children? root)
       (first
@@ -135,15 +138,19 @@
          #(not (or (nil? %) (empty? %)))
          (map #(find-subtree % node-key) (children root))))))))
 
+(mmr-from-leafcount 9)
+(find-subtree (mmr-from-leafcount 9) 9)
 (find-subtree (mmr-from-leafcount 9) "(1⋁2)⋁(3⋁4)")
+
+(mmr-graph (mmr-from-leafcount 3))
 
 (let [mmr (mmr-from-leafcount 11)
       graph (mmr-graph mmr)]
   (viz/view-graph (keys graph) graph
-                  ::node->descriptor (fn [n] {::label n})
+                  ::node->descriptor (fn [n] {::index n})
                   ;; ::cluster->descriptor (fn [n] {::label n})
                   ::node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key))))
-  ;; graph
+  graph
   )
 
 (comment
