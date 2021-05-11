@@ -126,6 +126,7 @@
    (is-power-of-two (mmr-leafcount old-node))
     ;; if number of leafs stemming from old-node is power of two, then create a new node that has the old-node as left child and the new leaf as right child
     (node old-node new-leaf (take-index))
+    ;; if this is not the case, preserve the left branch of the old mmr and append the new leaf to the right branch
     (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc new-leaf ::index @index)) (take-index)))))
 
 (defn mmr-from-leafcount [leafcount]
