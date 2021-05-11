@@ -116,7 +116,7 @@
    (is-power-of-two (mmr-leafcount old-node))
     ;; if number of leafs stemming from old-node is power of two, then create a new node that has the old-node as left child and the new leaf as right child
     (node old-node leaf (take-index))
-    (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc leaf ::value @index)) (take-index)))))
+    (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc leaf ::index @index)) (take-index)))))
 
 (defn mmr-from-leafcount [leafcount]
   (reset! index -1)
@@ -147,9 +147,9 @@
 (let [mmr (mmr-from-leafcount 11)
       graph (mmr-graph mmr)]
   (viz/view-graph (keys graph) graph
-                  ::node->descriptor (fn [n] {::index n})
+                  :node->descriptor (fn [n] {:label n})
                   ;; ::cluster->descriptor (fn [n] {::label n})
-                  ::node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key))))
+                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key))))
   graph
   )
 
