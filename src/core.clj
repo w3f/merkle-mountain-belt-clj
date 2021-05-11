@@ -5,15 +5,17 @@
             [clojure.spec.test.alpha :as stest]))
 
 (def index (atom -1))
+(def leaf-index (atom -1))
 
 (s/def ::hash int?)
 
 (s/def ::left ::hash)
 (s/def ::right ::hash)
 (s/def ::value int?)
+(s/def ::index nat-int?)
 
-(s/def ::leaf (s/keys :req [::value]))
-(s/def ::parent (s/keys :req [::left ::right ::hash ::value]))
+(s/def ::leaf (s/keys :req [::value ::index]))
+(s/def ::parent (s/keys :req [::left ::right ::hash ::value ::index]))
 (s/def ::node (s/or :parent ::parent :leaf ::leaf))
 
 ;; test
@@ -22,8 +24,8 @@
 (sgen/generate (s/gen ::node))
 
 ;; test
-(s/valid? ::node {::left 1 ::right 1 ::hash 1 ::value 1})
-(s/valid? ::node {::value 1})
+(s/valid? ::node {::left 1 ::right 1 ::hash 1 ::value 1 ::index 1})
+(s/valid? ::node {::value 1 ::index 1})
 
 (s/def ::storage-map (s/map-of ::hash ::leaf))
 (defonce storage (atom {}))
@@ -72,12 +74,12 @@
 (defn node [left right index]
   {::left left
    ::right right
-   ::value (hash (str left right))
+   ::value (str (parentheses-maybe (str (::value left))) "⋁" (parentheses-maybe (str (::value right))))
    ::index index}
   )
 
 (defn leaf [index & value]
-  {::value value
+  {::value (if value value (swap! leaf-index inc))
    ::index index})
 
 (defn mmr-depth [node]
@@ -120,13 +122,14 @@
 
 (defn mmr-from-leafcount [leafcount]
   (reset! index -1)
+  (reset! leaf-index -1)
   (reduce (fn [root _]
             (mmr-append-leaf root (leaf (take-index))))
           (leaf (take-index))
           (range (dec leafcount))))
 
 (defn mmr-graph [root]
-  (apply merge (flatten [{(::index root) (map ::index (children root))} (map mmr-graph (children root))])))
+  (apply merge (flatten [{(::value root) (map ::value (children root))} (map mmr-graph (children root))])))
 
 (defn find-subtree [root node-key]
   (if (= (::index root) node-key)
