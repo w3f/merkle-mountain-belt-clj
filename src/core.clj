@@ -131,6 +131,18 @@
   (swap! root-storage conj (leaf (take-index)))
   )
 
+(defn check-subsequency-and-recurse [accumulator remainder]
+  (if (empty? remainder)
+    (into [] accumulator)
+    (let [head (first remainder)]
+      (if (= (mmr-leafcount (first head)) (mmr-leafcount (second head)))
+        ;; merge-trees-and-fold-rest
+        (into [] (concat (conj accumulator (node (first head) (second head) (take-index))) (map first (rest (rest remainder)))))
+        (check-subsequency-and-recurse (conj accumulator (first head)) (rest remainder))
+        ))
+    )
+  )
+
 (defn mmb-from-indexcount [indexcount]
   (reset! index -1)
   (reset! leaf-index -1)
@@ -144,18 +156,6 @@
           (range indexcount)
           )
   @root-storage
-  )
-
-(defn check-subsequency-and-recurse [accumulator remainder]
-  (if (empty? remainder)
-    (into [] accumulator)
-    (let [head (first remainder)]
-      (if (= (mmr-leafcount (first head)) (mmr-leafcount (second head)))
-       ;; merge-trees-and-fold-rest
-        (into [] (concat (conj accumulator (node (first head) (second head) (take-index))) (map first (rest (rest remainder)))))
-        (check-subsequency-and-recurse (conj accumulator (first head)) (rest remainder))
-       ))
-    )
   )
 
 (defn mmr-from-leafcount [leafcount]
