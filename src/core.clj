@@ -26,7 +26,7 @@
 (sgen/generate (s/gen ::node))
 
 ;; test
-(s/valid? ::node {::left 1 ::right 1 ::hash 1 ::value 1 ::index 1})
+(s/explain ::node {::left 1 ::right 1 ::hash 1 ::index 1})
 (s/valid? ::node {::value 1 ::index 1})
 
 (s/def ::storage-map (s/map-of ::hash ::leaf))
@@ -100,16 +100,10 @@
   (swap! storage assoc-in [(hash-node node)] node))
 
 (defn is-root? [node])
+
 (defn get-descendants [node]
   (if (has-children? node)
     (conj (children node) (map get-descendants (children node)))))
-
-;; (get-descendants)
-(identity @storage)
-
-(storage-add! (leaf 2))
-(storage-add! (node (leaf 1) (leaf 2) 3))
-(node (leaf 1) (leaf 2) 3)
 
 (defn mmr-leafcount [node]
   (if (nil? node)
@@ -131,10 +125,10 @@
     ;; if this is not the case, preserve the left branch of the old mmr and append the new leaf to the right branch
     (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc new-leaf ::index @index)) (take-index)))))
 
-(def root-storage (atom []))
-(identity @root-storage)
+(defonce root-storage (atom []))
+
 (defn mmb-append-leaf [old-node new-leaf]
-  (swap! root-storage conj (leaf (take-leaf)))
+  (swap! root-storage conj (leaf (take-index)))
   )
 
 (defn mmb-from-indexcount [indexcount]
@@ -149,15 +143,8 @@
           []
           (range indexcount)
           )
-  ;; (partition)
   @root-storage
-  ;; (reduce (fn [root _]
-  ;;           (mmb-append-leaf root (leaf (take-index))))
-  ;;         (leaf (take-index))
-  ;;         (range (dec leafcount)))
   )
-
-(filter (fn [[a b]] (= (mmr-leafcount a) (mmr-leafcount b))) (partition 2 1 [(leaf 1) (leaf 1) (mmr-from-leafcount 2) (mmr-from-leafcount 2)]))
 
 (defn check-subsequency-and-recurse [accumulator remainder]
   (if (empty? remainder)
@@ -170,10 +157,6 @@
        ))
     )
   )
-
-(check-subsequency-and-recurse [] (partition 2 1 [0] [1 2 3 3 4 5 6]))
-
-(mmb-from-leafcount 1)
 
 (defn mmr-from-leafcount [leafcount]
   (reset! index -1)
@@ -191,7 +174,6 @@
 
 (defn mmb-graph [roots]
   (let [mmr-graphs (map mmr-graph roots)
-        ;; root-nodes (map (comp first first) mmr-graphs)
         root-nodes (map ::value roots)
         ]
     (apply merge {"fake-root", root-nodes} mmr-graphs)
@@ -207,26 +189,20 @@
          #(not (or (nil? %) (empty? %)))
          (map #(find-subtree % node-key value?) (children root))))))))
 
-(mmr-from-leafcount 5)
-(find-subtree (mmr-from-leafcount 5) 8)
-(find-subtree (mmr-from-leafcount 9) "(0⋁1)⋁(2⋁3)" true)
-
-(mmr-graph (mmr-from-leafcount 4))
-(let [mmr (mmb-from-indexcount 15)
+(let [mmr (mmb-from-indexcount 10)
       graph (mmb-graph mmr)]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
-                  ;; ::cluster->descriptor (fn [n] {::label n})
                   :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key join-labeling))))
   graph
   )
 
-(let [mmr (mmr-from-leafcount 15)
+(let [mmr (mmr-from-leafcount 10)
       graph (mmr-graph mmr)]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
-                  ;; ::cluster->descriptor (fn [n] {::label n})
-                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key join-labeling))))
+                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key join-labeling)))
+                  )
   graph
   )
 
