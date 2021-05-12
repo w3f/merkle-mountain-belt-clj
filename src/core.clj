@@ -7,7 +7,7 @@
 (def index (atom -1))
 (def leaf-index (atom -1))
 
-(def meet-labeling false)
+(def join-labeling true)
 
 (s/def ::hash int?)
 
@@ -78,7 +78,7 @@
    ::right right
    ;; ::value (hash (str left right))
    ;; ::value (str (::value left) "⋁" (::value right))
-   ::value (if meet-labeling
+   ::value (if join-labeling
              (str (parentheses-maybe (str (::value left))) "⋁" (parentheses-maybe (str (::value right))))
              index)
    ::index index}
@@ -87,7 +87,7 @@
 ;; (mmr-from-leafcount 5)
 
 (defn leaf [index & value]
-  {::value (if value value (if meet-labeling (swap! leaf-index inc) index))
+  {::value (if value value (if join-labeling (swap! leaf-index inc) index))
    ::index index})
 
 (defn mmr-depth [node]
@@ -175,8 +175,8 @@
 
 (defn mmr-graph [root]
   (apply merge (flatten [{
-                          ((if meet-labeling ::value ::index) root)
-                          (map (if meet-labeling ::value ::index) (children root))}
+                          ((if join-labeling ::value ::index) root)
+                          (map (if join-labeling ::value ::index) (children root))}
                          (map mmr-graph (children root))])))
 
 (defn find-subtree [root node-key & value?]
@@ -200,7 +200,7 @@
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
                   ;; ::cluster->descriptor (fn [n] {::label n})
-                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key meet-labeling))))
+                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key join-labeling))))
   graph
   )
 
