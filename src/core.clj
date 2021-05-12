@@ -9,7 +9,7 @@
 
 (def join-labeling true)
 
-(s/def ::hash int?)
+(s/def ::hash nat-int?)
 
 (s/def ::left ::hash)
 (s/def ::right ::hash)
@@ -137,28 +137,36 @@
   (swap! root-storage conj (leaf (take-leaf)))
   )
 
-(defn mmb-from-leafcount [leafcount]
+(defn mmb-from-indexcount [indexcount]
   (reset! index -1)
   (reset! leaf-index -1)
-  (swap! root-storage conj (leaf (take-index)))
+  (reset! root-storage [])
+  (reduce (fn [root _]
+            (do
+              (swap! root-storage conj (leaf (take-index)))
+              (swap! root-storage #(check-subsequency-and-recurse [] (partition 2 1 [] %)))
+              ))
+          []
+          (range indexcount)
+          )
   ;; (partition)
   @root-storage
   ;; (reduce (fn [root _]
   ;;           (mmb-append-leaf root (leaf (take-index))))
   ;;         (leaf (take-index))
   ;;         (range (dec leafcount)))
-)
+  )
 
 (filter (fn [[a b]] (= (mmr-leafcount a) (mmr-leafcount b))) (partition 2 1 [(leaf 1) (leaf 1) (mmr-from-leafcount 2) (mmr-from-leafcount 2)]))
 
 (defn check-subsequency-and-recurse [accumulator remainder]
   (if (empty? remainder)
-    accumulator
+    (into [] accumulator)
     (let [head (first remainder)]
-     (if (= (first head) (second head))
+      (if (= (mmr-leafcount (first head)) (mmr-leafcount (second head)))
        ;; merge-trees-and-fold-rest
-       (concat (conj accumulator 1000) (map first (rest remainder)))
-       (check-subsequency-and-recurse (conj accumulator (first head)) (rest remainder))
+        (into [] (concat (conj accumulator (node (first head) (second head) (take-index))) (map first (rest (rest remainder)))))
+        (check-subsequency-and-recurse (conj accumulator (first head)) (rest remainder))
        ))
     )
   )
@@ -181,6 +189,14 @@
                           (map (if join-labeling ::value ::index) (children root))}
                          (map mmr-graph (children root))])))
 
+(defn mmb-graph [roots]
+  (let [mmr-graphs (map mmr-graph roots)
+        ;; root-nodes (map (comp first first) mmr-graphs)
+        root-nodes (map ::value roots)
+        ]
+    (apply merge {"fake-root", root-nodes} mmr-graphs)
+    ))
+
 (defn find-subtree [root node-key & value?]
   (if (= ((if value? ::value ::index) root) node-key)
     root
@@ -196,8 +212,16 @@
 (find-subtree (mmr-from-leafcount 9) "(0⋁1)⋁(2⋁3)" true)
 
 (mmr-graph (mmr-from-leafcount 4))
+(let [mmr (mmb-from-indexcount 15)
+      graph (mmb-graph mmr)]
+  (viz/view-graph (keys graph) graph
+                  :node->descriptor (fn [n] {:label n})
+                  ;; ::cluster->descriptor (fn [n] {::label n})
+                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key join-labeling))))
+  graph
+  )
 
-(let [mmr (mmr-from-leafcount 4)
+(let [mmr (mmr-from-leafcount 15)
       graph (mmr-graph mmr)]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
