@@ -112,9 +112,11 @@
 (node (leaf 1) (leaf 2) 3)
 
 (defn mmr-leafcount [node]
-  (if (has-children? node)
-    (apply + (map mmr-leafcount (children node)))
-    1))
+  (if (nil? node)
+    0
+    (if (has-children? node)
+     (apply + (map mmr-leafcount (children node)))
+     1)))
 
 (defn is-power-of-two [num]
   (=
