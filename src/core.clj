@@ -1,5 +1,6 @@
 (ns core
   (:require [rhizome.viz :as viz]
+            [tangle.core :as tangle]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as sgen]
             [clojure.spec.test.alpha :as stest]))
@@ -77,7 +78,6 @@
   {::left left
    ::right right
    ;; ::value (hash (str left right))
-   ;; ::value (str (::value left) "⋁" (::value right))
    ::value (if join-labeling
              (str (parentheses-maybe (str (::value left))) "⋁" (parentheses-maybe (str (::value right))))
              index)
@@ -189,6 +189,7 @@
          #(not (or (nil? %) (empty? %)))
          (map #(find-subtree % node-key value?) (children root))))))))
 
+;; mmb visualization
 (let [mmr (mmb-from-indexcount 10)
       graph (mmb-graph mmr)]
   (viz/view-graph (keys graph) graph
@@ -197,6 +198,7 @@
   graph
   )
 
+;; mmr visualization
 (let [mmr (mmr-from-leafcount 10)
       graph (mmr-graph mmr)]
   (viz/view-graph (keys graph) graph
@@ -205,6 +207,29 @@
                   )
   graph
   )
+
+(defn rhizome-to-tangle [graph]
+  [
+   (keys graph)
+   (apply concat (map (fn [[k v]] (map #(identity [k %]) v)) graph))
+   ;; {}
+   {:node {:shape :oval}
+    :node->id (fn [n] (if (keyword? n) (name n) n))
+    ;; :node->descriptor (fn [n] (when-not (keyword? n) n))
+    }
+   ])
+
+(defn tangle-view [graph]
+  (->
+   graph
+   rhizome-to-tangle
+   (#(apply tangle/graph->dot %))
+   (tangle/dot->image "png")
+   javax.imageio.ImageIO/read
+   viz/view-image
+   ))
+
+(tangle-view (mmb-graph (mmb-from-indexcount 5)))
 
 (comment
   (mmr-leafcount (::left (mmr-from-leafcount 14)))

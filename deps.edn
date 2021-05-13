@@ -2,5 +2,6 @@
  {
   rhizome {:mvn/version "0.2.9"}
   org.clojure/test.check {:mvn/version "0.9.0"}
+  macroz/tangle {:mvn/version "0.2.2"}
   }
  }
