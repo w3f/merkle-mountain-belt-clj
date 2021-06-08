@@ -44,15 +44,15 @@
 (def temp-storage @storage)
 
 (defn children [node]
-  (filter some?
-          ((juxt ::left ::right) node)))
+  (into [] (filter some?
+           ((juxt ::left ::right) node))))
+
+(defn has-children? [node]
+  (not-empty (children node)))
 
 ;; test
 (let [parent (sgen/generate (s/gen ::parent))]
   [parent (children parent)])
-
-(defn has-children? [node]
-  (not-empty (children node)))
 
 (defn hash-node [node]
   (if (has-children? node)
