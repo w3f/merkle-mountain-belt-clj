@@ -18,7 +18,7 @@
 
 (s/def ::left ::node)
 (s/def ::right ::node)
-(s/def ::value #(or (int? %) (string? %)))
+(s/def ::value (s/or :string string? :int int?))
 (s/def ::index nat-int?)
 
 ;; test
