@@ -40,9 +40,6 @@
   :ret ::storage-map)
 (defn reset-storage! [] (reset! storage {}))
 
-(reset-storage!)
-(def temp-storage @storage)
-
 (defn children [node]
   (into [] (filter some?
            ((juxt ::left ::right) node))))
