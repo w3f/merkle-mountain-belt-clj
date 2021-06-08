@@ -10,16 +10,16 @@
 
 (def join-labeling true)
 
-(s/def ::hash nat-int?)
-
-(s/def ::left ::hash)
-(s/def ::right ::hash)
-(s/def ::value int?)
-(s/def ::index nat-int?)
+(s/def ::hash (s/or :int nat-int? :string string?))
 
 (s/def ::leaf (s/keys :req [::value ::index]))
 (s/def ::parent (s/keys :req [::left ::right ::hash ::value ::index]))
 (s/def ::node (s/or :parent ::parent :leaf ::leaf))
+
+(s/def ::left ::node)
+(s/def ::right ::node)
+(s/def ::value int?)
+(s/def ::index nat-int?)
 
 ;; test
 (sgen/generate (s/gen ::hash))
