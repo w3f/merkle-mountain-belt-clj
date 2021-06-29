@@ -106,9 +106,10 @@
 
 (defn mmr-depth [node]
   (if (has-children? node)
-    (+ 1
-       (apply max (map mmr-depth (children node))))
-    1))
+     (+ 1
+        (apply max (map mmr-depth (children node))))
+     1)
+    )
 
 (defn storage-add! [node]
   (swap! storage assoc-in [(hash-node node)] node))
@@ -190,7 +191,7 @@
   (let [mmr-graphs (map mmr-graph roots)
         root-nodes (map ::value roots)
         ]
-    (apply merge {"fake-root", root-nodes} mmr-graphs)
+    (apply merge {"RN-1", root-nodes} mmr-graphs)
     ))
 
 (defn find-subtree
@@ -205,13 +206,24 @@
           #(not (or (nil? %) (empty? %)))
           (map #(find-subtree % node-key value?) (children root)))))))))
 
+(defn find-subtree-mmb [roots node-key & value?]
+  ;; (or
+   (some identity (map
+                   #(find-subtree % node-key value?)
+                   roots
+                   ))
+   ;; )
+  )
 
 ;; mmb visualization
-(let [mmr (mmb-from-indexcount 10)
-      graph (mmb-graph mmr)]
+(let [mmb (mmb-from-indexcount 15)
+      graph (mmb-graph mmb)]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
-                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key join-labeling))))
+                  :node->cluster (fn [node-key] (if (= node-key "RN-1")
+                                                 0
+                                                 (mmr-depth (find-subtree-mmb mmb node-key join-labeling))))
+                  )
   graph
   )
 
