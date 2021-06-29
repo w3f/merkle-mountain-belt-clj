@@ -48,6 +48,22 @@
 (defn has-children? [node]
   (not-empty (children node)))
 
+(s/fdef children
+  :args (s/cat :node ::node)
+  ;; :ret (s/tuple ::parent (s/coll-of ::child))
+  :ret (s/? (s/cat :left ::left :right ::right))
+  :fn #(if (has-children? (second (:node (:args %))))
+         (= 2 (count (:ret %)))
+         ;; (do
+         ;;   (if (not= 0 (count (:ret %))) (println %))
+         ;;  true)
+         (= 0 (count (:ret %)))
+         )
+  )
+
+(stest/instrument `children)
+(stest/check `children)
+
 ;; test
 (let [parent (sgen/generate (s/gen ::parent))]
   [parent (children parent)])
