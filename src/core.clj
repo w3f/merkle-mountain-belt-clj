@@ -14,6 +14,7 @@
 
 (s/def ::leaf (s/keys :req [::value ::index]))
 (s/def ::parent (s/keys :req [::left ::right ::hash ::value ::index]))
+(s/def ::child (s/or :left ::left :right ::right))
 (s/def ::node (s/or :parent ::parent :leaf ::leaf))
 
 (s/def ::left ::node)
