@@ -176,15 +176,18 @@
     (apply merge {"fake-root", root-nodes} mmr-graphs)
     ))
 
-(defn find-subtree [root node-key & value?]
-  (if (= ((if value? ::value ::index) root) node-key)
-    root
-    (if (has-children? root)
-      (first
-       (flatten
-        (filter
-         #(not (or (nil? %) (empty? %)))
-         (map #(find-subtree % node-key value?) (children root))))))))
+(defn find-subtree
+  ([root node-key] (find-subtree root node-key false))
+  ([root node-key value?]
+   (if (= ((if value? ::value ::index) root) node-key)
+     root
+     (if (has-children? root)
+       (first
+        (flatten
+         (filter
+          #(not (or (nil? %) (empty? %)))
+          (map #(find-subtree % node-key value?) (children root)))))))))
+
 
 ;; mmb visualization
 (let [mmr (mmb-from-indexcount 10)
