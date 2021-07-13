@@ -270,9 +270,14 @@
 (def example-mmr
   (do
     (reset! index -1)
+    (reset! leaf-index -1)
     (node
-     (node (leaf "a") (leaf "b") (take-index))
-     (node (leaf "c") (leaf "d") (take-index))
+     (node (leaf 1) (leaf 2) (take-index))
+     (node (leaf 3) (leaf 4) (take-index))
      (take-index))))
 
-(def extended-mmr (reduce (fn [root leaf-label] (mmr-append-leaf root (leaf leaf-label))) example-mmr ["e" "f" "g" "h"]))
+(identity example-mmr)
+
+(def extended-mmr (reduce (fn [root leaf-label] (mmr-append-leaf root (leaf leaf-label))) example-mmr [1 2 3 4]))
+
+(tangle-view (mmr-graph (identity extended-mmr)))
