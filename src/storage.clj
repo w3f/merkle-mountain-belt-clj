@@ -7,7 +7,6 @@
   (let [array-len (count @storage-array)
         ;; incidentally correct since index is calculated starting at 1 in lieu of 0
         zero-leaves (- index array-len)]
-    (println (str "additional leaves: " zero-leaves))
     (swap! storage-array concat (repeat zero-leaves 0) (list item))
     ))
 
@@ -55,14 +54,10 @@
 (= 12 (parent-index 10))
 
 (defn leaf-location [n]
-  (do
-    (println (str n ": addition"))
-    (+ (* 2 n) 1)))
+  (+ (* 2 n) 1))
 
 (defn peak-location [n]
-  (do
-    (println (str n ": merge"))
-    (+ (* 2 n) 2)))
+  (+ (* 2 n) 2))
 
 (map leaf-location (range 100))
 (map peak-location (range 100))

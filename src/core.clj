@@ -8,7 +8,7 @@
 (def index (atom -1))
 (def leaf-index (atom -1))
 
-(def join-labeling true)
+(def join-labeling false)
 
 (s/def ::hash (s/or :int nat-int? :string string?))
 
@@ -28,7 +28,7 @@
 (sgen/generate (s/gen ::node))
 
 ;; test
-(s/explain ::node {::left 1 ::right 1 ::hash 1 ::index 1})
+(s/explain ::node {::left {::value 5 ::index 1} ::right {::value 5 ::index 1} ::hash 1 ::value 5 ::index 1})
 (s/valid? ::node {::value 1 ::index 1})
 
 (s/def ::storage-map (s/map-of ::hash ::leaf))
@@ -228,7 +228,7 @@
   )
 
 ;; mmr visualization
-(let [mmr (mmr-from-leafcount 10)
+(let [mmr (mmr-from-leafcount 4)
       graph (mmr-graph mmr)]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
@@ -258,7 +258,25 @@
    viz/view-image
    ))
 
-(tangle-view (mmb-graph (mmb-from-indexcount 5)))
+(tangle-view (mmb-graph (mmb-from-indexcount 3)))
+
+(mmb-graph (mmb-from-indexcount 3))
+
+(def html-node {:id "html" :color "blue" :label [:TABLE {:BORDER 0} [:TR [:TD "hic"] [:TD {:BORDER 1} "cup"]]]})
+
+(def nodes [:a :b :c :d html-node])
+
+(def edges [[:a :b] [:a :c] [:c :d] [:a :c {:label "another" :style :dashed}] [:a :html]])
+
+(def dot (tangle/graph->dot nodes edges {:node {:shape :oval}
+                                  :node->id (fn [n] (if (keyword? n) (name n) (:id n)))
+                                  :node->descriptor (fn [n] (when-not (keyword? n) n))
+                                  }))
+
+(defn view-dot [graph]
+  (viz/view-image (javax.imageio.ImageIO/read (tangle/dot->image graph "png"))))
+
+(view-dot dot)
 
 (comment
   (mmr-leafcount (::left (mmr-from-leafcount 14)))
@@ -272,12 +290,15 @@
     (reset! index -1)
     (reset! leaf-index -1)
     (node
-     (node (leaf 1) (leaf 2) (take-index))
+     (node (leaf 0) (leaf 1) (take-index))
      (node (leaf 3) (leaf 4) (take-index))
      (take-index))))
 
+
+(def extended-mmr (reduce (fn [root leaf-label] (mmr-append-leaf root (leaf leaf-label))) example-mmr [5 6 7 8]))
 (identity example-mmr)
+(identity extended-mmr)
 
-(def extended-mmr (reduce (fn [root leaf-label] (mmr-append-leaf root (leaf leaf-label))) example-mmr [1 2 3 4]))
-
-(tangle-view (mmr-graph (identity extended-mmr)))
+(tangle-view (mmr-graph example-mmr))
+(tangle-view (mmr-graph (mmr-append-leaf example-mmr (leaf 5))))
+(tangle-view (mmr-graph extended-mmr))
