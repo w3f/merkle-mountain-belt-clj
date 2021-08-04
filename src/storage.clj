@@ -16,9 +16,10 @@
 
 (defn add-internal [item index]
   (let [array-len (count @storage-array)
-        additional-leaves (- index array-len)]
+        ;; incidentally correct since index is calculated starting at 1 in lieu of 0
+        zero-leaves (- index array-len)]
     ;; (println (str "additional leaves: " additional-leaves))
-    (doall (repeatedly (max 0 (dec additional-leaves)) add-zero-leaf))
+    (doall (repeatedly (max 0 zero-leaves) add-zero-leaf))
     (add-node-to-storage item)
     ))
 
