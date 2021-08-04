@@ -4,11 +4,6 @@
 (def leaf-count (atom 0))
 
 (conj (conj @storage-array 0) 1)
-(defn add-node-to-storage [leaf]
-  (swap! storage-array (fn [sa e] (conj sa e)) leaf))
-
-(defn add-zero-node []
-  (add-node-to-storage 0))
 
 (add-zero-leaf)
 (reset! storage-array '[])
@@ -19,8 +14,8 @@
         ;; incidentally correct since index is calculated starting at 1 in lieu of 0
         zero-leaves (- index array-len)]
     ;; (println (str "additional leaves: " additional-leaves))
-    (doall (repeatedly (max 0 zero-leaves) add-zero-leaf))
-    (add-node-to-storage item)
+    (println (str "additional leaves: " zero-leaves))
+    (swap! storage-array concat (repeat zero-leaves 0) (list item))
     ))
 
 (defn add-leaf [leaf]
