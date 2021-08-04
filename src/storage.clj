@@ -27,13 +27,11 @@
   (do
     ;; increase the leaf index
     (swap! leaf-count inc)
-    (println (str "leaf-count: " @leaf-count))
     (add-internal leaf (leaf-location @leaf-count))
     (if
         (not= (+ @leaf-count 1) (int (Math/pow 2 (p-adic-order 2 (+ @leaf-count 1)))))
       (add-internal "x" (peak-location @leaf-count)))
-     (println (str "storage: " @storage-array))
-     (println (str "storage-index: " (count @storage-array)" leaf-index: " (peak-location @leaf-count))))
+    )
   )
 
 (do
