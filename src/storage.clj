@@ -3,17 +3,10 @@
 (def storage-array (atom '[]))
 (def leaf-count (atom 0))
 
-(conj (conj @storage-array 0) 1)
-
-(add-zero-leaf)
-(reset! storage-array '[])
-(identity @storage-array)
-
 (defn add-internal [item index]
   (let [array-len (count @storage-array)
         ;; incidentally correct since index is calculated starting at 1 in lieu of 0
         zero-leaves (- index array-len)]
-    ;; (println (str "additional leaves: " additional-leaves))
     (println (str "additional leaves: " zero-leaves))
     (swap! storage-array concat (repeat zero-leaves 0) (list item))
     ))
@@ -36,52 +29,13 @@
   (doall (map #(add-leaf %) (range 1 10)))
   (println @storage-array))
 
-(identity @leaf-count)
-(identity @storage-array)
-
-(defn add-operation [leaf-count]
-  (if (= (+ leaf-count 1) (int (Math/pow 2 (p-adic-order 2 (+ leaf-count 1)))))
-    leaf-location
-    peak-location
-    )
-  )
-
-(map #(add-operation %) (range 20))
-
-(add-leaf)
-
-(highest-exponent-st-dividing 2 8)
-
-;; (map
-;;  (fn [n] (if ((/ (Math/log (+ n 1)) (Math/log 2)))
-;;           (str n ": addition")
-;;           (str n ": merge")))
-;;  (range 20))
-
-(map (fn [n]
-       (if (= (+ n 1) (int (Math/pow 2 (p-adic-order 2 (+ n 1)))))
-        (str n ": addition")
-        (str n ": merge")))
-     (range 1 20)
-     )
-
-(let [n 2] (= n (int (Math/pow 2 (highest-exponent-st-dividing 2 n)))))
-
-(Math/pow 2 1)
-(map (partial highest-exponent-st-dividing 2) (range 10))
+;; [0 0 0 1 0 2 x 3 0 4 x 5 x 6 x 7 0 8 x 9 x]
 
 (defn highest-exponent-st-dividing [p n]
   (last
    (filter #(= 0.0
                (mod (Math/abs n) (Math/pow p %)))
            (range 0 (Math/abs n)))))
-
-;; (mod 45 (Math/pow 3 2))
-;; p = 3, n = 45
-;; #(= 0 (mod n (Math/pow p %)))
-
-(highest-exponent-st-dividing -45 3)
-(highest-exponent-st-dividing 2 6)
 
 (defn p-adic-order [p n]
   (if (= 0 n)
@@ -93,8 +47,6 @@
 
 (defn parent-index [child-index]
   (+ child-index (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))
-
-(Math/pow 2 (+ (p-adic-order 2 6) 2))
 
 (= 10 (parent-index 7))
 (= 10 (parent-index 9))
