@@ -4,11 +4,11 @@
 (def leaf-count (atom 0))
 
 (conj (conj @storage-array 0) 1)
-(defn add-leaf-to-storage [leaf]
+(defn add-node-to-storage [leaf]
   (swap! storage-array (fn [sa e] (conj sa e)) leaf))
 
-(defn add-zero-leaf []
-  (add-leaf-to-storage 0))
+(defn add-zero-node []
+  (add-node-to-storage 0))
 
 (add-zero-leaf)
 (reset! storage-array '[])
@@ -20,17 +20,25 @@
     (swap! leaf-count inc)
     (println (str "leaf-count: " @leaf-count))
     (let [array-len (count @storage-array)
-         leaf-index ((add-operation @leaf-count) @leaf-count)
+         leaf-index (leaf-location @leaf-count)
          additional-leaves (- leaf-index array-len)]
-      (println (str "additional leaves: "additional-leaves))
+      (println (str "additional leaves: " additional-leaves))
      (doall (repeatedly (max 0 (dec additional-leaves)) add-zero-leaf))
-     (add-leaf-to-storage leaf)
+     (add-node-to-storage leaf)
+     (if (not= (+ @leaf-count 1) (int (Math/pow 2 (p-adic-order 2 (+ @leaf-count 1)))))
+       (let [
+             array-len (count @storage-array)
+             peak-index (peak-location @leaf-count)
+             additional-leaves (- peak-index array-len)]
+         (doall (repeatedly (max 0 (dec additional-leaves)) add-zero-leaf))
+         (add-node-to-storage "x"))
+       )
      (println (str "storage: " @storage-array))
      (println (str "storage-index: " (count @storage-array)" leaf-index: " leaf-index))
      )))
 
 (do
-  (reset! storage-array '[0])
+  (reset! storage-array '[])
   (reset! leaf-count 0)
   (println "------")
   (doall (map #(add-leaf %) (range 1 10)))
@@ -41,8 +49,8 @@
 
 (defn add-operation [leaf-count]
   (if (= (+ leaf-count 1) (int (Math/pow 2 (p-adic-order 2 (+ leaf-count 1)))))
-    addition-step-hash-location
-    merge-step-hash-location
+    leaf-location
+    peak-location
     )
   )
 
@@ -58,7 +66,6 @@
 ;;           (str n ": merge")))
 ;;  (range 20))
 
-(int (Math/pow 2 ##Inf))
 (map (fn [n]
        (if (= (+ n 1) (int (Math/pow 2 (p-adic-order 2 (+ n 1)))))
         (str n ": addition")
@@ -103,15 +110,15 @@
 (= 12 (parent-index 6))
 (= 12 (parent-index 10))
 
-(defn addition-step-hash-location [n]
+(defn leaf-location [n]
   (do
     (println (str n ": addition"))
     (+ (* 2 n) 1)))
 
-(defn merge-step-hash-location [n]
+(defn peak-location [n]
   (do
     (println (str n ": merge"))
     (+ (* 2 n) 2)))
 
-(map addition-step-hash-location (range 100))
-(map merge-step-hash-location (range 100))
+(map leaf-location (range 100))
+(map peak-location (range 100))
