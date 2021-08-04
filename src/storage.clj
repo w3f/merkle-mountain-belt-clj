@@ -14,28 +14,26 @@
 (reset! storage-array '[])
 (identity @storage-array)
 
+(defn add-internal [item index]
+  (let [array-len (count @storage-array)
+        additional-leaves (- index array-len)]
+    ;; (println (str "additional leaves: " additional-leaves))
+    (doall (repeatedly (max 0 (dec additional-leaves)) add-zero-leaf))
+    (add-node-to-storage item)
+    ))
+
 (defn add-leaf [leaf]
   (do
     ;; increase the leaf index
     (swap! leaf-count inc)
     (println (str "leaf-count: " @leaf-count))
-    (let [array-len (count @storage-array)
-         leaf-index (leaf-location @leaf-count)
-         additional-leaves (- leaf-index array-len)]
-      (println (str "additional leaves: " additional-leaves))
-     (doall (repeatedly (max 0 (dec additional-leaves)) add-zero-leaf))
-     (add-node-to-storage leaf)
-     (if (not= (+ @leaf-count 1) (int (Math/pow 2 (p-adic-order 2 (+ @leaf-count 1)))))
-       (let [
-             array-len (count @storage-array)
-             peak-index (peak-location @leaf-count)
-             additional-leaves (- peak-index array-len)]
-         (doall (repeatedly (max 0 (dec additional-leaves)) add-zero-leaf))
-         (add-node-to-storage "x"))
-       )
+    (add-internal leaf (leaf-location @leaf-count))
+    (if
+        (not= (+ @leaf-count 1) (int (Math/pow 2 (p-adic-order 2 (+ @leaf-count 1)))))
+      (add-internal "x" (peak-location @leaf-count)))
      (println (str "storage: " @storage-array))
-     (println (str "storage-index: " (count @storage-array)" leaf-index: " leaf-index))
-     )))
+     (println (str "storage-index: " (count @storage-array)" leaf-index: " (peak-location @leaf-count))))
+  )
 
 (do
   (reset! storage-array '[])
