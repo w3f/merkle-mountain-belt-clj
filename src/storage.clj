@@ -56,33 +56,11 @@
 (defn node-name-tuples [storage]
   (map (juxt identity #(nth @storage-array %)) (range (count storage))))
 
-(defn non-zero-entries-old []
-  (map (juxt identity #(nth @storage-array %)) (filter #(not= 0 (nth @storage-array %)) (range (count @storage-array))))
-  )
-
 (defn non-zero-entries []
-  (filter #(not= 0 (second %)) (node-name-tuples @storage-array))
-  )
-
-;; test that refactor still matches old implementation
-(= (non-zero-entries)
-   (non-zero-entries-old)
-   )
-
-(defn parents-old []
-  (map
-   (juxt identity #(nth @storage-array %))
-   (filter #(string? (nth @storage-array %)) (range (count @storage-array)))
-   ))
+  (filter #(not= 0 (second %)) (node-name-tuples @storage-array)))
 
 (defn parents []
-  (filter #(string? (second %)) (node-name-tuples @storage-array))
-)
-
-;; test that refactor still matches old implementation
-(= (parents)
-   (parents-old)
-   )
+  (filter #(string? (second %)) (node-name-tuples @storage-array)))
 
 (do
   (reset! storage-array '[])
