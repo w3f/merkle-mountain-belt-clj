@@ -59,6 +59,10 @@
 (defn parents []
   (filter #(string? (:name %)) (node-maps @storage-array)))
 
+;; strategy: get parent indices and filter for nodes where index exceeds length of storage-array
+(defn parent-less-nodes []
+  (filter #(and (< (count @storage-array) (second %)) (not= 0 (node-name (first %)))) (map (juxt identity parent-index) (range 1 (count @storage-array)))))
+
 (do
   (reset! storage-array '[])
   (reset! leaf-count 0)

@@ -8,20 +8,21 @@
 (storage/node-name (storage/left-child 30))
 (storage/left-child 30)
 
-(storage/parent-index 2)
-(map (storage/non-zero-entries))
-
 (defn graph []
   [
-   (map :name (storage/non-zero-entries))
-   (apply concat
-          (map #(list
-                 (list (:name %) (storage/node-name (storage/left-child (:index %))))
-                 (list (:name %) (storage/node-name (storage/right-child (:index %))))
-                 ) (storage/parents)))
+   (conj
+    (map :name (storage/non-zero-entries))
+    "RN")
+   (concat
+    (apply concat
+           (map #(list
+                  (list (:name %) (storage/node-name (storage/left-child (:index %))))
+                  (list (:name %) (storage/node-name (storage/right-child (:index %))))
+                  ) (storage/parents)))
+    (map (fn [parent-less-node] ["RN" (storage/node-name (first parent-less-node))])
+         (storage/parent-less-nodes)))
    {:node {:shape :oval}
     :node->id (fn [n] (if (keyword? n) (name n) n))
-    ;; :node->descriptor (fn [n] (when-not (keyword? n) n))
     }
    ]
 )
