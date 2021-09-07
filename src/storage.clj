@@ -50,20 +50,39 @@
 (defn children [parent]
   ((juxt left-child right-child) parent))
 
-;; TODO: refactor ordering to create tuples of index & val first
-(defn non-zero-entries []
+(defn node-name [index]
+  (nth @storage-array index))
+
+(defn node-name-tuples [storage]
+  (map (juxt identity #(nth @storage-array %)) (range (count storage))))
+
+(defn non-zero-entries-old []
   (map (juxt identity #(nth @storage-array %)) (filter #(not= 0 (nth @storage-array %)) (range (count @storage-array))))
   )
 
-;; TODO: ditto
-(defn parents []
+(defn non-zero-entries []
+  (filter #(not= 0 (second %)) (node-name-tuples @storage-array))
+  )
+
+;; test that refactor still matches old implementation
+(= (non-zero-entries)
+   (non-zero-entries-old)
+   )
+
+(defn parents-old []
   (map
    (juxt identity #(nth @storage-array %))
    (filter #(string? (nth @storage-array %)) (range (count @storage-array)))
    ))
 
-(defn node-name [index]
-  (nth @storage-array index))
+(defn parents []
+  (filter #(string? (second %)) (node-name-tuples @storage-array))
+)
+
+;; test that refactor still matches old implementation
+(= (parents)
+   (parents-old)
+   )
 
 (do
   (reset! storage-array '[])
