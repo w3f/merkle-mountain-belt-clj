@@ -13,11 +13,11 @@
 
 (defn graph []
   [
-   (map second (storage/non-zero-entries))
+   (map :name (storage/non-zero-entries))
    (apply concat
           (map #(list
-                 (list (second %) (storage/node-name (storage/left-child (first %))))
-                 (list (second %) (storage/node-name (storage/right-child (first %))))
+                 (list (:name %) (storage/node-name (storage/left-child (:index %))))
+                 (list (:name %) (storage/node-name (storage/right-child (:index %))))
                  ) (storage/parents)))
    {:node {:shape :oval}
     :node->id (fn [n] (if (keyword? n) (name n) n))

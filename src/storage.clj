@@ -50,17 +50,14 @@
 (defn children [parent]
   ((juxt left-child right-child) parent))
 
-(defn node-name [index]
-  (nth @storage-array index))
-
-(defn node-name-tuples [storage]
-  (map (juxt identity #(nth @storage-array %)) (range (count storage))))
+(defn node-maps [storage]
+  (map (fn [index ] {:index index :name (nth storage index)}) (range (count storage))))
 
 (defn non-zero-entries []
-  (filter #(not= 0 (second %)) (node-name-tuples @storage-array)))
+  (filter #(not= 0 (:name %)) (node-maps @storage-array)))
 
 (defn parents []
-  (filter #(string? (second %)) (node-name-tuples @storage-array)))
+  (filter #(string? (:name %)) (node-maps @storage-array)))
 
 (do
   (reset! storage-array '[])
@@ -76,9 +73,9 @@
 
 ;; trees of children
 (map (juxt left-child right-child) [6 10 12 14])
-(map (juxt identity children) (filter #(= "p" (nth @storage-array %)) (range (count @storage-array))))
+(map (juxt identity children) (filter #(re-matches #"p-.*" (str (nth @storage-array %))) (range (count @storage-array))))
 (filter #(not= 0 (nth @storage-array %)) (range (count @storage-array)))
-(map second (map (juxt identity children) (filter #(= (str "p-" %) (nth @storage-array %)) (range (count @storage-array)))))
+(map (juxt identity children) (filter #(re-matches #"p-.*" (str (nth @storage-array %))) (range (count @storage-array))))
 
 ;; confirm that all non-zero entries are covered by the tree
 (=
