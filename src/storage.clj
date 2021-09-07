@@ -62,6 +62,9 @@
    (filter #(string? (nth @storage-array %)) (range (count @storage-array)))
    ))
 
+(defn node-name [index]
+  (nth @storage-array index))
+
 (do
   (reset! storage-array '[])
   (reset! leaf-count 0)
