@@ -1,26 +1,32 @@
 (ns visualization
-  (:require [tangle.core :as tangle]
+  (:require [rhizome.viz :as viz]
+            [tangle.core :as tangle]
             [storage])
   )
 
-;; prelim structure for visualization
-(storage/parents)
-(storage/node-name (storage/left-child 30))
-(storage/left-child 30)
+(defn decorate-copath [edges co-path decoration]
+  (map #(if (contains? (into #{} co-path) (second %)) (concat % [decoration]) %) edges)
+    )
 
-(defn graph []
+(defn graph [co-path]
   [
+   ;; nodes
    (conj
     (map :name (storage/non-zero-entries))
     "RN")
-   (concat
-    (apply concat
-           (map #(list
-                  (list (:name %) (storage/node-name (storage/left-child (:index %))))
-                  (list (:name %) (storage/node-name (storage/right-child (:index %))))
-                  ) (storage/parents)))
-    (map (fn [parent-less-node] ["RN" (storage/node-name (first parent-less-node))])
-         (storage/parent-less-nodes)))
+   ;; edges
+   (decorate-copath
+    (concat
+     (apply concat
+            (map #(list
+                   (list (:name %) (storage/node-name (storage/left-child (:index %))))
+                   (list (:name %) (storage/node-name (storage/right-child (:index %))))
+                   ) (storage/parents)))
+     (map (fn [parent-less-node] ["RN" (storage/node-name (first parent-less-node))])
+          (storage/parent-less-nodes)))
+    (storage/co-path co-path)
+    {:style :dashed :color "blue"}
+    )
    {:node {:shape :oval}
     :node->id (fn [n] (if (keyword? n) (name n) n))
     }
@@ -36,4 +42,4 @@
    viz/view-image
    ))
 
-(tangle-direct-view (graph))
+(tangle-direct-view (graph (storage/name-index "p-5")))

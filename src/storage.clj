@@ -59,6 +59,12 @@
 (defn parents []
   (filter #(string? (:name %)) (node-maps @storage-array)))
 
+(defn node-name [index]
+  (nth @storage-array index))
+
+(defn name-index [name]
+  (first (filter #(= name (nth @storage-array %))(range (count @storage-array)))))
+
 ;; strategy: get parent indices and filter for nodes where index exceeds length of storage-array
 (defn parent-less-nodes []
   (filter #(and (< (count @storage-array) (second %)) (not= 0 (node-name (first %)))) (map (juxt identity parent-index) (range 1 (count @storage-array)))))
@@ -73,7 +79,6 @@
   ;; (println @storage-array)
   (apply str (map #(str %1 ": " %2 " |") (range (count @storage-array)) @storage-array))
   )
-
 
 ;; trees of children
 (map (juxt left-child right-child) [6 10 12 14])
@@ -95,6 +100,13 @@
 
 (defn parent-index [child-index]
   (+ child-index (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))
+
+(defn co-path [index]
+  (let [parent-less-nodes (into #{} (flatten (parent-less-nodes)))]
+    (if (contains? parent-less-nodes index)
+      [(nth @storage-array index)]
+      (concat [(nth @storage-array index)] (co-path (parent-index index)))
+     )))
 
 ;; test identification of children
 (= 10 (parent-index 7))
