@@ -109,12 +109,14 @@
      )))
 
 (defn co-path [index]
-  (if (contains? (into #{} (flatten (parent-less-nodes))) index)
-      []
-      (concat
-       [(nth @storage-array (first (filter #(not= index %) (children (parent-index index)))))]
-       (co-path (parent-index index)))
-      ))
+  (let [parent-less-nodes (into #{} (flatten (parent-less-nodes)))]
+    (if (contains? parent-less-nodes index)
+      (map #(nth @storage-array %)
+           (filter #(and (not= index %) (< % (count @storage-array))) parent-less-nodes))
+     (concat
+      [(nth @storage-array (first (filter #(not= index %) (children (parent-index index)))))]
+      (co-path (parent-index index)))
+     )))
 
 ;; test identification of children
 (= 10 (parent-index 7))
