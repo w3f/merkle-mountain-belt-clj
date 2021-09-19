@@ -59,6 +59,9 @@
 (defn parents []
   (filter #(string? (:name %)) (node-maps @storage-array)))
 
+(defn parent-index [child-index]
+  (+ child-index (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))
+
 (defn node-name [index]
   (nth @storage-array index))
 
@@ -98,15 +101,20 @@
 
 (map #(p-adic-order % 3) (range 1 500))
 
-(defn parent-index [child-index]
-  (+ child-index (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))
-
-(defn co-path [index]
+(defn path [index]
   (let [parent-less-nodes (into #{} (flatten (parent-less-nodes)))]
     (if (contains? parent-less-nodes index)
       [(nth @storage-array index)]
-      (concat [(nth @storage-array index)] (co-path (parent-index index)))
+      (concat [(nth @storage-array index)] (path (parent-index index)))
      )))
+
+(defn co-path [index]
+  (if (contains? (into #{} (flatten (parent-less-nodes))) index)
+      []
+      (concat
+       [(nth @storage-array (first (filter #(not= index %) (children (parent-index index)))))]
+       (co-path (parent-index index)))
+      ))
 
 ;; test identification of children
 (= 10 (parent-index 7))
@@ -115,6 +123,3 @@
 ;; test identification of children
 (= 12 (parent-index 6))
 (= 12 (parent-index 10))
-
-
-

@@ -4,18 +4,34 @@
             [storage])
   )
 
-(defn decorate-copath [edges co-path decoration]
-  (map #(if (contains? (into #{} co-path) (second %)) (concat % [decoration]) %) edges)
+(defn decorate-nodes [nodes decorated-nodes decoration]
+  (map
+   #(if (contains? (into #{} decorated-nodes) %)
+      (assoc decoration
+             :id %
+             ;; :label %
+             )
+      %) nodes)
+  )
+
+(defn decorate-edges [edges decorated-edges decoration]
+  (map #(if (contains? (into #{} decorated-edges) (second %))
+          (concat % [decoration]) %)
+       edges)
     )
 
-(defn graph [co-path]
+(defn graph [starting-node]
   [
    ;; nodes
-   (conj
-    (map :name (storage/non-zero-entries))
-    "RN")
+   (decorate-nodes
+     (conj
+      (map :name (storage/non-zero-entries))
+      "RN")
+     (storage/co-path starting-node)
+     {:color "blue"}
+     )
    ;; edges
-   (decorate-copath
+   (decorate-edges
     (concat
      (apply concat
             (map #(list
@@ -24,11 +40,14 @@
                    ) (storage/parents)))
      (map (fn [parent-less-node] ["RN" (storage/node-name (first parent-less-node))])
           (storage/parent-less-nodes)))
-    (storage/co-path co-path)
+    (storage/path starting-node)
     {:style :dashed :color "blue"}
     )
    {:node {:shape :oval}
-    :node->id (fn [n] (if (keyword? n) (name n) n))
+    :node->id (fn [n] (if (keyword? n)
+                       (name n)
+                       (if (map? n) (:id n) n)))
+    :node->descriptor (fn [n] (when (map? n) n))
     }
    ]
 )
