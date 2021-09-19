@@ -51,13 +51,13 @@
   ((juxt left-child right-child) parent))
 
 (defn node-maps [storage]
-  (map (fn [index ] {:index index :name (nth storage index)}) (range (count storage))))
+  (map (fn [index ] {:index index :id (nth storage index)}) (range (count storage))))
 
 (defn non-zero-entries []
-  (filter #(not= 0 (:name %)) (node-maps @storage-array)))
+  (filter #(not= 0 (:id %)) (node-maps @storage-array)))
 
 (defn parents []
-  (filter #(string? (:name %)) (node-maps @storage-array)))
+  (filter #(string? (:id %)) (node-maps @storage-array)))
 
 (defn parent-index [child-index]
   (+ child-index (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))
@@ -134,3 +134,25 @@
 ;; test identification of children
 (= 12 (parent-index 6))
 (= 12 (parent-index 10))
+
+;; l2r bagging
+
+(defn range-node-edges
+  ([nodes]
+   (let [range-node "range-node-0"]
+     (range-node-edges [[(first nodes) "range-node-0"] [(second nodes) "range-node-0"]] (drop 2 nodes) 0 [range-node])))
+
+  ([acc remainder depth range-nodes]
+   (if (empty? remainder)
+     (list acc range-nodes)
+     (let
+         [new-depth (inc depth)
+          range-node (str "range-node-" new-depth)]
+         (range-node-edges (concat acc (map (fn [child] [child range-node])
+                                         [(last (last acc)) (first remainder)]))
+                        (rest remainder)
+                        (inc depth)
+                        (conj range-nodes range-node)))
+     ))
+  )
+
