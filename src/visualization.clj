@@ -38,7 +38,7 @@
                    (list (:name %) (storage/node-name (storage/left-child (:index %))))
                    (list (:name %) (storage/node-name (storage/right-child (:index %))))
                    ) (storage/parents)))
-     (map (fn [parent-less-node] ["RN" (storage/node-name (first parent-less-node))])
+     (map (fn [parent-less-node] ["range node" (storage/node-name parent-less-node)])
           (storage/parent-less-nodes)))
     (decorate-edges (storage/path (storage/name-index starting-node))
                     {:style :dashed :color "blue"})

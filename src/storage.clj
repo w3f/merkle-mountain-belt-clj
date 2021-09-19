@@ -70,7 +70,18 @@
 
 ;; strategy: get parent indices and filter for nodes where index exceeds length of storage-array
 (defn parent-less-nodes []
-  (filter #(and (< (count @storage-array) (second %)) (not= 0 (node-name (first %)))) (map (juxt identity parent-index) (range 1 (count @storage-array)))))
+  (->>
+   (filter
+    #(and
+      (< (count @storage-array) (second %))
+      (not= 0 (node-name (first %)))
+      )
+    (map (juxt identity parent-index) (range 1 (count @storage-array))))
+   flatten
+   (filter #(< % (count @storage-array)))
+   (into #{})
+   )
+  )
 
 (do
   (reset! storage-array '[])
@@ -102,21 +113,19 @@
 (map #(p-adic-order % 3) (range 1 500))
 
 (defn path [index]
-  (let [parent-less-nodes (into #{} (flatten (parent-less-nodes)))]
-    (if (contains? parent-less-nodes index)
+  (if (contains? (parent-less-nodes) index)
       [(nth @storage-array index)]
       (concat [(nth @storage-array index)] (path (parent-index index)))
-     )))
+     ))
 
 (defn co-path [index]
-  (let [parent-less-nodes (into #{} (flatten (parent-less-nodes)))]
-    (if (contains? parent-less-nodes index)
+  (if (contains? (parent-less-nodes) index)
       (map #(nth @storage-array %)
-           (filter #(and (not= index %) (< % (count @storage-array))) parent-less-nodes))
+           (filter #(and (not= index %) (< % (count @storage-array))) (parent-less-nodes)))
      (concat
       [(nth @storage-array (first (filter #(not= index %) (children (parent-index index)))))]
       (co-path (parent-index index)))
-     )))
+     ))
 
 ;; test identification of children
 (= 10 (parent-index 7))
