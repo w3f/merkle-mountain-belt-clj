@@ -23,15 +23,14 @@
 (defn graph [starting-node]
   [
    ;; nodes
-   (decorate-nodes
-     (conj
+   (->
+    (conj
       (map :name (storage/non-zero-entries))
       "RN")
-     (storage/co-path starting-node)
-     {:color "blue"}
-     )
+    (decorate-nodes (storage/co-path (storage/name-index starting-node)) {:color "blue"})
+    )
    ;; edges
-   (decorate-edges
+   (->
     (concat
      (apply concat
             (map #(list
@@ -40,8 +39,8 @@
                    ) (storage/parents)))
      (map (fn [parent-less-node] ["RN" (storage/node-name (first parent-less-node))])
           (storage/parent-less-nodes)))
-    (storage/path starting-node)
-    {:style :dashed :color "blue"}
+    (decorate-edges (storage/path (storage/name-index starting-node))
+                    {:style :dashed :color "blue"})
     )
    {:node {:shape :oval}
     :node->id (fn [n] (if (keyword? n)
@@ -50,7 +49,7 @@
     :node->descriptor (fn [n] (when (map? n) n))
     }
    ]
-)
+  )
 
 (defn tangle-direct-view [graph]
   (->
@@ -61,4 +60,4 @@
    viz/view-image
    ))
 
-(tangle-direct-view (graph (storage/name-index "p-5")))
+(tangle-direct-view (graph "p-5"))
