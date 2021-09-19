@@ -28,6 +28,7 @@
       (map :name (storage/non-zero-entries))
       "RN")
     (decorate-nodes (storage/co-path (storage/name-index starting-node)) {:color "blue"})
+    (decorate-nodes #{starting-node} {:color "red"})
     )
    ;; edges
    (->
