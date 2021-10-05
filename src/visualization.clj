@@ -12,7 +12,7 @@
   )
 
 (defn decorate-edges [edges decorated-edges decoration]
-  (map #(if (contains? (into #{} decorated-edges) (second %))
+  (map #(if (and (contains? (into #{} decorated-edges) (first %)) (contains? (into #{} decorated-edges) (second %)))
           (concat % [decoration]) %)
        edges)
     )
@@ -23,10 +23,15 @@
     [
      ;; nodes
      (->
+      ;; nodes
       (concat
+       ;; normal nodes
        (storage/non-zero-entries)
+       ;; range nodes
        (map (fn [range-node] {:id range-node}) range-nodes))
+      ;; decorate co-path nodes
       (decorate-nodes (storage/co-path (storage/name-index starting-node)) {:color "blue"})
+      ;; decorate starting node
       (decorate-nodes #{starting-node} {:color "red"})
       )
      ;; edges
@@ -38,6 +43,7 @@
                      (list (:id %) (storage/node-name (storage/right-child (:index %))))
                      ) (storage/parents)))
        range-node-edges)
+      ;; decorate co-path edges
       (decorate-edges (storage/path (storage/name-index starting-node))
                       {:style :dashed :color "blue"})
       )

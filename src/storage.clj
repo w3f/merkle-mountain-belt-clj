@@ -112,11 +112,30 @@
 
 (map #(p-adic-order % 3) (range 1 500))
 
+(defn range-node-edges
+  ([nodes]
+   (let [range-node "range-node-0"]
+     (range-node-edges [[(first nodes) "range-node-0"] [(second nodes) "range-node-0"]] (drop 2 nodes) 0 [range-node])))
+
+  ([acc remainder depth range-nodes]
+   (if (empty? remainder)
+     (list acc range-nodes)
+     (let
+         [new-depth (inc depth)
+          range-node (str "range-node-" new-depth)]
+       (range-node-edges (concat acc (map (fn [child] [child range-node])
+                                          [(last (last acc)) (first remainder)]))
+                         (rest remainder)
+                         (inc depth)
+                         (conj range-nodes range-node)))
+     ))
+  )
+
 (defn path [index]
   (if (contains? (parent-less-nodes) index)
-      [(nth @storage-array index)]
-      (concat [(nth @storage-array index)] (path (parent-index index)))
-     ))
+    (concat [(nth @storage-array index)] (last (range-node-edges (parent-less-nodes))))
+    (concat [(nth @storage-array index)] (path (parent-index index)))
+    ))
 
 (defn co-path [index]
   (if (contains? (parent-less-nodes) index)
@@ -137,22 +156,27 @@
 
 ;; l2r bagging
 
-(defn range-node-edges
-  ([nodes]
-   (let [range-node "range-node-0"]
-     (range-node-edges [[(first nodes) "range-node-0"] [(second nodes) "range-node-0"]] (drop 2 nodes) 0 [range-node])))
+(defn bag-left-to-right
+  ([remainder]
+   (bag-left-to-right [(first remainder) (second remainder)] (drop 2 remainder)))
 
-  ([acc remainder depth range-nodes]
+  ([current-bagging remainder]
    (if (empty? remainder)
-     (list acc range-nodes)
-     (let
-         [new-depth (inc depth)
-          range-node (str "range-node-" new-depth)]
-         (range-node-edges (concat acc (map (fn [child] [child range-node])
-                                         [(last (last acc)) (first remainder)]))
-                        (rest remainder)
-                        (inc depth)
-                        (conj range-nodes range-node)))
+     current-bagging
+     (bag-left-to-right [current-bagging (first remainder)] (rest remainder)))))
+
+(defn range-node-map
+  ([nodes]
+   (range-node-map {:id "range-node-1" :children {:left {:id (first nodes)} :right {:id (second nodes)}}} (drop 2 nodes) 1))
+
+  ([acc remainder depth]
+   (if (empty? remainder)
+     acc
+     (range-node-map {:id (str "range-node-" (inc depth))
+                        :left acc
+                        :right (first remainder)}
+                       (rest remainder)
+                       (inc depth))
      ))
   )
 
