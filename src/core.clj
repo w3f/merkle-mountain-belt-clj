@@ -302,3 +302,43 @@
 (tangle-view (mmr-graph example-mmr))
 (tangle-view (mmr-graph (mmr-append-leaf example-mmr (leaf 5))))
 (tangle-view (mmr-graph extended-mmr))
+(defn belt-depth [node]
+  (if (core/has-children? node)
+    (+ 1
+       (apply max (map belt-depth (core/children node))))
+    0)
+  )
+
+
+(defn belt-depth-right-most [node]
+  (if (core/has-children? node)
+    (+ 1
+       (belt-depth-right-most (:core/right node)))
+    0)
+  )
+
+(defn belt-child-right-most [node]
+  (let [depth (belt-depth-right-most node)]
+      (nth (iterate :core/right node) depth)))
+(defn mmb-append-leaf [old-node new-leaf]
+  (if
+      (not (has-children? old-node))
+    (node old-node new-leaf (take-index))
+    ;; if this is not the case, preserve the left branch of the old mmr and append the new leaf to the right branch
+    ;; (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc new-leaf ::index @index)) (take-index)))
+    (node (::left old-node) (mmb-append-leaf (::right old-node) new-leaf) (take-index))
+    ))
+
+(defn binary-repr-of-n [n]
+  (Integer/toBinaryString n))
+
+(defn bits-of-inc-n [n]
+  (map (comp #(Integer. %) str) (binary-repr-of-n (inc n))))
+
+(defn S-n [n]
+  (let [bits (bits-of-inc-n n)
+        reversed-bits (reverse bits)]
+    (reverse (map
+              #(+ % (nth reversed-bits %))
+              (range (dec (count bits)))))))
+

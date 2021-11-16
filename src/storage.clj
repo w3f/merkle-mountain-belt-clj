@@ -203,3 +203,24 @@
          int))
 ;; -> yes
 
+(def parent-less-nodes-cache (parent-less-nodes))
+
+(defn binary-repr-of-n [n]
+  (Integer/toBinaryString n))
+
+(defn S-n [n]
+  (let [bits (map (comp #(Integer. %) str) (binary-repr-of-n (inc n)))
+        reversed-bits (reverse bits)]
+    (reverse (map
+              #(+ % (nth reversed-bits %))
+              (range (dec (count bits)))))))
+
+(defn s-m-of-n [m n]
+  (nth (reverse (S-n n)) m))
+
+(S-n 4)
+(S-n 1222)
+(S-n 1232)
+(S-n 3)
+(s-m-of-n 7 1222)
+
