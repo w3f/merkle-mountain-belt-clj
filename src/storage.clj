@@ -1,4 +1,5 @@
-(ns storage)
+(ns storage
+  (:require [core]))
 
 (def storage-array (atom '[]))
 (def leaf-count (atom 0))
@@ -88,7 +89,7 @@
   (reset! leaf-count 0)
   (reset! node-count 0)
   (println "------")
-  (doall (map #(add-leaf %) (range 1 15)))
+  (doall (map #(add-leaf %) (range 1 10)))
   ;; (println (range (count @storage-array)))
   ;; (println @storage-array)
   (apply str (map #(str %1 ": " %2 " |") (range (count @storage-array)) @storage-array))
@@ -101,6 +102,7 @@
 (map (juxt identity children) (filter #(re-matches #"p-.*" (str (nth @storage-array %))) (range (count @storage-array))))
 
 ;; confirm that all non-zero entries are covered by the tree
+;; TODO: doesn't work for n=1222 -> investigate!
 (=
  #{}
  (clojure.set/difference
@@ -112,6 +114,7 @@
 
 (map #(p-adic-order % 3) (range 1 500))
 
+;; this is the L2R bagging from https://hackmd.io/4k2wjlWfTVqgW0Mp4bLSSQ?view
 (defn range-node-edges
   ([nodes]
    (let [range-node "range-node-0"]
@@ -179,4 +182,24 @@
                        (inc depth))
      ))
   )
+
+;; hacky calculation of parent: if number, take position in (max (position-parent-less-nodes))
+(defn position-parentless-nodes [node]
+  (first (filter #(= node (nth (into [] (parent-less-nodes)) %)) (range (count (parent-less-nodes))))))
+
+(defn left-to-right-parent [node]
+  (if (number? node)
+    (str "range-node-" (max 0 (- (position-parentless-nodes node) 1)))
+    (let []
+      (str "range-node-" (inc (Integer. (first (re-seq #"[0-9]+" node))))))))
+
+(defn left-to-right-range-node-path [node]
+  (left-to-right-parent node)
+  )
+
+;; does n=1222 correspond to merkle tree list '(9  8  8  7  5  4  3  3  2  1)?
+(= 1222 (->
+         (reduce + 0 (map #(Math/pow 2 %) '(9  8  8  7  5  4  3  3  2  1)))
+         int))
+;; -> yes
 
