@@ -122,7 +122,7 @@
 
   ([acc remainder depth range-nodes]
    (if (empty? remainder)
-     (list acc range-nodes)
+     (list acc range-nodes depth)
      (let
          [new-depth (inc depth)
           range-node (str "range-node-" new-depth)]
@@ -134,9 +134,12 @@
      ))
   )
 
+(defn range-node-edges-reduced [nodes]
+  (drop-last (range-node-edges nodes)))
+
 (defn path [index]
   (if (contains? (parent-less-nodes) index)
-    (concat [(nth @storage-array index)] (last (range-node-edges (parent-less-nodes))))
+    (concat [(nth @storage-array index)] (last (range-node-edges-reduced (parent-less-nodes))))
     (concat [(nth @storage-array index)] (path (parent-index index)))
     ))
 
