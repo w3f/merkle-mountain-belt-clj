@@ -332,8 +332,11 @@
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
 
+(defn bits-of-n [n]
+  (map (comp #(Integer. %) str) (binary-repr-of-n n)))
+
 (defn bits-of-inc-n [n]
-  (map (comp #(Integer. %) str) (binary-repr-of-n (inc n))))
+  (bits-of-n (inc n)))
 
 (defn S-n [n]
   (let [bits (bits-of-inc-n n)
