@@ -460,14 +460,17 @@
   [ranges]
   (reduce (fn
            [[range-collector starting-index] new-range]
-            (let [[new-edges _ last-index] (storage/range-node-edges new-range starting-index)]
+            (let [[new-edges range-nodes last-index] (storage/range-node-edges new-range starting-index)]
               [(concat
                 ;; take current collection of ranges
                 range-collector
                 ;; add newly concatenated list
                 new-edges
                 ;; and add an edge between the last range's range-node and the next ranges range-node
-                [[(str "range-node-" last-index) (str "range-node-" (inc last-index))]]) (inc last-index)]))
+                ;; [[(str "range-node-" last-index) (str "range-node-" (inc last-index))]]
+                ) (if (empty? range-nodes)
+                    last-index
+                    (inc last-index))]))
          [[] 0]
          ranges))
 

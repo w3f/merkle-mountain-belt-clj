@@ -89,7 +89,7 @@
   (reset! leaf-count 0)
   (reset! node-count 0)
   (println "------")
-  (doall (map #(add-leaf %) (range 1 10)))
+  (doall (map #(add-leaf %) (range 1 1222)))
   ;; (println (range (count @storage-array)))
   ;; (println @storage-array)
   (apply str (map #(str %1 ": " %2 " |") (range (count @storage-array)) @storage-array))
@@ -121,15 +121,24 @@
    [nodes]
    (let [initial-range-node "range-node-0"]
      (if (> 2 (count nodes))
-       (range-node-edges [[(first nodes) initial-range-node]] (drop 1 nodes) 0 [initial-range-node])
+       (range-node-edges [[(first nodes) "belt-node"]
+                          ;; [initial-range-node (str "range-node-" (inc starting-index))]
+                          ] (drop 1 nodes) 0 [])
        (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) 0 [initial-range-node]))))
 
   (
    [nodes starting-index]
    (let [initial-range-node (str "range-node-" starting-index)]
      (if (> 2 (count nodes))
-       (range-node-edges [[(first nodes) initial-range-node]] (drop 1 nodes) starting-index [initial-range-node])
-       (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) starting-index [initial-range-node]))))
+       (range-node-edges [[(first nodes) initial-range-node]
+                          ;; [initial-range-node (str "range-node-" (inc starting-index))]
+                          ] (drop 1 nodes) starting-index [initial-range-node])
+       (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) starting-index [initial-range-node])))
+   ;; (let [initial-range-node (str "range-node-" starting-index)]
+   ;;   (if (> 2 (count nodes))
+   ;;     (range-node-edges [] nodes starting-index [initial-range-node])
+   ;;     (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) starting-index [initial-range-node])))
+   )
 
   (
    ;; internal function - only accessed via recursion
@@ -217,7 +226,7 @@
 (= 1222 (->
          (reduce + 0 (map #(Math/pow 2 %) '(9  8  8  7  5  4  3  3  2  1)))
          int))
-;; -> yes
+;; -> true
 
 (def parent-less-nodes-cache (parent-less-nodes))
 
