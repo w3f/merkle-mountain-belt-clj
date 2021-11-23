@@ -116,11 +116,24 @@
 
 ;; this is the L2R bagging from https://hackmd.io/4k2wjlWfTVqgW0Mp4bLSSQ?view
 (defn range-node-edges
-  ([nodes]
-   (let [range-node "range-node-0"]
-     (range-node-edges [[(first nodes) "range-node-0"] [(second nodes) "range-node-0"]] (drop 2 nodes) 0 [range-node])))
+  "creates a list of the edges between `nodes`, optionally starting names from `starting-index` in lieu of 0"
+  (
+   [nodes]
+   (let [initial-range-node "range-node-0"]
+     (if (> 2 (count nodes))
+       (range-node-edges [[(first nodes) initial-range-node]] (drop 1 nodes) 0 [initial-range-node])
+       (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) 0 [initial-range-node]))))
 
-  ([acc remainder depth range-nodes]
+  (
+   [nodes starting-index]
+   (let [initial-range-node (str "range-node-" starting-index)]
+     (if (> 2 (count nodes))
+       (range-node-edges [[(first nodes) initial-range-node]] (drop 1 nodes) starting-index [initial-range-node])
+       (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) starting-index [initial-range-node]))))
+
+  (
+   ;; internal function - only accessed via recursion
+   [acc remainder depth range-nodes]
    (if (empty? remainder)
      (list acc range-nodes depth)
      (let
