@@ -345,3 +345,112 @@
               #(+ % (nth reversed-bits %))
               (range (dec (count bits)))))))
 
+;; hack: value of leaf == height of represented peak
+(node (leaf 1) (leaf 0) 0)
+(S-n 3)
+
+(defn belt-right-most-operators [tree]
+  (let [sequence-length (belt-depth-right-most tree)]
+    {
+     ::right-most-child
+     (into [] (repeat sequence-length ::right))
+     ::sibling-of-right-most-child
+     (conj (into [] (repeat (dec sequence-length) ::right)) ::left)
+     ::parent-of-right-most-child
+     (into [] (repeat (dec sequence-length) ::right))
+     ;; tree
+     ;; ::right-most-child
+     ;; (get-in tree (repeat sequence-length ::right))
+     ;; ::sibling-of-right-most-child
+     ;; (get-in tree (conj (repeat (dec sequence-length) ::right) ::left))
+     ;; ::parent-of-right-most-child
+     ;; (get-in tree (repeat (dec sequence-length) ::right))
+     ;; ;; tree
+     }
+    )
+  )
+
+;; reattempt at appending leafs:
+;; we have two layers of storage: the distinct merkle trees (vector based storage)
+(let [
+      leaf-count 3
+      S-n (S-n leaf-count)
+      right-most-depth (last S-n)
+      ;; example-tree (node (node (leaf 0) (leaf 1) 0) (leaf 2) 1)
+      example-tree (mmr-from-leafcount 3)
+      ]
+  [
+   (tangle-view (mmr-graph example-tree))
+   (tangle-view (mmr-graph (if (is-power-of-two (inc leaf-count))
+                             ;; append only if leaf-count + 1 is power of two (look at S-n to understand)
+                             (let [;; new-rightmost is a node with the former rightmost as left-child and a new leaf as the right child
+                                   new-rightmost (node (belt-child-right-most example-tree) (leaf 20) 99)]
+                               (assoc-in example-tree (::right-most-child (belt-right-most-operators example-tree)) new-rightmost)
+                               )
+                             ;; append and merge
+                             (let [;; new-rightmost is a node with the former rightmost as left-child and a new leaf as the right child
+                                   new-rightmost (node (belt-child-right-most example-tree) (leaf 10) 99)
+                                   ;; append-step
+                                   new-tree (assoc-in example-tree (::right-most-child (belt-right-most-operators example-tree)) new-rightmost)
+                                   ;; merge-step
+                                   merged-tree ()
+                                   ]
+                               new-tree
+                               )
+                             )))
+   ;; (belt-child-right-most example-tree)
+   ;; (::right-most-child (belt-right-most-operators example-tree))
+   ;; right-most-depth
+   ;; S-n
+   ;; example-tree
+   ]
+)
+
+
+;; new idea: create just the belt with the S-n as the effective leaves
+;; thereafter, map parent-less-nodes to effective leaves
+;; ()
+
+(let [example-tree (mmr-from-leafcount 90)]
+  (belt-depth-right-most example-tree))
+
+;; (get-in (mmr-from-leafcount 90) (::sibling-of-right-most-child (belt-right-most-operators (mmr-from-leafcount 90))))
+;; fresh attempt (16.11.2021)
+;; reproduce the bagging structure by always recalculating from scratch. this is the first step in iteration towards moving towards a cached model
+
+(defn create-new-range? [[n-2 n-1] n]
+  (or (and (= 1 n-1) (= 0 n))
+      (and (= 0 n-2) (= 1 n-1))))
+
+(let [
+      running-range [[]]
+      ;; running-range [[0 0 1] [1] [0 0 1]]
+      ;; running-range [[0 0 1] [1] [0 0 1] [0 0]]
+      flattened-running-range (flatten running-range)
+      new-bit 0]
+  (if (create-new-range? (drop (- (count flattened-running-range) 2) flattened-running-range) new-bit)
+    ;; if true, create new range
+    (conj (into [] running-range) [new-bit])
+    ;; else, append to last current range
+    (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)])
+    )
+   )
+
+(defn append-to-belt-range [running-range new-bit]
+  (let [flattened-running-range (flatten running-range)]
+    (if (create-new-range? (drop (- (count flattened-running-range) 2) flattened-running-range) new-bit)
+      ;; if true, create new range
+      (conj (into [] running-range) [new-bit])
+      ;; else, append to last current range
+      (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)])
+      )
+    ))
+(append-to-belt-range [[0 0 1] [1] [0 0 1]] 0)
+
+(bits-of-inc-n 10)
+(defn belt-ranges [n]
+  (reduce append-to-belt-range [[]] (rest (bits-of-n n))))
+
+;; map indices to belt-ranges
+(belt-ranges @storage/leaf-count)
+
