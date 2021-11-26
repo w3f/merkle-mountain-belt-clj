@@ -452,30 +452,114 @@
   (reduce append-to-belt-range [[]] (rest (bits-of-n (inc n)))))
 
 ;; map indices to belt-ranges
-(belt-ranges @storage/leaf-count)
+(comment
+  (belt-ranges @storage/leaf-count))
 
+
+(defn deep-walk
+  "replace `value`s in nested `data` structure by (`f` `value`)"
+  [f data]
+  (vec (map #(if (coll? %)
+               (deep-walk f %)
+               (f %)) data))
+  )
+
+(def parent-less-nodes-remainder (atom storage/parent-less-nodes-cache))
+(defn take-parent-less-node []
+  (let [first-parent-less (first @parent-less-nodes-remainder)]
+    (swap! parent-less-nodes-remainder rest)
+    first-parent-less))
+(comment
+  (take-parent-less-node))
 
 (defn range-aggregator
-  "takes ranges and produces lists of the edges that represent these ranges"
+  "takes ranges and produces lists of the edges that represent these ranges together with belt nodes"
   [ranges]
-  (reduce (fn
-           [[range-collector starting-index] new-range]
-            (let [[new-edges range-nodes last-index] (storage/range-node-edges new-range starting-index)]
-              [(concat
-                ;; take current collection of ranges
-                range-collector
-                ;; add newly concatenated list
-                new-edges
-                ;; and add an edge between the last range's range-node and the next ranges range-node
-                ;; [[(str "range-node-" last-index) (str "range-node-" (inc last-index))]]
-                ) (if (empty? range-nodes)
-                    last-index
-                    (inc last-index))]))
-         [[] 0]
-         ranges))
+  (do
+    (reset! parent-less-nodes-remainder storage/parent-less-nodes-cache)
+    (reduce (fn
+              [[range-collector starting-index belt-node-index] new-range]
+              (let [[new-edges range-nodes last-index] (storage/range-node-edges new-range starting-index)]
+                [
+                 ;; updated range collector
+                 (concat
+                  ;; take current collection of ranges
+                  range-collector
+                  ;; add newly concatenated list
+                  (if (not (empty? new-edges)) new-edges)
+                  ;; and add an edge between the last range's range-node and the next ranges range-node
+                  ;; [[(str "range-node-" last-index) (str "range-node-" (inc last-index))]]
+                  ;; add a new belt node n, with the edges
+                  ;; [belt-node-n-1 belt-node-n] [last-node belt-node-n] or
+                  ;; [last-node-n-1 belt-node-0] [last-node-n belt-node-0], whichever is applicable
+                  (if (not (= -2 belt-node-index))
+                    (let [last-belt-node (str "belt-node-" belt-node-index)
+                         new-belt-node (str "belt-node-" (inc belt-node-index))]
+                     (if (= -1 belt-node-index)
+                       ;; if first belt node, add the edges [last-node-n-1 belt-node-0] [last-node-n belt-node-0]
+                       [[(last (last range-collector)) new-belt-node] [(if (empty? new-edges)
+                                                                         ;; if no new edges, then the last range was a singleton, so we just append it directly to the belt
+                                                                         (first new-range)
+                                                                         (last (last new-edges)))
+                                                                       new-belt-node]]
+                       ;; otherwise, add the edges [belt-node-n-1 belt-node-n] [last-node belt-node-n]
+                       [[last-belt-node new-belt-node] [(if (empty? new-edges)
+                                                          ;; if no new edges, then the last range was a singleton, so we just append it directly to the belt
+                                                          (first new-range)
+                                                          (last (last new-edges))) new-belt-node]]
+                       )))
+                  )
+
+                 ;; updated starting-index
+                 (if (empty? range-nodes)
+                      last-index
+                      (inc last-index))
+
+                 ;; updated belt-node-index
+                 (inc belt-node-index)
+                 ]))
+            ;; start index of belt node at -2 to have `new-belt-node` at 0 once where at the second range
+            [[] 0 -2]
+            ranges)))
 
 (comment
-  [[0 0 1] [1] [0 0 0 1] [1] [0]])
+  ([0 0 1] [1] [0 0 0 1] [1 1]))
 (comment
-  ([0 "range-node-0"] [0 "range-node-0"] ["range-node-0" "range-node-1"] [1 "range-node-1"] [1 "range-node-2"] [0 "range-node-3"] [0 "range-node-3"] ["range-node-3" "range-node-4"] [0 "range-node-4"] ["range-node-4" "range-node-5"] [1 "range-node-5"] [1 "range-node-6"] [0 "range-node-7"]))
+  ([0 "range-node-0"] [0 "range-node-0"] ["range-node-0" "range-node-1"] [1 "range-node-1"] [1 "belt-node"] [0 "range-node-2"] [0 "range-node-2"] ["range-node-2" "range-node-3"] [0 "range-node-3"] ["range-node-3" "range-node-4"] [1 "range-node-4"] [1 "range-node-5"] [1 "range-node-5"]))
 (first (range-aggregator (belt-ranges 1222)))
+;; map indices to node names
+(def belted-edges
+  (map (fn [[child parent]]
+        [
+         (if (int? child)
+           (storage/node-name child)
+           child)
+         parent
+         ])
+      (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges 1222))))))
+(first (range-aggregator (belt-ranges 4)))
+
+(identity belted-edges)
+
+(comment
+  ([0 "range-node-0"]
+   [0 "range-node-0"]
+   ["range-node-0" "range-node-1"]
+   [1 "range-node-1"]
+   ["range-node-1" "belt-node-0"]
+   [1 "belt-node-0"]
+   [0 "range-node-2"]
+   [0 "range-node-2"]
+   ["range-node-2" "range-node-3"]
+   [0 "range-node-3"]
+   ["range-node-3" "range-node-4"]
+   [1 "range-node-4"]
+   ["belt-node-0" "belt-node-1"]
+   ["range-node-4" "belt-node-1"]
+   [1 "range-node-5"]
+   [1 "range-node-5"]
+   ["belt-node-1" "belt-node-2"]
+   ["range-node-5" "belt-node-2"]))
+
+;; (defn ranges)
+(storage/range-node-edges '[1] 1)

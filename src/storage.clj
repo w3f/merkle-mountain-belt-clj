@@ -70,6 +70,7 @@
   (first (filter #(= name (nth @storage-array %))(range (count @storage-array)))))
 
 ;; strategy: get parent indices and filter for nodes where index exceeds length of storage-array
+;; TODO fix this inefficient fucker
 (defn parent-less-nodes []
   (->>
    (filter
@@ -122,18 +123,14 @@
    [nodes]
    (let [initial-range-node "range-node-0"]
      (if (> 2 (count nodes))
-       (range-node-edges [[(first nodes) "belt-node"]
-                          ;; [initial-range-node (str "range-node-" (inc starting-index))]
-                          ] (drop 1 nodes) 0 [])
+       (range-node-edges [] [] 0 [])
        (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) 0 [initial-range-node]))))
 
   (
    [nodes starting-index]
    (let [initial-range-node (str "range-node-" starting-index)]
      (if (> 2 (count nodes))
-       (range-node-edges [[(first nodes) "belt-node"]
-                          ;; [initial-range-node (str "range-node-" (inc starting-index))]
-                          ] (drop 1 nodes) starting-index [])
+       (range-node-edges [] [] starting-index [])
        (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) starting-index [initial-range-node])))
    ;; (let [initial-range-node (str "range-node-" starting-index)]
    ;;   (if (> 2 (count nodes))
@@ -249,4 +246,15 @@
 (S-n 1232)
 (S-n 3)
 (s-m-of-n 7 1222)
+
+
+(defn storage-add! [node]
+  (swap! core/storage assoc-in [(core/hash-node node)] node))
+
+(defn belt-depth [node]
+  (if (core/has-children? node)
+    (+ 1
+       (apply max (map belt-depth (core/children node))))
+    1)
+  )
 

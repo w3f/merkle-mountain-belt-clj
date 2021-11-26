@@ -51,7 +51,8 @@
       :node->id (fn [n] (:id n))
       :node->descriptor (fn [n] (when (map? n) n))
       }
-     ])
+     ]
+    )
   )
 
 (defn tangle-direct-view [graph]
@@ -64,3 +65,19 @@
    ))
 
 (tangle-direct-view (graph "p-5"))
+
+(tangle-direct-view
+        [
+         ;; nodes
+         (reverse (into [] (flatten core/belted-edges)))
+
+         ;; edges
+         core/belted-edges
+
+
+         {:node {:shape :oval}
+          :node->id (fn [n] (:id n))
+          :node->descriptor (fn [n] (when (map? n) n))
+          :graph {:rankdir :BT}
+          }
+         ])
