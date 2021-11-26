@@ -449,7 +449,7 @@
 
 (bits-of-inc-n 10)
 (defn belt-ranges [n]
-  (reduce append-to-belt-range [[]] (rest (bits-of-n n))))
+  (reduce append-to-belt-range [[]] (rest (bits-of-n (inc n)))))
 
 ;; map indices to belt-ranges
 (belt-ranges @storage/leaf-count)
