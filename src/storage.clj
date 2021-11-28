@@ -65,7 +65,27 @@
 (defn node-maps
   ;; creates maps with `:id` as the storage entry and `:index` as the index with the collection
   [storage]
-  (map (fn [index] {:index index :id (nth storage index)}) (range (count storage))))
+  (map (fn [index] {:index index
+                   :id (nth storage index)
+                   ;; :pos (str index "," (node-height-literal index) "!")
+                   }) (range (count storage))))
+
+(defn node-maps-updated
+  ;; creates maps with `:id` as the storage entry and `:index` as the index with the collection
+  [storage]
+  (map (fn [index] (let [pos (:pos (nth storage index))]
+                    (if pos {:index index
+                             :id (:id (nth storage index))
+                             :pos (str index "," (:pos (nth storage index)) "!")
+                             ;; :pos (str index "," (node-height-literal index) "!")
+                             }
+                        {:index index
+                         :id (:id (nth storage index))
+                         ;; :pos (str index "," (node-height-literal index) "!")
+                         }
+                        )
+                    )) (range (count storage))))
+
 
 (defn node-name-maps [storage]
   (map (fn [index] {:index index :id (if (string? (nth storage index))
@@ -104,15 +124,18 @@
    )
   )
 
+(def parent-less-nodes-cache (atom nil))
 (do
   (reset! storage-array '[])
   (reset! leaf-count 0)
   (reset! node-count 0)
   (println "------")
-  (doall (map #(add-leaf %) (range 1 1222)))
+  (doall (map #(add-leaf %) (range 1 40)))
+  ;; (doall (map #(add-leaf %) (range 1 1224)))
+  (reset! parent-less-nodes-cache (parent-less-nodes))
   ;; (println (range (count @storage-array)))
   ;; (println @storage-array)
-  (apply str (map #(str %1 ": " %2 " |") (range (count @storage-array)) @storage-array))
+  (let [print-len 50] (apply str (map #(str %1 ": " %2 " |") (range print-len) (take print-len @storage-array))))
   )
 
 ;; trees of children
@@ -139,14 +162,14 @@
   "creates a list of the edges between `nodes`, optionally starting names from `starting-index` in lieu of 0"
   (
    [nodes]
-   (let [initial-range-node "range-node-0"]
+   (let [initial-range-node {:type "range-node" :index 0}]
      (if (> 2 (count nodes))
        (range-node-edges [] [] 0 [])
        (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) 0 [initial-range-node]))))
 
   (
    [nodes starting-index]
-   (let [initial-range-node (str "range-node-" starting-index)]
+   (let [initial-range-node {:type "range-node" :index starting-index}]
      (if (> 2 (count nodes))
        (range-node-edges [] [] starting-index [])
        (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) starting-index [initial-range-node])))
@@ -161,9 +184,10 @@
    [acc remainder depth range-nodes]
    (if (empty? remainder)
      (list acc range-nodes depth)
+     ;; (list acc range-nodes)
      (let
          [new-depth (inc depth)
-          range-node (str "range-node-" new-depth)]
+          range-node {:type "range-node" :index new-depth}]
        (range-node-edges (concat acc (map (fn [child] [child range-node])
                                           [(last (last acc)) (first remainder)]))
                          (rest remainder)
@@ -244,7 +268,6 @@
          int))
 ;; -> true
 
-(def parent-less-nodes-cache (parent-less-nodes))
 (defn parent-less-nodes-sorted-height
   "sorts nodes by height (inverse), with tie-breaker being the node index"
   [nodes]
@@ -272,6 +295,10 @@
 (S-n 1232)
 (S-n 3)
 (s-m-of-n 7 1222)
+
+;; verify that the number of peaks == (dec binary length of leaf-count)
+(= (dec (count (binary-repr-of-n @leaf-count)))
+   (count parent-less-nodes-cache))
 
 
 (defn storage-add! [node]

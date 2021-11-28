@@ -476,7 +476,7 @@
   "takes ranges and produces lists of the edges that represent these ranges together with belt nodes"
   [ranges]
   (do
-    (reset! parent-less-nodes-remainder (map first (storage/parent-less-nodes-sorted-height storage/parent-less-nodes-cache)))
+    (reset! parent-less-nodes-remainder (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
     (reduce (fn
               [[range-collector starting-index belt-node-index] new-range]
               (let [[new-edges range-nodes last-index] (storage/range-node-edges new-range starting-index)]
@@ -493,8 +493,8 @@
                   ;; [belt-node-n-1 belt-node-n] [last-node belt-node-n] or
                   ;; [last-node-n-1 belt-node-0] [last-node-n belt-node-0], whichever is applicable
                   (if (not (= -2 belt-node-index))
-                    (let [last-belt-node (str "belt-node-" belt-node-index)
-                         new-belt-node (str "belt-node-" (inc belt-node-index))]
+                    (let [last-belt-node {:type "belt-node" :index belt-node-index}
+                         new-belt-node {:type "belt-node" :index (inc belt-node-index)}]
                      (if (= -1 belt-node-index)
                        ;; if first belt node, add the edges [last-node-n-1 belt-node-0] [last-node-n belt-node-0]
                        [[(last (last range-collector)) new-belt-node] [(if (empty? new-edges)
@@ -528,18 +528,45 @@
   ([0 "range-node-0"] [0 "range-node-0"] ["range-node-0" "range-node-1"] [1 "range-node-1"] [1 "belt-node"] [0 "range-node-2"] [0 "range-node-2"] ["range-node-2" "range-node-3"] [0 "range-node-3"] ["range-node-3" "range-node-4"] [1 "range-node-4"] [1 "range-node-5"] [1 "range-node-5"]))
 (first (range-aggregator (belt-ranges 1222)))
 ;; map indices to node names
-(def belted-edges
+(defn belted-edges
   "map indices of peaks of an mmb to their node-names"
-  (map (fn [[child parent]]
-        [
-         (if (int? child)
-           (storage/node-name child)
-           child)
-         parent
-         ])
-      (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges @storage/leaf-count))))))
+  []
+  (do
+    (reset! parent-less-nodes-remainder (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
+    (map (fn [[child parent]]
+          [
+           (if (int? child)
+             (#(str (first %) ": " (second %)) ((juxt identity storage/node-name storage/node-height-literal) child))
+             ;; child
+             child)
+           parent
+           ])
+        (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges @storage/leaf-count)))))))
 
-(identity belted-edges)
+(defn belted-nodes
+  "map indices of peaks of an mmb to their node-names"
+  []
+  (do
+    (reset! parent-less-nodes-remainder (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
+    (map (fn [[child parent]]
+           [
+            (if (= "peak-node" (:type child))
+              {:node-height (storage/node-height-literal (:index child))
+               :id (#(str (first %) ": " (second %)) ((juxt storage/node-name storage/node-height-literal) (:index child)))
+               :index (:index child)
+               ;; :pos (str child "," (storage/node-height-literal child))}
+              ;; :pos (str child "," 0)}
+              :pos 0}
+              ;; child
+              {:id (str (:type child) "-" (:index child))
+               :index (:index child)
+               :pos (if (= "range-node" (:type child)) 1 2)
+               })
+            {:id (str (:type parent) "-" (:index parent))
+             :index (:index parent)
+             :pos (if (= "range-node" (:type parent)) 1 2)}
+            ])
+         (first (range-aggregator (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node))) (belt-ranges @storage/leaf-count)))))))
 
 (comment
   ([0 "range-node-0"]
