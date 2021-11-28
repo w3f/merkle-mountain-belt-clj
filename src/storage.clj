@@ -45,14 +45,32 @@
 (defn left-child [parent]
   (- parent (* 3 (int (Math/pow 2 (- (p-adic-order 2 parent) 1))))))
 
+(defn node-height-literal
+  "takes the node index `n` and returns the node's height"
+  [n]
+  (let [child-iterator (iterate left-child n)]
+    (count (take-while #(not= (nth child-iterator %)
+                        (nth child-iterator (inc %)))
+                 (range 3000))))
+  )
+
+(= (S-n @leaf-count)
+   (reverse (sort (map node-height-literal parent-less-nodes-cache))))
 (defn right-child [parent]
   (- parent (int (Math/pow 2 (- (p-adic-order 2 parent) 1)))))
 
 (defn children [parent]
   ((juxt left-child right-child) parent))
 
-(defn node-maps [storage]
-  (map (fn [index ] {:index index :id (nth storage index)}) (range (count storage))))
+(defn node-maps
+  ;; creates maps with `:id` as the storage entry and `:index` as the index with the collection
+  [storage]
+  (map (fn [index] {:index index :id (nth storage index)}) (range (count storage))))
+
+(defn node-name-maps [storage]
+  (map (fn [index] {:index index :id (if (string? (nth storage index))
+                                      (node-name (nth storage index))
+                                      (nth storage index))}) (range (count storage))))
 
 (defn non-zero-entries []
   (filter #(not= 0 (:id %)) (node-maps @storage-array)))
@@ -81,8 +99,8 @@
     (map (juxt identity parent-index) (range 1 (count @storage-array))))
    flatten
    (filter #(< % (count @storage-array)))
-   (into [])
-   ;; (into #{})
+   ;; (into [])
+   (into #{})
    )
   )
 
@@ -227,11 +245,19 @@
 ;; -> true
 
 (def parent-less-nodes-cache (parent-less-nodes))
+(defn parent-less-nodes-sorted-height
+  "sorts nodes by height (inverse), with tie-breaker being the node index"
+  [nodes]
+  (sort #(compare (nth %2 1) (nth %1 1))
+        (map (juxt identity node-height-literal) (sort nodes))))
+
 
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
 
-(defn S-n [n]
+(defn S-n
+  "list of mountain heights for leaf-count `n`"
+  [n]
   (let [bits (map (comp #(Integer. %) str) (binary-repr-of-n (inc n)))
         reversed-bits (reverse bits)]
     (reverse (map

@@ -476,7 +476,7 @@
   "takes ranges and produces lists of the edges that represent these ranges together with belt nodes"
   [ranges]
   (do
-    (reset! parent-less-nodes-remainder storage/parent-less-nodes-cache)
+    (reset! parent-less-nodes-remainder (map first (storage/parent-less-nodes-sorted-height storage/parent-less-nodes-cache)))
     (reduce (fn
               [[range-collector starting-index belt-node-index] new-range]
               (let [[new-edges range-nodes last-index] (storage/range-node-edges new-range starting-index)]
@@ -529,6 +529,7 @@
 (first (range-aggregator (belt-ranges 1222)))
 ;; map indices to node names
 (def belted-edges
+  "map indices of peaks of an mmb to their node-names"
   (map (fn [[child parent]]
         [
          (if (int? child)
@@ -536,8 +537,7 @@
            child)
          parent
          ])
-      (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges 1222))))))
-(first (range-aggregator (belt-ranges 4)))
+      (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges @storage/leaf-count))))))
 
 (identity belted-edges)
 
