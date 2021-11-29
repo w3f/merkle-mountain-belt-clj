@@ -453,8 +453,8 @@
 (defn ordering-peaks []
   (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
 
-(defn position-in-peak-ordering []
-  (filter #(= 48 (nth (ordering-peaks) %)) (-> (ordering-peaks) count range)))
+(defn position-in-peak-ordering [peak-index]
+  (let [ordering-peaks (ordering-peaks)] (first (filter #(= peak-index (nth ordering-peaks %)) (-> ordering-peaks count range)))))
 
 (defn range-aggregator
   "takes ranges and produces lists of the edges that represent these ranges together with belt nodes"
@@ -551,9 +551,8 @@
 
 (defn update-position
   "takes an (unordered) list of maps describing a point and updates the pos to use the index order as the x component of the position"
-  [nodes]
-  (let [peaks (sort-by :index nodes)]
-    (map (fn [posx m] (update-in m [:pos] (fn [posy] (str (* 3 posx) "," posy "!")))) (range (count peaks)) peaks)))
+  [peaks]
+  (map (fn [posx m] (update-in m [:pos] (fn [posy] (str (* 2.2 posx) "," posy "!")))) (range (count peaks)) peaks))
 
 (defn graph-nodes []
   (let [nodes (group-by :type
@@ -570,15 +569,17 @@
                                                (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node)))
                                                           (belt-ranges @storage/leaf-count))))))))]
     (concat
-     (update-position (get nodes "peak-node"))
-     (update-position (get nodes "range-node"))
-     (update-position (get nodes "belt-node"))
+     (update-position (sort-by :index (fn [x y] (compare
+                                                (position-in-peak-ordering x)
+                                                (position-in-peak-ordering y))) (get nodes "peak-node")))
+     (update-position (sort-by :index (get nodes "range-node")))
+     (update-position (sort-by :index (get nodes "belt-node")))
      )
     )
-
   )
 
 (map #(select-keys % [:id :pos]) (graph-nodes))
+(map #(select-keys % [:id :pos :index]) (graph-nodes))
 
 (re-matches #"range-node.*" "range-node-0")
 
