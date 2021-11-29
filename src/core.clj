@@ -448,6 +448,14 @@
 (comment
   (take-parent-less-node))
 
+;; (def belt-node-index (atom 0))
+
+(defn ordering-peaks []
+  (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
+
+(defn position-in-peak-ordering []
+  (filter #(= 48 (nth (ordering-peaks) %)) (-> (ordering-peaks) count range)))
+
 (defn range-aggregator
   "takes ranges and produces lists of the edges that represent these ranges together with belt nodes"
   [ranges]
@@ -508,14 +516,13 @@
   (do
     (reset! parent-less-nodes-remainder (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
     (map (fn [[child parent]]
-          [
-           (if (int? child)
-             (#(str (first %) ": " (second %)) ((juxt identity storage/node-name storage/node-height-literal) child))
+           [(if (int? child)
+              (storage/node-name child)
+              ;; (#(str (first %) ": " (second %)) ((juxt identity storage/node-name storage/node-height-literal) child))
              ;; child
-             child)
-           parent
-           ])
-        (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges @storage/leaf-count)))))))
+              (str (:type child) "-" (:index child)))
+            (str (:type parent) "-" (:index parent))])
+         (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges @storage/leaf-count)))))))
 
 (defn belted-nodes
   "map indices of peaks of an mmb to their node-names"
@@ -525,7 +532,8 @@
     (map (fn [[child parent]]
            [(if (= "peak-node" (:type child))
               {:node-height (storage/node-height-literal (:index child))
-               :id (#(str (first %) ": " (second %)) ((juxt storage/node-name storage/node-height-literal) (:index child)))
+               :id (str (:type child) "-" (:index child))
+               ;; :id (#(str (first %) ": " (second %)) ((juxt storage/node-name storage/node-height-literal) (:index child)))
                :index (:index child)
                ;; :pos (str child "," (storage/node-height-literal child))}
               ;; :pos (str child "," 0)}
@@ -538,6 +546,46 @@
              :index (:index parent)
              :pos (if (= "range-node" (:type parent)) 1 2)}])
          (first (range-aggregator (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node))) (belt-ranges @storage/leaf-count)))))))
+
+;; (belted-nodes)
+
+(defn update-position
+  "takes an (unordered) list of maps describing a point and updates the pos to use the index order as the x component of the position"
+  [nodes]
+  (let [peaks (sort-by :index nodes)]
+    (map (fn [posx m] (update-in m [:pos] (fn [posy] (str (* 3 posx) "," posy "!")))) (range (count peaks)) peaks)))
+
+(defn graph-nodes []
+  (let [nodes (group-by :type
+                       (map #(merge % {
+                                       :id (if (= "peak-node" (:type %))
+                                             (storage/node-name (:index %))
+                                             (str (:type %) "-" (:index %)))
+                                       :pos (get {"peak-node" 0,
+                                                  "range-node" 1,
+                                                  "belt-node" 2} (:type %))
+                                       })
+                            (into #{} (flatten
+                                       (first (range-aggregator
+                                               (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node)))
+                                                          (belt-ranges @storage/leaf-count))))))))]
+    (concat
+     (update-position (get nodes "peak-node"))
+     (update-position (get nodes "range-node"))
+     (update-position (get nodes "belt-node"))
+     )
+    )
+
+  )
+
+(map #(select-keys % [:id :pos]) (graph-nodes))
+
+(re-matches #"range-node.*" "range-node-0")
+
+(storage/node-maps (into [] (flatten (core/belted-edges))))
+(group-by :type (into [] (into #{} (flatten (belted-nodes)))))
+
+(first (range-aggregator (belt-ranges 4)))
 
 (comment
   ([0 "range-node-0"]
