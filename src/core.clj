@@ -43,7 +43,7 @@
 
 (defn children [node]
   (into [] (filter some?
-           ((juxt ::left ::right) node))))
+                   ((juxt ::left ::right) node))))
 
 (defn has-children? [node]
   (not-empty (children node)))
@@ -57,9 +57,7 @@
          ;; (do
          ;;   (if (not= 0 (count (:ret %))) (println %))
          ;;  true)
-         (= 0 (count (:ret %)))
-         )
-  )
+         (= 0 (count (:ret %)))))
 
 (stest/instrument `children)
 (stest/check `children)
@@ -95,10 +93,10 @@
    ::value (if join-labeling
              (str (parentheses-maybe (str (::value left))) "⋁" (parentheses-maybe (str (::value right))))
              index)
-   ::index index}
-  )
+   ::index index})
 
 ;; (mmr-from-leafcount 5)
+
 
 (defn leaf [index & value]
   {::value (if value value (if join-labeling (swap! leaf-index inc) index))
@@ -106,10 +104,9 @@
 
 (defn mmr-depth [node]
   (if (has-children? node)
-     (+ 1
-        (apply max (map mmr-depth (children node))))
-     1)
-    )
+    (+ 1
+       (apply max (map mmr-depth (children node))))
+    1))
 
 (defn storage-add! [node]
   (swap! storage assoc-in [(hash-node node)] node))
@@ -124,8 +121,8 @@
   (if (nil? node)
     0
     (if (has-children? node)
-     (apply + (map mmr-leafcount (children node)))
-     1)))
+      (apply + (map mmr-leafcount (children node)))
+      1)))
 
 (defn is-power-of-two [num]
   (=
@@ -143,8 +140,7 @@
 (defonce root-storage (atom []))
 
 (defn mmb-append-leaf [old-node new-leaf]
-  (swap! root-storage conj (leaf (take-index)))
-  )
+  (swap! root-storage conj (leaf (take-index))))
 
 (defn check-subsequency-and-recurse [accumulator remainder]
   (if (empty? remainder)
@@ -153,10 +149,7 @@
       (if (= (mmr-leafcount (first head)) (mmr-leafcount (second head)))
         ;; merge-trees-and-fold-rest
         (into [] (concat (conj accumulator (node (first head) (second head) (take-index))) (map first (rest (rest remainder)))))
-        (check-subsequency-and-recurse (conj accumulator (first head)) (rest remainder))
-        ))
-    )
-  )
+        (check-subsequency-and-recurse (conj accumulator (first head)) (rest remainder))))))
 
 (defn mmb-from-indexcount [indexcount]
   (reset! index -1)
@@ -165,13 +158,10 @@
   (reduce (fn [root _]
             (do
               (swap! root-storage conj (leaf (take-index)))
-              (swap! root-storage #(check-subsequency-and-recurse [] (partition 2 1 [] %)))
-              ))
+              (swap! root-storage #(check-subsequency-and-recurse [] (partition 2 1 [] %)))))
           []
-          (range indexcount)
-          )
-  @root-storage
-  )
+          (range indexcount))
+  @root-storage)
 
 (defn mmr-from-leafcount [leafcount]
   (reset! index -1)
@@ -182,17 +172,14 @@
           (range (dec leafcount))))
 
 (defn mmr-graph [root]
-  (apply merge (flatten [{
-                          ((if join-labeling ::value ::index) root)
+  (apply merge (flatten [{((if join-labeling ::value ::index) root)
                           (map (if join-labeling ::value ::index) (children root))}
                          (map mmr-graph (children root))])))
 
 (defn mmb-graph [roots]
   (let [mmr-graphs (map mmr-graph roots)
-        root-nodes (map ::value roots)
-        ]
-    (apply merge {"RN-1", root-nodes} mmr-graphs)
-    ))
+        root-nodes (map ::value roots)]
+    (apply merge {"RN-1", root-nodes} mmr-graphs)))
 
 (defn find-subtree
   ([root node-key] (find-subtree root node-key false))
@@ -208,10 +195,9 @@
 
 (defn find-subtree-mmb [roots node-key & value?]
   ;; (or
-   (some identity (map
-                   #(find-subtree % node-key value?)
-                   roots
-                   ))
+  (some identity (map
+                  #(find-subtree % node-key value?)
+                  roots))
    ;; )
   )
 
@@ -221,32 +207,28 @@
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
                   :node->cluster (fn [node-key] (if (= node-key "RN-1")
-                                                 0
-                                                 (mmr-depth (find-subtree-mmb mmb node-key join-labeling))))
-                  )
-  graph
-  )
+                                                  0
+                                                  (mmr-depth (find-subtree-mmb mmb node-key join-labeling)))))
+  graph)
 
 ;; mmr visualization
+
+
 (let [mmr (mmr-from-leafcount 4)
       graph (mmr-graph mmr)]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
-                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key join-labeling)))
-                  )
-  graph
-  )
+                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key join-labeling))))
+  graph)
 
 (defn rhizome-to-tangle [graph]
-  [
-   (keys graph)
+  [(keys graph)
    (apply concat (map (fn [[k v]] (map #(identity [k %]) v)) graph))
    ;; {}
    {:node {:shape :oval}
     :node->id (fn [n] (if (keyword? n) (name n) n))
     ;; :node->descriptor (fn [n] (when-not (keyword? n) n))
-    }
-   ])
+    }])
 
 (defn tangle-view [graph]
   (->
@@ -255,10 +237,9 @@
    (#(apply tangle/graph->dot %))
    (tangle/dot->image "png")
    javax.imageio.ImageIO/read
-   viz/view-image
-   ))
+   viz/view-image))
 
-(tangle-view (mmb-graph (mmb-from-indexcount 3)))
+(tangle-view (mmb-graph (mmb-from-indexcount 9)))
 
 (mmb-graph (mmb-from-indexcount 3))
 
@@ -269,9 +250,8 @@
 (def edges [[:a :b] [:a :c] [:c :d] [:a :c {:label "another" :style :dashed}] [:a :html]])
 
 (def dot (tangle/graph->dot nodes edges {:node {:shape :oval}
-                                  :node->id (fn [n] (if (keyword? n) (name n) (:id n)))
-                                  :node->descriptor (fn [n] (when-not (keyword? n) n))
-                                  }))
+                                         :node->id (fn [n] (if (keyword? n) (name n) (:id n)))
+                                         :node->descriptor (fn [n] (when-not (keyword? n) n))}))
 
 (defn view-dot [graph]
   (viz/view-image (javax.imageio.ImageIO/read (tangle/dot->image graph "png"))))
@@ -294,7 +274,6 @@
      (node (leaf 3) (leaf 4) (take-index))
      (take-index))))
 
-
 (def extended-mmr (reduce (fn [root leaf-label] (mmr-append-leaf root (leaf leaf-label))) example-mmr [5 6 7 8]))
 (identity example-mmr)
 (identity extended-mmr)
@@ -306,28 +285,25 @@
   (if (core/has-children? node)
     (+ 1
        (apply max (map belt-depth (core/children node))))
-    0)
-  )
+    0))
 
 
 (defn belt-depth-right-most [node]
   (if (core/has-children? node)
     (+ 1
        (belt-depth-right-most (:core/right node)))
-    0)
-  )
+    0))
 
 (defn belt-child-right-most [node]
   (let [depth (belt-depth-right-most node)]
-      (nth (iterate :core/right node) depth)))
+    (nth (iterate :core/right node) depth)))
 (defn mmb-append-leaf [old-node new-leaf]
   (if
-      (not (has-children? old-node))
+   (not (has-children? old-node))
     (node old-node new-leaf (take-index))
     ;; if this is not the case, preserve the left branch of the old mmr and append the new leaf to the right branch
     ;; (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc new-leaf ::index @index)) (take-index)))
-    (node (::left old-node) (mmb-append-leaf (::right old-node) new-leaf) (take-index))
-    ))
+    (node (::left old-node) (mmb-append-leaf (::right old-node) new-leaf) (take-index))))
 
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
@@ -351,8 +327,7 @@
 
 (defn belt-right-most-operators [tree]
   (let [sequence-length (belt-depth-right-most tree)]
-    {
-     ::right-most-child
+    {::right-most-child
      (into [] (repeat sequence-length ::right))
      ::sibling-of-right-most-child
      (conj (into [] (repeat (dec sequence-length) ::right)) ::left)
@@ -366,64 +341,69 @@
      ;; ::parent-of-right-most-child
      ;; (get-in tree (repeat (dec sequence-length) ::right))
      ;; ;; tree
-     }
-    )
-  )
+     }))
 
 ;; reattempt at appending leafs:
 ;; we have two layers of storage: the distinct merkle trees (vector based storage)
-(let [
-      leaf-count 3
+
+
+(let [leaf-count 3
       S-n (S-n leaf-count)
       right-most-depth (last S-n)
       ;; example-tree (node (node (leaf 0) (leaf 1) 0) (leaf 2) 1)
-      example-tree (mmr-from-leafcount 3)
-      ]
-  [
-   (tangle-view (mmr-graph example-tree))
+      example-tree (mmr-from-leafcount 3)]
+  [(tangle-view (mmr-graph example-tree))
    (tangle-view (mmr-graph (if (is-power-of-two (inc leaf-count))
                              ;; append only if leaf-count + 1 is power of two (look at S-n to understand)
                              (let [;; new-rightmost is a node with the former rightmost as left-child and a new leaf as the right child
                                    new-rightmost (node (belt-child-right-most example-tree) (leaf 20) 99)]
-                               (assoc-in example-tree (::right-most-child (belt-right-most-operators example-tree)) new-rightmost)
-                               )
+                               (assoc-in example-tree (::right-most-child (belt-right-most-operators example-tree)) new-rightmost))
                              ;; append and merge
                              (let [;; new-rightmost is a node with the former rightmost as left-child and a new leaf as the right child
                                    new-rightmost (node (belt-child-right-most example-tree) (leaf 10) 99)
                                    ;; append-step
                                    new-tree (assoc-in example-tree (::right-most-child (belt-right-most-operators example-tree)) new-rightmost)
                                    ;; merge-step
-                                   merged-tree ()
-                                   ]
-                               new-tree
-                               )
-                             )))
+                                   merged-tree ()]
+                               new-tree))))
    ;; (belt-child-right-most example-tree)
    ;; (::right-most-child (belt-right-most-operators example-tree))
    ;; right-most-depth
    ;; S-n
    ;; example-tree
-   ]
-)
+   ])
+
+(mmr-graph (mmr-from-leafcount 2))
 
 
 ;; new idea: create just the belt with the S-n as the effective leaves
 ;; thereafter, map parent-less-nodes to effective leaves
 ;; ()
 
+
 (let [example-tree (mmr-from-leafcount 90)]
   (belt-depth-right-most example-tree))
 
 ;; (get-in (mmr-from-leafcount 90) (::sibling-of-right-most-child (belt-right-most-operators (mmr-from-leafcount 90))))
+
+(mmb-from-indexcount 3)
+#:core{:left #:core{:value 0, :index 0}, :right #:core{:value 1, :index 1}, :value 0, :index 0}
+
+(second (mmr-from-leafcount 3))
+
 ;; fresh attempt (16.11.2021)
 ;; reproduce the bagging structure by always recalculating from scratch. this is the first step in iteration towards moving towards a cached model
+
+(S-n 3)
+(rest (bits-of-inc-n 3))
+
+;; (reduce)
 
 (defn create-new-range? [[n-2 n-1] n]
   (or (and (= 1 n-1) (= 0 n))
       (and (= 0 n-2) (= 1 n-1))))
 
-(let [
-      running-range [[]]
+(let [running-range [[]]
       ;; running-range [[0 0 1] [1] [0 0 1]]
       ;; running-range [[0 0 1] [1] [0 0 1] [0 0]]
       flattened-running-range (flatten running-range)
@@ -432,9 +412,7 @@
     ;; if true, create new range
     (conj (into [] running-range) [new-bit])
     ;; else, append to last current range
-    (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)])
-    )
-   )
+    (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)])))
 
 (defn append-to-belt-range [running-range new-bit]
   (let [flattened-running-range (flatten running-range)]
@@ -442,9 +420,8 @@
       ;; if true, create new range
       (conj (into [] running-range) [new-bit])
       ;; else, append to last current range
-      (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)])
-      )
-    ))
+      (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)]))))
+
 (append-to-belt-range [[0 0 1] [1] [0 0 1]] 0)
 
 (bits-of-inc-n 10)
@@ -461,8 +438,7 @@
   [f data]
   (vec (map #(if (coll? %)
                (deep-walk f %)
-               (f %)) data))
-  )
+               (f %)) data)))
 
 (def parent-less-nodes-remainder (atom storage/parent-less-nodes-cache))
 (defn take-parent-less-node []
@@ -480,8 +456,7 @@
     (reduce (fn
               [[range-collector starting-index belt-node-index] new-range]
               (let [[new-edges range-nodes last-index] (storage/range-node-edges new-range starting-index)]
-                [
-                 ;; updated range collector
+                [;; updated range collector
                  (concat
                   ;; take current collection of ranges
                   range-collector
@@ -494,30 +469,29 @@
                   ;; [last-node-n-1 belt-node-0] [last-node-n belt-node-0], whichever is applicable
                   (if (not (= -2 belt-node-index))
                     (let [last-belt-node {:type "belt-node" :index belt-node-index}
-                         new-belt-node {:type "belt-node" :index (inc belt-node-index)}]
-                     (if (= -1 belt-node-index)
+                          new-belt-node {:type "belt-node" :index (inc belt-node-index)}]
+                      (if (= -1 belt-node-index)
                        ;; if first belt node, add the edges [last-node-n-1 belt-node-0] [last-node-n belt-node-0]
-                       [[(last (last range-collector)) new-belt-node] [(if (empty? new-edges)
+                        [[(last (last range-collector)) new-belt-node] [(if (empty? new-edges)
                                                                          ;; if no new edges, then the last range was a singleton, so we just append it directly to the belt
-                                                                         (first new-range)
-                                                                         (last (last new-edges)))
-                                                                       new-belt-node]]
+                                                                          (first new-range)
+                                                                          (last (last new-edges)))
+                                                                        new-belt-node]]
                        ;; otherwise, add the edges [belt-node-n-1 belt-node-n] [last-node belt-node-n]
-                       [[last-belt-node new-belt-node] [(if (empty? new-edges)
+                        [[last-belt-node new-belt-node] [(if (empty? new-edges)
                                                           ;; if no new edges, then the last range was a singleton, so we just append it directly to the belt
-                                                          (first new-range)
-                                                          (last (last new-edges))) new-belt-node]]
-                       )))
-                  )
+                                                           (first new-range)
+                                                           (last (last new-edges))) new-belt-node]]))))
 
                  ;; updated starting-index
+
+
                  (if (empty? range-nodes)
-                      last-index
-                      (inc last-index))
+                   last-index
+                   (inc last-index))
 
                  ;; updated belt-node-index
-                 (inc belt-node-index)
-                 ]))
+                 (inc belt-node-index)]))
             ;; start index of belt node at -2 to have `new-belt-node` at 0 once where at the second range
             [[] 0 -2]
             ranges)))
@@ -549,23 +523,20 @@
   (do
     (reset! parent-less-nodes-remainder (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
     (map (fn [[child parent]]
-           [
-            (if (= "peak-node" (:type child))
+           [(if (= "peak-node" (:type child))
               {:node-height (storage/node-height-literal (:index child))
                :id (#(str (first %) ": " (second %)) ((juxt storage/node-name storage/node-height-literal) (:index child)))
                :index (:index child)
                ;; :pos (str child "," (storage/node-height-literal child))}
               ;; :pos (str child "," 0)}
-              :pos 0}
+               :pos 0}
               ;; child
               {:id (str (:type child) "-" (:index child))
                :index (:index child)
-               :pos (if (= "range-node" (:type child)) 1 2)
-               })
+               :pos (if (= "range-node" (:type child)) 1 2)})
             {:id (str (:type parent) "-" (:index parent))
              :index (:index parent)
-             :pos (if (= "range-node" (:type parent)) 1 2)}
-            ])
+             :pos (if (= "range-node" (:type parent)) 1 2)}])
          (first (range-aggregator (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node))) (belt-ranges @storage/leaf-count)))))))
 
 (comment
