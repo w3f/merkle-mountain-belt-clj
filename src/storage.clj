@@ -18,6 +18,56 @@
                (mod (Math/abs n) (Math/pow p %)))
            (range 0 (Math/abs n)))))
 
+;; DONE: intermediate algo (still requires reordering of image wrt. peak order in storage array)
+((fn [n] (map #(str (= %1 %2) ":" %1 ":" %2) (first (reduce
+                        #(let [p 2
+                               ;; n 1222
+                               array-size (dec (second %1))
+                               height %2
+                               rank 0
+                               adic (int (Math/pow p height))
+                               preindex (- array-size (mod array-size adic))
+                               index (if (let [log (/ (Math/log preindex) (Math/log 2))] (= 0.0 (- log (int log))))
+                                       (- preindex adic)
+                                       preindex)
+                               ]
+                           (identity [(conj (first %1) index) index])
+                           ;; ()
+                           ;; [index (/ index adic)]
+                           )
+                        [[] (+ 3 (* 2 n))]
+                        ;; (reverse (S-n 1222))
+                        (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))
+                        ))
+         (into [] (reverse (sort (into [] (nth @peaks-accumulator (dec n)))))) ))
+      1224
+      )
+
+
+;; DONE: concrete instance of intermediate algo
+(every? true?
+        (pmap (fn [n] (= (first (reduce
+                        #(let [p 2
+                               ;; n 1222
+                               array-size (dec (second %1))
+                               height %2
+                               rank 0
+                               adic (int (Math/pow p height))
+                               preindex (- array-size (mod array-size adic))
+                               index (if (let [log (/ (Math/log preindex) (Math/log 2))] (= 0.0 (- log (int log))))
+                                       (- preindex adic)
+                                       preindex)
+                               ]
+                           (identity [(conj (first %1) index) index])
+                           ;; ()
+                           ;; [index (/ index adic)]
+                           )
+                        [[] (+ 3 (* 2 n))]
+                        (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))                   ))
+                (reverse (sort (into [] (nth @peaks-accumulator (dec n)))))))
+      (range 1 2000)
+      )
+        )
 (defn p-adic-order [p n]
   (if (= 0 n)
     ##Inf
