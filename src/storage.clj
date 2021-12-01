@@ -12,6 +12,7 @@
   (+ (* 2 n) 2))
 
 (defn highest-exponent-st-dividing [p n]
+  ;; TODO: improve this algorithm - it's inefficient as fuck!
   (last
    (filter #(= 0.0
                (mod (Math/abs n) (Math/pow p %)))
@@ -35,11 +36,15 @@
     ;; increase the leaf index
     (swap! leaf-count inc)
     (add-internal leaf (leaf-location @leaf-count))
+    (swap! parent-less-nodes-atom #(conj % (leaf-location @leaf-count)))
     (if
         (not= (+ @leaf-count 1) (int (Math/pow 2 (p-adic-order 2 (+ @leaf-count 1)))))
-      (add-internal (str "p-" (swap! node-count inc)) (peak-location @leaf-count))
+      (do
+        (add-internal (str "p-" (swap! node-count inc)) (peak-location @leaf-count))
+        (swap! parent-less-nodes-atom #(conj % (peak-location @leaf-count)))
+        (swap! parent-less-nodes-atom #(apply disj % (children (peak-location @leaf-count)))))
       )
-    )
+    (swap! peaks-accumulator #(conj % @parent-less-nodes-atom)))
   )
 
 (defn left-child [parent]
@@ -124,20 +129,31 @@
    )
   )
 
-(def parent-less-nodes-cache (atom nil))
+(def parent-less-nodes-atom (atom #{}))
+
+(clojure.set/difference @parent-less-nodes-cache @parent-less-nodes-atom)
+
+(def parent-less-nodes-cache (atom #{}))
+
+(def peaks-accumulator (atom []))
+
 (do
   (reset! storage-array '[])
   (reset! leaf-count 0)
   (reset! node-count 0)
+  (reset! peaks-accumulator [])
+  (reset! parent-less-nodes-atom #{})
   (println "------")
-  (doall (map #(add-leaf %) (range 1 40)))
+  (doall (map #(add-leaf %) (range 1 2000)))
   ;; (doall (map #(add-leaf %) (range 1 1224)))
-  (reset! parent-less-nodes-cache (parent-less-nodes))
+  ;; (reset! parent-less-nodes-cache (parent-less-nodes))
   ;; (println (range (count @storage-array)))
   ;; (println @storage-array)
   (let [print-len 50] (apply str (map #(str %1 ": " %2 " |") (range print-len) (take print-len @storage-array))))
   )
 
+
+(reset! parent-less-nodes-cache (parent-less-nodes))
 ;; trees of children
 (map (juxt left-child right-child) [6 10 12 14])
 (map (juxt identity children) (filter #(re-matches #"p-.*" (str (nth @storage-array %))) (range (count @storage-array))))
