@@ -154,13 +154,14 @@
         [
          ;; nodes
          ;; (storage/node-name-maps (into [] (flatten core/belted-edges)))
-         ;; (storage/node-maps-updated (into [] (into #{} (flatten (core/belted-nodes))))) 
-         (core/graph-nodes) 
-         ;; (storage/node-maps (into [] (flatten (core/belted-edges)))) 
+         ;; (storage/node-maps-updated (into [] (into #{} (flatten (core/belted-nodes)))))
+         ;; (core/graph-nodes)
+         (map core/merge-positions (map #(update % :posx (fn [old] (* 1.8 old))) core/test-nodes-decorated))
+         ;; (storage/node-maps (into [] (flatten (core/belted-edges))))
          ;; (into [] (flatten core/belted-edges))
 
          ;; edges
-         (core/belted-edges) 
+         (core/belted-edges)
 
          {:node {:shape :oval}
           :node->id (fn [n] (:id n))

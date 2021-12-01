@@ -550,9 +550,72 @@
 ;; (belted-nodes)
 
 (defn update-position
-  "takes an (unordered) list of maps describing a point and updates the pos to use the index order as the x component of the position"
+  "takes an index ordered list of maps describing a point and updates the pos to use the index order as the x component of the position"
   [peaks]
   (map (fn [posx m] (update-in m [:pos] (fn [posy] (str (* 2.2 posx) "," posy "!")))) (range (count peaks)) peaks))
+
+(defn peak-x-positions [peaks]
+  (map (fn [posx m] (merge m {:posx posx})) (range (count peaks)) peaks))
+
+(defn merge-positions
+  ;; "takes an index ordered list of maps describing a point and updates the pos to use the index order as the x component of the position"
+  [peak]
+  (merge peak {:pos (str (:posx peak) "," (:posy peak) "!")}))
+
+
+;; update position based on right-most child
+(defn right-most-child-edge [edge-name]
+  (first (second (filter #(= edge-name (second %)) (belted-edges)))))
+
+;; TODO: the above can definitely be improved upon - maybe instead of a vectorized approach, return to nesting like before?
+;; for the volatile nodes (ranges and belts), it may make sense to have relatively complex structures, since there are few of them
+
+(right-most-child-edge "range-node-0")
+
+(def test-nodes-decorated
+  (let [peak-nodes (map merge-positions (peak-x-positions (first test-nodes)))
+       range-nodes (sort-by :index (second test-nodes))
+       belt-nodes (sort-by :index (nth test-nodes 2))
+       range-nodes-decorated (map (fn [parent-node] (merge parent-node {:posx (:posx (first (filter #(= (right-most-child-edge (:id parent-node)) (:id %)) peak-nodes)))})) range-nodes)
+       belt-nodes-decorated (map (fn [parent-node] (merge parent-node {:posx (:posx (first (filter #(= (right-most-child-edge (:id parent-node)) (:id %)) (concat peak-nodes range-nodes-decorated))))})) belt-nodes)
+       ]
+
+   (concat
+    peak-nodes
+    range-nodes-decorated
+    belt-nodes-decorated)
+   ;; (map #(right-most-child-edge (:id %)) range-nodes)
+   ;; range-nodes
+   ))
+
+(map merge-positions (map #(update % :posx (fn [old] (* 2 old))) test-nodes-decorated))
+
+;;TODO: rip apart `update-position` - rather save posx & posy separately and merge thereafter
+;; (defn update-position [])
+
+(def test-nodes (let [nodes (group-by :type
+                       (map #(merge % {
+                                       :id (if (= "peak-node" (:type %))
+                                             (storage/node-name (:index %))
+                                             (str (:type %) "-" (:index %)))
+                                       :posy (get {"peak-node" 0,
+                                                  "range-node" 1,
+                                                  "belt-node" 2} (:type %))
+                                       })
+                            (into #{} (flatten
+                                       (first (range-aggregator
+                                               (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node)))
+                                                          (belt-ranges @storage/leaf-count))))))))]
+   [
+    (sort-by :index (fn [x y] (compare
+                              (position-in-peak-ordering x)
+                              (position-in-peak-ordering y))) (get nodes "peak-node"))
+    (get nodes "range-node")
+    (get nodes "belt-node")
+    ;; (update-position (sort-by :index (get nodes "range-node")))
+    ;; (update-position (sort-by :index (get nodes "belt-node")))
+    ]
+   ))
 
 (defn graph-nodes []
   (let [nodes (group-by :type
@@ -560,7 +623,7 @@
                                        :id (if (= "peak-node" (:type %))
                                              (storage/node-name (:index %))
                                              (str (:type %) "-" (:index %)))
-                                       :pos (get {"peak-node" 0,
+                                       :posy (get {"peak-node" 0,
                                                   "range-node" 1,
                                                   "belt-node" 2} (:type %))
                                        })
