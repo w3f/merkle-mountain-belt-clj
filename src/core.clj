@@ -476,7 +476,8 @@
 
 ((juxt S-n belt-ranges) 4)
 
-(storage/range-node-edges (first (belt-ranges 1222)) 3)
+(comment
+  (storage/range-node-edges (first (belt-ranges 1222)) 3))
 ;; (storage/bag-left-to-right (into [] (map storage/bag-left-to-right (belt-ranges 1222))))
 
 (defn deep-walk
@@ -556,7 +557,8 @@
   ([0 "range-node-0"] [0 "range-node-0"] ["range-node-0" "range-node-1"] [1 "range-node-1"] [1 "belt-node"] [0 "range-node-2"] [0 "range-node-2"] ["range-node-2" "range-node-3"] [0 "range-node-3"] ["range-node-3" "range-node-4"] [1 "range-node-4"] [1 "range-node-5"] [1 "range-node-5"]))
 (first (range-aggregator (belt-ranges 1222)))
 
-(identity storage/parent-less-nodes-cache)
+(comment
+  (identity storage/parent-less-nodes-cache))
 
 (bits-of-n 4)
 
@@ -734,4 +736,5 @@
    ["range-node-5" "belt-node-2"]))
 
 ;; (defn ranges)
-(storage/range-node-edges '[1] 1)
+(comment
+  (storage/range-node-edges '[1] 1))
