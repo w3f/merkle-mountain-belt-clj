@@ -334,10 +334,6 @@
          int))
 ;; -> true
 
-;; test for n=1221
-(S-n 1221)
-(binary-repr-of-n 1222)
-
 (map (juxt identity node-height-literal) @parent-less-nodes-cache)
 
 (defn parent-less-nodes-sorted-height
@@ -347,7 +343,7 @@
         (map (juxt identity node-height-literal) (sort nodes))))
 
 (map first (parent-less-nodes-sorted-height @parent-less-nodes-cache))
-([1536 9] [1792 8] [2304 8] [2432 7] [2400 5] [2416 4] [2424 3] [2440 3] [2444 2] [2446 1])
+(comment ([1536 9] [1792 8] [2304 8] [2432 7] [2400 5] [2416 4] [2424 3] [2440 3] [2444 2] [2446 1]))
 
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
@@ -363,6 +359,10 @@
     (reverse (map
               #(+ % (nth reversed-bits %))
               (range (dec (count bits)))))))
+
+;; test for n=1221
+(S-n 1221)
+(binary-repr-of-n 1222)
 
 ;; DONE: intermediate algo (still requires reordering of image wrt. peak order in storage array)
 (defn peak-positions-intermediate
@@ -526,7 +526,8 @@
     1)
   )
 
-(map belt-depth @parent-less-nodes-cache)
+(comment
+  (map belt-depth @parent-less-nodes-cache))
 
 ;; (defn belt-depth-right-most [node]
 ;;   (if (core/has-children? node)
@@ -536,17 +537,17 @@
 ;;   )
 
 ;; defn append-leaf
-(if (= 0 (last (S-n @leaf-count)))
-  ;; if 0, create new parent of right-most parent-less node - parent-less node becomes left child and new leaf becomes right child. Then merge right-most parents with equal height.
-  "append and merge"
-  ;; if 1, create new parent of (singleton) right-most parent-less node. Then stop.
-  ;; "append only"
-  (let [new-rightmost (core/mmb-append-leaf (core/belt-child-right-most core/example-belt) (core/leaf 3))]
-    (core/node new-rightmost))
-  ;; (assoc-in @core/storage)
-  )
-
-(parent-less-nodes)
+;; TODO: in progress
+(comment
+  (if (= 0 (last (S-n @leaf-count)))
+   ;; if 0, create new parent of right-most parent-less node - parent-less node becomes left child and new leaf becomes right child. Then merge right-most parents with equal height.
+   "append and merge"
+   ;; if 1, create new parent of (singleton) right-most parent-less node. Then stop.
+   ;; "append only"
+   (let [new-rightmost (core/mmb-append-leaf (core/belt-child-right-most core/example-belt) (core/leaf 3))]
+     (core/node new-rightmost))
+   ;; (assoc-in @core/storage)
+   ))
 
 (map #(nth @storage-array %) (parent-less-nodes))
 
