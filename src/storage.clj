@@ -1,9 +1,9 @@
 (ns storage
   (:require [core]))
 
-(def storage-array (atom '[]))
-(def leaf-count (atom 0))
-(def node-count (atom 0))
+(defonce storage-array (atom '[]))
+(defonce leaf-count (atom 0))
+(defonce node-count (atom 0))
 
 (defn leaf-location [n]
   (+ (* 2 n) 1))
@@ -261,13 +261,13 @@
    )
   )
 
-(def parent-less-nodes-atom (atom #{}))
+(defonce parent-less-nodes-atom (atom #{}))
 
 (clojure.set/difference @parent-less-nodes-cache @parent-less-nodes-atom)
 
-(def parent-less-nodes-cache (atom #{}))
+(defonce parent-less-nodes-cache (atom #{}))
 
-(def peaks-accumulator (atom []))
+(defonce peaks-accumulator (atom []))
 
 (do
   (reset! storage-array '[])

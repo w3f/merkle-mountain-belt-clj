@@ -5,8 +5,8 @@
             [clojure.spec.gen.alpha :as sgen]
             [clojure.spec.test.alpha :as stest]))
 
-(def index (atom -1))
-(def leaf-index (atom -1))
+(defonce index (atom -1))
+(defonce leaf-index (atom -1))
 
 (def join-labeling false)
 
@@ -35,7 +35,7 @@
 (defonce storage (atom {}))
 (s/valid? ::storage-map @storage)
 
-(def root (atom nil))
+(defonce root (atom nil))
 
 (s/fdef reset-storage!
   :ret ::storage-map)
@@ -486,7 +486,7 @@
                (deep-walk f %)
                (f %)) data)))
 
-(def parent-less-nodes-remainder (atom storage/parent-less-nodes-cache))
+(defonce parent-less-nodes-remainder (atom storage/parent-less-nodes-cache))
 (defn take-parent-less-node []
   (let [first-parent-less (first @parent-less-nodes-remainder)]
     (swap! parent-less-nodes-remainder rest)
