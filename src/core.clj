@@ -281,12 +281,34 @@
 (tangle-view (mmr-graph example-mmr))
 (tangle-view (mmr-graph (mmr-append-leaf example-mmr (leaf 5))))
 (tangle-view (mmr-graph extended-mmr))
+
+;; (let [example-belt
+;;       (node (node (leaf 0) (leaf 1) 0) (leaf 2) 1)]
+;;   (belt-depth-right-most example-belt))
+
+;; (defn replace-right-most [node new-leaf]
+;;   )
+
+(def example-belt (node (node (leaf 0) (leaf 1) 0) (leaf 2) 1))
+
+(def example-belt-2 (node (node (leaf 0) (leaf 1) 0) (node (leaf 2) (leaf 3) 2) 1))
+
+(mmb-append-leaf example-belt (leaf 3))
+;; (tangle-view (mmr-graph (mmb-from-indexcount 9)))
+
+(tangle-view (mmb-graph (mmb-from-indexcount 10)))
+
+(mmr-graph example-belt)
+
 (defn belt-depth [node]
   (if (core/has-children? node)
     (+ 1
        (apply max (map belt-depth (core/children node))))
     0))
 
+(let [example-belt
+      (node (node (leaf 0) (leaf 1) 0) (leaf 2) 1)]
+  (belt-depth example-belt))
 
 (defn belt-depth-right-most [node]
   (if (core/has-children? node)
@@ -297,6 +319,12 @@
 (defn belt-child-right-most [node]
   (let [depth (belt-depth-right-most node)]
     (nth (iterate :core/right node) depth)))
+
+(belt-child-right-most example-belt-2)
+
+(belt-depth-right-most example-belt)
+(:core/right example-belt)
+
 (defn mmb-append-leaf [old-node new-leaf]
   (if
    (not (has-children? old-node))
@@ -304,6 +332,9 @@
     ;; if this is not the case, preserve the left branch of the old mmr and append the new leaf to the right branch
     ;; (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc new-leaf ::index @index)) (take-index)))
     (node (::left old-node) (mmb-append-leaf (::right old-node) new-leaf) (take-index))))
+
+;; (mmb-append-leaf (mmb-from-indexcount 3) (leaf 3))
+
 
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
@@ -314,6 +345,9 @@
 (defn bits-of-inc-n [n]
   (bits-of-n (inc n)))
 
+(aget (bytes (byte-array (byte 4))) 1)
+(bit-and 1 1)
+
 (defn S-n [n]
   (let [bits (bits-of-inc-n n)
         reversed-bits (reverse bits)]
@@ -321,6 +355,14 @@
               #(+ % (nth reversed-bits %))
               (range (dec (count bits)))))))
 
+(last (S-n 1222))
+
+;; 1222 (9 8 8 7 5 4 3 3 2 1)
+(S-n 19)
+(S-n 1222)
+(S-n 1223)
+
+(S-n 3)
 ;; hack: value of leaf == height of represented peak
 (node (leaf 1) (leaf 0) 0)
 (S-n 3)
@@ -432,6 +474,10 @@
 (comment
   (belt-ranges @storage/leaf-count))
 
+((juxt S-n belt-ranges) 4)
+
+(storage/range-node-edges (first (belt-ranges 1222)) 3)
+;; (storage/bag-left-to-right (into [] (map storage/bag-left-to-right (belt-ranges 1222))))
 
 (defn deep-walk
   "replace `value`s in nested `data` structure by (`f` `value`)"
@@ -509,6 +555,18 @@
 (comment
   ([0 "range-node-0"] [0 "range-node-0"] ["range-node-0" "range-node-1"] [1 "range-node-1"] [1 "belt-node"] [0 "range-node-2"] [0 "range-node-2"] ["range-node-2" "range-node-3"] [0 "range-node-3"] ["range-node-3" "range-node-4"] [1 "range-node-4"] [1 "range-node-5"] [1 "range-node-5"]))
 (first (range-aggregator (belt-ranges 1222)))
+
+(identity storage/parent-less-nodes-cache)
+
+(bits-of-n 4)
+
+(identity @parent-less-nodes-remainder)
+(deep-walk (fn [_] (take-parent-less-node)) (belt-ranges 1222))
+(first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges 1222))))
+
+(comment
+  (storage/node-name 1536))
+
 ;; map indices to node names
 (defn belted-edges
   "map indices of peaks of an mmb to their node-names"
@@ -572,21 +630,6 @@
 
 (right-most-child-edge "range-node-0")
 
-(def test-nodes-decorated
-  (let [peak-nodes (map merge-positions (peak-x-positions (first test-nodes)))
-       range-nodes (sort-by :index (second test-nodes))
-       belt-nodes (sort-by :index (nth test-nodes 2))
-       range-nodes-decorated (map (fn [parent-node] (merge parent-node {:posx (:posx (first (filter #(= (right-most-child-edge (:id parent-node)) (:id %)) peak-nodes)))})) range-nodes)
-       belt-nodes-decorated (map (fn [parent-node] (merge parent-node {:posx (:posx (first (filter #(= (right-most-child-edge (:id parent-node)) (:id %)) (concat peak-nodes range-nodes-decorated))))})) belt-nodes)
-       ]
-
-   (concat
-    peak-nodes
-    range-nodes-decorated
-    belt-nodes-decorated)
-   ;; (map #(right-most-child-edge (:id %)) range-nodes)
-   ;; range-nodes
-   ))
 
 (map merge-positions (map #(update % :posx (fn [old] (* 2 old))) test-nodes-decorated))
 
@@ -617,6 +660,22 @@
     ]
    ))
 
+(def test-nodes-decorated
+  (let [peak-nodes (map merge-positions (peak-x-positions (first test-nodes)))
+        range-nodes (sort-by :index (second test-nodes))
+        belt-nodes (sort-by :index (nth test-nodes 2))
+        range-nodes-decorated (map (fn [parent-node] (merge parent-node {:posx (:posx (first (filter #(= (right-most-child-edge (:id parent-node)) (:id %)) peak-nodes)))})) range-nodes)
+        belt-nodes-decorated (map (fn [parent-node] (merge parent-node {:posx (:posx (first (filter #(= (right-most-child-edge (:id parent-node)) (:id %)) (concat peak-nodes range-nodes-decorated))))})) belt-nodes)
+        ]
+
+    (concat
+     peak-nodes
+     range-nodes-decorated
+     belt-nodes-decorated)
+    ;; (map #(right-most-child-edge (:id %)) range-nodes)
+    ;; range-nodes
+    ))
+
 (defn graph-nodes []
   (let [nodes (group-by :type
                        (map #(merge % {
@@ -641,8 +700,11 @@
     )
   )
 
-(map #(select-keys % [:id :pos]) (graph-nodes))
+(sort-by :index (fn [x y] (compare (* -1 x) y)) [{:index -7} {:index 0}])
+
 (map #(select-keys % [:id :pos :index]) (graph-nodes))
+
+;; (ordering-peaks)
 
 (re-matches #"range-node.*" "range-node-0")
 

@@ -20,6 +20,7 @@
 (defn graph [starting-node]
   (let [[range-node-edges range-nodes] (storage/range-node-edges
                                         (map storage/node-name (storage/parent-less-nodes)))]
+    ;; [range-node-edges range-nodes]
     [
      ;; nodes
      (->
@@ -79,6 +80,14 @@
    javax.imageio.ImageIO/read
    ))
 
+(->
+ (graph "p-1")
+ tangle-dot
+ (tangle/dot->image "png")
+ javax.imageio.ImageIO/read
+ viz/view-image
+ )
+
 (defn tangle-direct-view [graph]
   (viz/view-image (tangle-direct graph)))
 
@@ -86,6 +95,7 @@
   (viz/save-image (tangle-direct graph) location))
 
 (tangle-direct-view (graph "p-1"))
+(tangle-direct-save (graph "p-1") "jim")
 (second (graph "p-1"))
 
 (concat

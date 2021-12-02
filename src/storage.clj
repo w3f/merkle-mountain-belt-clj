@@ -18,56 +18,127 @@
                (mod (Math/abs n) (Math/pow p %)))
            (range 0 (Math/abs n)))))
 
-;; DONE: intermediate algo (still requires reordering of image wrt. peak order in storage array)
-((fn [n] (map #(str (= %1 %2) ":" %1 ":" %2) (first (reduce
-                        #(let [p 2
-                               ;; n 1222
-                               array-size (dec (second %1))
-                               height %2
-                               rank 0
-                               adic (int (Math/pow p height))
-                               preindex (- array-size (mod array-size adic))
-                               index (if (let [log (/ (Math/log preindex) (Math/log 2))] (= 0.0 (- log (int log))))
-                                       (- preindex adic)
-                                       preindex)
-                               ]
-                           (identity [(conj (first %1) index) index])
-                           ;; ()
-                           ;; [index (/ index adic)]
-                           )
-                        [[] (+ 3 (* 2 n))]
-                        ;; (reverse (S-n 1222))
-                        (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))
-                        ))
-         (into [] (reverse (sort (into [] (nth @peaks-accumulator (dec n)))))) ))
-      1224
-      )
+(let [log (/ (Math/log 2048) (Math/log 2))] (= 0.0 (- log (int log))))
 
+;; DONE: intermediate algo (still requires reordering of image wrt. peak order in storage array)
+(defn peak-positions-intermediate
+  "intermediate algo for getting peaks"
+  [n]
+  (map
+   #(str (= %1 %2) ":" %1 ":" %2)
+   (first (reduce
+           #(let [p 2
+                  ;; n 1222
+                  array-size (dec (second %1))
+                  height %2
+                  rank 0
+                  adic (int (Math/pow p height))
+                  preindex (- array-size (mod array-size adic))
+                  index (if (let [log (/ (Math/log preindex) (Math/log 2))] (= 0.0 (- log (int log))))
+                          (- preindex adic)
+                          preindex)
+                  ]
+              (identity [(conj (first %1) index) index])
+              ;; ()
+              ;; [index (/ index adic)]
+              )
+           [[] (+ 3 (* 2 n))]
+           ;; (reverse (S-n 1222))
+           (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))
+           ))
+   (into [] (reverse (sort (into [] (nth @peaks-accumulator (dec n)))))) )
+  )
+
+;; DONE: final algo
+(defn peak-positions-final
+  "verifies that, up to `n`, the peak positions are correctly calculated"
+  [m]
+  (every? true?
+         (pmap
+          (fn [n]
+            (=
+             (let [array-size (+ 2 (* 2 n))]
+               (sort (reduce #(let [adic (int (Math/pow 2 %2))
+                                    prepreindex (- array-size (mod array-size adic))
+                                    preindex (if (let [log (/ (Math/log prepreindex) (Math/log 2))]
+                                                   (or
+                                                    (= 0.0 (- log (int log)))
+                                                    (some (fn [existing-index] (= existing-index prepreindex)) (reverse %1))
+                                                    ))
+                                               (- prepreindex adic)
+                                               prepreindex)
+                                    index (if (let [log (/ (Math/log preindex) (Math/log 2))]
+                                                (or
+                                                 (= 0.0 (- log (int log)))
+                                                 (some (fn [existing-index] (= existing-index preindex)) (reverse %1))
+                                                 ))
+                                            (- preindex adic)
+                                            preindex)
+                                    ]
+                                (conj %1 index)
+                                )
+                             []
+                             (S-n n)))
+               )
+             (sort (into [] (nth @peaks-accumulator (dec n))))
+             ))
+          (range 1222 (inc (count @peaks-accumulator)))
+          )))
+
+(map-indexed (fn [index n] [(str "n: " index ", exponent: " (highest-exponent-st-dividing 2 n) )]) (range 40))
+(map-indexed (fn [index n] [index (highest-exponent-st-dividing 2 n)]) (range 40))
+
+(count @peaks-accumulator)
+
+(comment
+  (sort (into [] (nth @peaks-accumulator (dec 1222)))))
+
+(comment
+  (map (juxt identity #(highest-exponent-st-dividing 2 %)) (reverse (sort (nth @peaks-accumulator (dec 1221))))))
+
+(comment
+  (nth (reverse (sort (nth @peaks-accumulator (dec 1221)))) 0)
+  (nth (reverse (sort (nth @peaks-accumulator (dec 1225)))) 0)
+  (nth (reverse (sort (nth @peaks-accumulator (dec 1222)))) 3)
+  (highest-exponent-st-dividing 2 (nth (reverse (sort (nth @peaks-accumulator (dec 1222)))) 3)))
 
 ;; DONE: concrete instance of intermediate algo
-(every? true?
-        (pmap (fn [n] (= (first (reduce
-                        #(let [p 2
-                               ;; n 1222
-                               array-size (dec (second %1))
-                               height %2
-                               rank 0
-                               adic (int (Math/pow p height))
-                               preindex (- array-size (mod array-size adic))
-                               index (if (let [log (/ (Math/log preindex) (Math/log 2))] (= 0.0 (- log (int log))))
-                                       (- preindex adic)
-                                       preindex)
-                               ]
-                           (identity [(conj (first %1) index) index])
-                           ;; ()
-                           ;; [index (/ index adic)]
-                           )
-                        [[] (+ 3 (* 2 n))]
-                        (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))                   ))
-                (reverse (sort (into [] (nth @peaks-accumulator (dec n)))))))
-      (range 1 2000)
-      )
-        )
+(comment
+  (every? true?
+         (pmap (fn [n] (= (first (reduce
+                                 #(let [p 2
+                                        ;; n 1222
+                                        array-size (dec (second %1))
+                                        height %2
+                                        rank 0
+                                        adic (int (Math/pow p height))
+                                        preindex (- array-size (mod array-size adic))
+                                        index (if (let [log (/ (Math/log preindex) (Math/log 2))] (= 0.0 (- log (int log))))
+                                                (- preindex adic)
+                                                preindex)
+                                        ]
+                                    (identity [(conj (first %1) index) index])
+                                    ;; ()
+                                    ;; [index (/ index adic)]
+                                    )
+                                 [[] (+ 3 (* 2 n))]
+                                 (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))                   ))
+                         (reverse (sort (into [] (nth @peaks-accumulator (dec n)))))))
+               (range 1 2000)
+               )
+         ))
+
+(S-n 1222)
+(comment
+  (reverse (sort (map #(highest-exponent-st-dividing 2 %) (nth @peaks-accumulator (dec 1222))))))
+(parent-index 1222)
+(comment
+  (clojure.set/intersection (nth @peaks-accumulator (dec 1222)) (into #{} (map #(* (int (Math/pow 2 9)) %) (range 9)))))
+
+(count @peaks-accumulator)
+
+(highest-exponent-st-dividing 2 10000)
+
 (defn p-adic-order [p n]
   (if (= 0 n)
     ##Inf
@@ -109,8 +180,12 @@
                  (range 3000))))
   )
 
-(= (S-n @leaf-count)
-   (reverse (sort (map node-height-literal parent-less-nodes-cache))))
+(comment
+  (= (S-n @leaf-count)
+    (reverse (sort (map node-height-literal @parent-less-nodes-cache)))))
+
+(map (juxt identity node-height-literal) @parent-less-nodes-cache)
+
 (defn right-child [parent]
   (- parent (int (Math/pow 2 (- (p-adic-order 2 parent) 1)))))
 
@@ -141,6 +216,8 @@
                         )
                     )) (range (count storage))))
 
+(storage/node-maps (into [] (flatten (core/belted-edges))))
+(storage/node-maps (into [] (flatten (core/belted-nodes))))
 
 (defn node-name-maps [storage]
   (map (fn [index] {:index index :id (if (string? (nth storage index))
@@ -155,6 +232,11 @@
 
 (defn parent-index [child-index]
   (+ child-index (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))
+
+(map (fn [child-index] (- (+ (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))) (range 1 1000))
+
+(map node-name @parent-less-nodes-cache)
+(identity @parent-less-nodes-cache)
 
 (defn node-name [index]
   (nth @storage-array index))
@@ -194,7 +276,7 @@
   (reset! peaks-accumulator [])
   (reset! parent-less-nodes-atom #{})
   (println "------")
-  (doall (map #(add-leaf %) (range 1 2000)))
+  (doall (map #(add-leaf %) (range 1 1223)))
   ;; (doall (map #(add-leaf %) (range 1 1224)))
   ;; (reset! parent-less-nodes-cache (parent-less-nodes))
   ;; (println (range (count @storage-array)))
@@ -202,8 +284,21 @@
   (let [print-len 50] (apply str (map #(str %1 ": " %2 " |") (range print-len) (take print-len @storage-array))))
   )
 
+(nth @peaks-accumulator (dec 4))
+(first @peaks-accumulator)
+(map-indexed #(identity [(inc %1) (- (apply max %2) (apply min %2))]) (take 100 @peaks-accumulator))
+(apply min (map (comp last butlast S-n) (range 3 1E4)))
+
+(map #(p-adic-order 2 %) (range 1 100))
+
+(defonce storage-array-5000 (atom @storage-array))
+(defonce parent-less-nodes-atom-5000 (atom @parent-less-nodes-atom))
+(count @storage-array-5000)
 
 (reset! parent-less-nodes-cache (parent-less-nodes))
+(empty? (clojure.set/difference @parent-less-nodes-cache @parent-less-nodes-atom))
+(empty? (clojure.set/difference (parent-less-nodes) @parent-less-nodes-atom))
+
 ;; trees of children
 (map (juxt left-child right-child) [6 10 12 14])
 (map (juxt identity children) (filter #(re-matches #"p-.*" (str (nth @storage-array %))) (range (count @storage-array))))
@@ -265,11 +360,18 @@
 (defn range-node-edges-reduced [nodes]
   (drop-last (range-node-edges nodes)))
 
+(apply max (map #(double (- (parent-index %) %)) (range 1 1000 2)))
+(apply max (map #(double (/ (parent-index %) %)) (range 1 1000 2)))
+(map #(p-adic-order 2 %) (range 1 1000 2))
+;; (map #(/ % parent-index) (range 1 500 2))
+
 (defn path [index]
   (if (contains? (parent-less-nodes) index)
     (concat [(nth @storage-array index)] (last (range-node-edges-reduced (parent-less-nodes))))
     (concat [(nth @storage-array index)] (path (parent-index index)))
     ))
+
+(drop-last (range-node-edges (parent-less-nodes)))
 
 (defn co-path [index]
   (if (contains? (parent-less-nodes) index)
@@ -299,6 +401,8 @@
      current-bagging
      (bag-left-to-right [current-bagging (first remainder)] (rest remainder)))))
 
+;; (bag-left-to-right (map #(core/leaf %) (S-n 7)))
+
 (defn range-node-map
   ([nodes]
    (range-node-map {:id "range-node-1" :children {:left {:id (first nodes)} :right {:id (second nodes)}}} (drop 2 nodes) 1))
@@ -325,8 +429,22 @@
       (str "range-node-" (inc (Integer. (first (re-seq #"[0-9]+" node))))))))
 
 (defn left-to-right-range-node-path [node]
-  (left-to-right-parent node)
-  )
+  (left-to-right-parent node))
+
+(into #{} (flatten (drop-last (range-node-edges (parent-less-nodes)))))
+(drop-last (range-node-edges (parent-less-nodes)))
+
+;; (defn range-nodes)
+
+(nth (range-node-edges [1 2 3 4 5]) 1)
+
+(nth (range-node-edges @parent-less-nodes-cache) 1)
+;; (S-n 19)
+
+(defn range-node-map-unfold [range-node-map])
+
+;; (co-path (name-index "p-5"))
+(non-zero-entries)
 
 ;; does n=1222 correspond to merkle tree list '(9  8  8  7  5  4  3  3  2  1)?
 (= 1222 (->
@@ -334,15 +452,26 @@
          int))
 ;; -> true
 
+;; test for n=1221
+(S-n 1221)
+(binary-repr-of-n 1222)
+
+(map (juxt identity node-height-literal) @parent-less-nodes-cache)
+
 (defn parent-less-nodes-sorted-height
   "sorts nodes by height (inverse), with tie-breaker being the node index"
   [nodes]
   (sort #(compare (nth %2 1) (nth %1 1))
         (map (juxt identity node-height-literal) (sort nodes))))
 
+(map first (parent-less-nodes-sorted-height @parent-less-nodes-cache))
+([1536 9] [1792 8] [2304 8] [2432 7] [2400 5] [2416 4] [2424 3] [2440 3] [2444 2] [2446 1])
 
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
+
+(aget (bytes (byte-array (byte 4))) 1)
+(bit-and 1 1)
 
 (defn S-n
   "list of mountain heights for leaf-count `n`"
@@ -353,6 +482,8 @@
               #(+ % (nth reversed-bits %))
               (range (dec (count bits)))))))
 
+(S-n 1222)
+
 (defn s-m-of-n [m n]
   (nth (reverse (S-n n)) m))
 
@@ -362,10 +493,26 @@
 (S-n 3)
 (s-m-of-n 7 1222)
 
+(binary-repr-of-n 1222)
+
+;; (let [reversed-bits (map (comp #(Integer/parseUnsignedInt %) str) (reverse (binary-repr-of-n 1222)))]
+;;   (map #(+ %1 %2) reversed-bits (range (count reversed-bits))))
+
+(map (reverse (map (comp #(Integer. %) str) (into [] "123"))))
+
 ;; verify that the number of peaks == (dec binary length of leaf-count)
 (= (dec (count (binary-repr-of-n @leaf-count)))
-   (count parent-less-nodes-cache))
+   (count @parent-less-nodes-cache))
 
+;; see https://hackmd.io/4k2wjlWfTVqgW0Mp4bLSSQ?view#An-initial-description-without-bagging
+;; to get mountain heights
+;; (defn s-i )
+
+(identity @parent-less-nodes-cache)
+
+(defn find-right-most-parentless [])
+
+;; (identity @core/storage)
 
 (defn storage-add! [node]
   (swap! core/storage assoc-in [(core/hash-node node)] node))
@@ -377,3 +524,34 @@
     1)
   )
 
+(map belt-depth @parent-less-nodes-cache)
+
+;; (defn belt-depth-right-most [node]
+;;   (if (core/has-children? node)
+;;     (+ 1
+;;        (belt-depth-right-most (:core/right node)))
+;;     1)
+;;   )
+
+;; defn append-leaf
+(if (= 0 (last (S-n @leaf-count)))
+  ;; if 0, create new parent of right-most parent-less node - parent-less node becomes left child and new leaf becomes right child. Then merge right-most parents with equal height.
+  "append and merge"
+  ;; if 1, create new parent of (singleton) right-most parent-less node. Then stop.
+  ;; "append only"
+  (let [new-rightmost (core/mmb-append-leaf (core/belt-child-right-most core/example-belt) (core/leaf 3))]
+    (core/node new-rightmost))
+  ;; (assoc-in @core/storage)
+  )
+
+(parent-less-nodes)
+
+(map #(nth @storage-array %) (parent-less-nodes))
+
+(not (core/has-children? (core/belt-child-right-most core/example-belt)))
+(core/node (core/belt-child-right-most core/example-belt) (core/leaf 3) (core/take-index))
+
+(identity @core/storage)
+(identity @storage-array)
+
+(identity @leaf-count)
