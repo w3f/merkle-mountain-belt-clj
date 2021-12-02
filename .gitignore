@@ -1,1 +1,6 @@
 *.png
+*.pdf
+*.dot
+*.vz
+.nrepl-port
+.cpcache
