@@ -12,7 +12,7 @@
    :hash hash
    :parent parent})
 
-(def lastP (atom (peak nil 0 nil nil)))
+(def lastP (atom (peak-node nil 0 nil nil)))
 
 ;; (def R-count (atom 0))
 
@@ -42,8 +42,8 @@
   (reset! peak-array [])
   (reset! mergeable-stack [])
   (reset! leaf-count 0)
-  (reset! lastP (peak nil nil nil nil)))
-                                        ;w
+  (reset! lastP (peak-node nil nil nil nil)))
+
 (:height @lastP)
 (identity @lastP)
 
@@ -51,7 +51,7 @@
   (let [h (str @leaf-count "-hash")]
     (do
       ;; 1. Add step
-      (swap! peak-map #(assoc % h (peak-node @lastP 0 h nil)))
+      (swap! peak-map #(assoc % h (peak-node (:hash @lastP) 0 h nil)))
       (add-internal h (* 2 @leaf-count))
       ;; 2. Check mergeable
       (if (= (:height @lastP) 0)
@@ -63,11 +63,12 @@
         (do
           (let [Q (pop-mergeable-stack)
                 Q (update Q :height inc)
-                L (:left Q)
+                L (:left (:hash Q))
                 Q (assoc Q :hash (str (:hash L) (:hash Q)))
-                Q (assoc Q :left (:left L))]
+                Q (assoc Q :left (:left (:hash L)))]
             (add-internal (:hash Q) (inc (* 2 @leaf-count))))))
       (swap! leaf-count inc)
-      [@peak-map @mergeable-stack])))
+      [@peak-map @mergeable-stack]))
+  )
 
 (algo)
