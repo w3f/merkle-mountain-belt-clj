@@ -63,12 +63,16 @@
         (do
           (let [Q (pop-mergeable-stack)
                 Q (update Q :height inc)
-                L (:left (:hash Q))
-                Q (assoc Q :hash (str (:hash L) (:hash Q)))
-                Q (assoc Q :left (:left (:hash L)))]
+                L (get @peak-map (:left Q))
+                Q (assoc Q :hash (str (:hash L) "||" (:hash Q)))
+                Q (assoc Q :left (get @peak-map (:left L)))]
+            (swap! peak-map #(assoc % (:hash Q) Q))
             (add-internal (:hash Q) (inc (* 2 @leaf-count))))))
       (swap! leaf-count inc)
-      [@peak-map @mergeable-stack]))
+      ;; 5. TODO update range nodes
+
+      ;; show results
+      [@peak-map @peak-array @mergeable-stack]))
   )
 
 (algo)
