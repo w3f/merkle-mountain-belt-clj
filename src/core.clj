@@ -632,8 +632,8 @@
 
 (right-most-child-edge "range-node-0")
 
-
-(map merge-positions (map #(update % :posx (fn [old] (* 2 old))) test-nodes-decorated))
+(comment
+  (map merge-positions (map #(update % :posx (fn [old] (* 2 old))) test-nodes-decorated)))
 
 ;;TODO: rip apart `update-position` - rather save posx & posy separately and merge thereafter
 ;; (defn update-position [])
