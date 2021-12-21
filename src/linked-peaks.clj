@@ -48,16 +48,27 @@
 (identity @lastP)
 
 (defn algo []
-  (let [h (str @leaf-count "-hash")]
+  (let [
+        ;; let h be hash of new leaf
+        h (str @leaf-count "-hash")
+        ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
+        P (peak-node (:hash @lastP) 0 h nil)
+        ]
     (do
       ;; 1. Add step
-      (swap! peak-map #(assoc % h (peak-node (:hash @lastP) 0 h nil)))
+      ;; store object P in peak map
+      (swap! peak-map #(assoc % h P))
+      ;; A[R*n+1]<-h
       (add-internal h (* 2 @leaf-count))
+
       ;; 2. Check mergeable
+      ;; if lastP.height==0 then M.add(P)
       (if (= (:height @lastP) 0)
         (add-mergeable-stack (get @peak-map h)))
+
       ;; 3. reset lastP
       (reset! lastP (get @peak-map h))
+
       ;; 4. merge if mergeable
       (if (not (zero? (count @mergeable-stack)))
         (do
@@ -67,7 +78,11 @@
                 Q (assoc Q :hash (str (:hash L) "||" (:hash Q)))
                 Q (assoc Q :left (get @peak-map (:left L)))]
             (swap! peak-map #(assoc % (:hash Q) Q))
-            (add-internal (:hash Q) (inc (* 2 @leaf-count))))))
+            (add-internal (:hash Q) (inc (* 2 @leaf-count)))
+            (if (= (:height Q) (:height (:left (get @peak-map (:left Q)))))
+              (add-mergeable-stack Q))
+            ))
+        )
       (swap! leaf-count inc)
       ;; 5. TODO update range nodes
 
@@ -76,3 +91,5 @@
   )
 
 (algo)
+
+(keys @peak-map)
