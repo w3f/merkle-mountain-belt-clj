@@ -42,17 +42,18 @@
   (reset! peak-array [])
   (reset! mergeable-stack [])
   (reset! leaf-count 0)
-  (reset! lastP (peak-node nil nil nil nil)))
+  (reset! lastP nil))
 
-(:height @lastP)
+(:height (get peak-map lastP))
 (identity @lastP)
 
+(algo)
 (defn algo []
   (let [
         ;; let h be hash of new leaf
         h (str @leaf-count "-hash")
         ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
-        P (peak-node (:hash @lastP) 0 h nil)
+        P (peak-node (:hash (get @peak-map @lastP)) 0 h nil)
         ]
     (do
       ;; 1. Add step
@@ -63,11 +64,11 @@
 
       ;; 2. Check mergeable
       ;; if lastP.height==0 then M.add(P)
-      (if (= (:height @lastP) 0)
+      (if (= (:height (get @peak-map @lastP)) 0)
         (add-mergeable-stack (get @peak-map h)))
 
       ;; 3. reset lastP
-      (reset! lastP (get @peak-map h))
+      (reset! lastP h)
 
       ;; 4. merge if mergeable
       (if (not (zero? (count @mergeable-stack)))
@@ -75,21 +76,27 @@
           (let [Q (pop-mergeable-stack)
                 Q (update Q :height inc)
                 L (get @peak-map (:left Q))
+                Q-old-hash (:hash Q)
                 Q (assoc Q :hash (str (:hash L) "||" (:hash Q)))
-                Q (assoc Q :left (get @peak-map (:left L)))]
+                Q (assoc Q :left (:left L))]
             (swap! peak-map #(assoc % (:hash Q) Q))
             (add-internal (:hash Q) (inc (* 2 @leaf-count)))
-            (if (= (:height Q) (:height (:left (get @peak-map (:left Q)))))
+            (if (= (:height Q) (:height (get @peak-map (:left Q))))
               (add-mergeable-stack Q))
+            ;; if we've replaced the old lastP, should reset lastP to point to the new entry
+            (if (= Q-old-hash @lastP)
+              (reset! lastP (:hash Q)))
             ))
         )
       (swap! leaf-count inc)
       ;; 5. TODO update range nodes
 
       ;; show results
-      [@peak-map @peak-array @mergeable-stack]))
+      [@peak-map @peak-array @mergeable-stack @lastP]))
   )
 
 (algo)
+
+(@peak-map)
 
 (keys @peak-map)
