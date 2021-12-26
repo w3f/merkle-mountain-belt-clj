@@ -156,28 +156,33 @@
   ([] (parent-less-nodes @leaf-count))
   ([n]
    (let [array-size (+ 2 (* 2 n))]
-     (sort (reduce #(let [adic (int (Math/pow 2 %2))
-                          prepreindex (- array-size (mod array-size adic))
-                          preindex (if (let [log (/ (Math/log prepreindex) (Math/log 2))]
-                                         (or
-                                          (= 0.0 (- log (int log)))
-                                          (some (fn [existing-index] (= existing-index prepreindex)) (reverse %1))
-                                          ))
-                                     (- prepreindex adic)
-                                     prepreindex)
-                          index (if (let [log (/ (Math/log preindex) (Math/log 2))]
-                                      (or
-                                       (= 0.0 (- log (int log)))
-                                       (some (fn [existing-index] (= existing-index preindex)) (reverse %1))
-                                       ))
-                                  (- preindex adic)
-                                  preindex)
-                          ]
-                      (conj %1 index)
-                      )
-                   []
-                   (S-n n)))
+     (->> (reduce #(let [adic (int (Math/pow 2 %2))
+                         prepreindex (- array-size (mod array-size adic))
+                         ;; TODO: refactor since this only supports two collisions
+                         preindex (if (let [log (/ (Math/log prepreindex) (Math/log 2))]
+                                        (or
+                                         (= 0.0 (- log (int log)))
+                                         (some (fn [existing-index] (= existing-index prepreindex)) (reverse %1))
+                                         ))
+                                    (- prepreindex adic)
+                                    prepreindex)
+                         index (if (let [log (/ (Math/log preindex) (Math/log 2))]
+                                     (or
+                                      (= 0.0 (- log (int log)))
+                                      (some (fn [existing-index] (= existing-index preindex)) (reverse %1))
+                                      ))
+                                 (- preindex adic)
+                                 preindex)
+                         ]
+                     (conj %1 index)
+                     )
+                  []
+                  (S-n n))
+          (into #{})
+          )
      )))
+
+(parent-less-nodes)
 
 (clojure.set/difference @parent-less-nodes-cache @parent-less-nodes-atom)
 
