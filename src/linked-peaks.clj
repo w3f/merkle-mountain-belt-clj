@@ -51,8 +51,11 @@
 (defn hop-left [node]
   (:left (get @peak-map node)))
 
+(defn hop-parent [node]
+  (:parent (get @peak-map node)))
+
 (algo)
-(defn algo []
+(defn algo [upgrade?]
   (let [
         ;; let h be hash of new leaf
         ;; h (str @leaf-count "-hash")
@@ -100,10 +103,20 @@
             (if (= Q-old-hash @lastP)
               (reset! lastP (:hash Q)))
             ;; TODO: the following has a smarter integration
-            (if (= Q-old-hash (:left (get @peak-map @lastP)))
-              (swap! peak-map #(assoc-in % [@lastP :left] (:hash Q))))
-            (if (= Q-old-hash (:left (get @peak-map (:left (get @peak-map @lastP)))))
-              (swap! peak-map #(assoc-in % [(:left (get @peak-map @lastP)) :left] (:hash Q))))
+            (if (not upgrade?)
+              (do (if (= Q-old-hash (hop-left @lastP))
+                    (swap! peak-map #(assoc-in % [@lastP :left] (:hash Q))))
+                  (if (= Q-old-hash (:left (get @peak-map (:left (get @peak-map @lastP)))))
+                    (swap! peak-map #(assoc-in % [(:left (get @peak-map @lastP)) :left] (:hash Q)))))
+              (let [
+                    left-most-sibling-peak (first (drop-while #(and (some? %) (nil? (hop-parent %))) (take @leaf-count (iterate hop-left @lastP))))
+                    correct-sibling-of-left-most (take-while some?
+                                                             (take @leaf-count (iterate hop-parent
+                                                                       (hop-left left-most-sibling-peak))))
+                    ]
+                (if #(< 1 (count correct-sibling-of-left-most))
+                  (swap! peak-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most))))
+                ))
             ;; (if (= (:hash Q) (:parent (get @peak-map (:left (get @peak-map @lastP)))))
             ;;   (swap! peak-map #(assoc-in % [@lastP :left] (:hash Q))))
             )
@@ -118,19 +131,34 @@
       ;; (clojure.pprint/pprint @peak-map)
       ))
   )
-(algo)
+(algo true)
 
 (@peak-map)
 
-(defn play-algo [n]
+(defn play-algo [n upgrade?]
   (do (reset-all)
-      (doall (repeatedly n algo))
-      (println "-----------------")
-      (clojure.pprint/pprint @peak-map)
+      (doall (repeatedly n #(algo upgrade?)))
+      ;; (println "-----------------")
+      ;; (clojure.pprint/pprint @peak-map)
+      [@peak-map @lastP @mergeable-stack]
       ))
 
+(defn last-algo-match
+  "plays algo until the first mismatch of a step's result"
+  []
+  (last (take-while
+    #(let [
+           non-upgrade (play-algo % false)
+           upgrade (play-algo % true)
+           ]
+       (= non-upgrade upgrade))
+    (range 300))))
+
+(play-algo (last-algo-match) true)
+
 (do
-  (play-algo 100)
+  ;; (play-algo 10 false)
+  (play-algo 0 false)
   (map (fn [[k v]] [k (:parent v)]) @peak-map)
   (keys @peak-map)
   )
