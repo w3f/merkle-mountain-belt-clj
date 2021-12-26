@@ -56,7 +56,7 @@
     )
   )
 
-(storage/path (storage/name-index "p-1"))
+(comment (storage/path (storage/name-index "p-1")))
 
 (concat
  (apply concat
@@ -199,4 +199,4 @@
 
 (storage/node-maps '(1536))
 
-(map (juxt #(storage/node-name (first %)) second) (storage/parent-less-nodes-sorted-height storage/parent-less-nodes-cache))
+(map (juxt #(storage/node-name (first %)) second) (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache))

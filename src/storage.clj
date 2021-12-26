@@ -124,7 +124,8 @@
 (defn parent-index [child-index]
   (+ child-index (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))
 
-(map (fn [child-index] (- (+ (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))) (range 1 1000))
+(comment
+  (map (fn [child-index] (- (+ (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))) (range 1 1000)))
 
 (map node-name @parent-less-nodes-cache)
 (identity @parent-less-nodes-cache)
@@ -360,7 +361,7 @@
          int))
 ;; -> true
 
-(map (juxt identity node-height-literal) @parent-less-nodes-cache)
+(comment (map (juxt identity node-height-literal) @parent-less-nodes-cache))
 
 (defn parent-less-nodes-sorted-height
   "sorts nodes by height (inverse), with tie-breaker being the node index"
@@ -368,14 +369,15 @@
   (sort #(compare (nth %2 1) (nth %1 1))
         (map (juxt identity node-height-literal) (sort nodes))))
 
-(map first (parent-less-nodes-sorted-height @parent-less-nodes-cache))
+(comment (map first (parent-less-nodes-sorted-height @parent-less-nodes-cache)))
 (comment ([1536 9] [1792 8] [2304 8] [2432 7] [2400 5] [2416 4] [2424 3] [2440 3] [2444 2] [2446 1]))
 
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
 
-(aget (bytes (byte-array (byte 4))) 1)
-(bit-and 1 1)
+(comment
+  (aget (bytes (byte-array (byte 4))) 1)
+  (bit-and 1 1))
 
 (defn S-n
   "list of mountain heights for leaf-count `n`"
@@ -387,8 +389,9 @@
               (range (dec (count bits)))))))
 
 ;; test for n=1221
-(S-n 1221)
-(binary-repr-of-n 1222)
+(comment
+  (S-n 1221)
+  (binary-repr-of-n 1222))
 
 ;; DONE: intermediate algo (still requires reordering of image wrt. peak order in storage array)
 (defn peak-positions-intermediate
