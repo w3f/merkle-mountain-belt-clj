@@ -109,14 +109,14 @@
                   (if (= Q-old-hash (:left (get @peak-map (:left (get @peak-map @lastP)))))
                     (swap! peak-map #(assoc-in % [(:left (get @peak-map @lastP)) :left] (:hash Q)))))
               (let [
-                    left-most-sibling-peak (first (drop-while #(and (some? %) (nil? (hop-parent %))) (take @leaf-count (iterate hop-left @lastP))))
-                    correct-sibling-of-left-most (take-while some?
-                                                             (take @leaf-count (iterate hop-parent
-                                                                       (hop-left left-most-sibling-peak))))
-                    ]
-                (if #(< 1 (count correct-sibling-of-left-most))
-                  (swap! peak-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most))))
-                ))
+                     left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (take @leaf-count (iterate hop-left @lastP))))
+                     correct-sibling-of-left-most (take-while some?
+                                                              (take @leaf-count (iterate hop-parent
+                                                                                         (hop-left left-most-sibling-peak))))
+                     ]
+                 ;; #dbg
+                 (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
+                   (swap! peak-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most))))))
             ;; (if (= (:hash Q) (:parent (get @peak-map (:left (get @peak-map @lastP)))))
             ;;   (swap! peak-map #(assoc-in % [@lastP :left] (:hash Q))))
             )
@@ -132,7 +132,23 @@
       ))
   )
 (algo true)
+(play-algo (last-algo-match) true)
+(first-algo-mismatch)
 
+(play-algo 100 true)
+(nth (sort (group-by count (filter string? (keys @peak-map)))) 4)
+
+(def algo-new-mismatch (play-algo (inc (last-algo-match)) true))
+(def algo-old-mismatch (play-algo (inc (last-algo-match)) false))
+
+(:mergeable-stack algo-new-mismatch)
+(:mergeable-stack algo-old-mismatch)
+(:lastP algo-new-mismatch)
+(:lastP algo-old-mismatch)
+(clojure.set/difference (into #{} (:peak-map algo-new-mismatch))
+                        (into #{} (:peak-map algo-old-mismatch)))
+(clojure.set/difference (into #{} (:peak-map algo-old-mismatch))
+                        (into #{} (:peak-map algo-new-mismatch)))
 (@peak-map)
 
 (defn play-algo [n upgrade?]
@@ -160,14 +176,11 @@
   "plays algo until first mismatch and returns the differences"
   []
   (let [first-mismatch (inc (last-algo-match))]
+    (println "-----------------")
     (clojure.pprint/pprint
      {:first-mismatch first-mismatch
       :old (play-algo first-mismatch false)
       :new (play-algo first-mismatch true) })))
-
-(first-algo-mismatch)
-
-(play-algo (last-algo-match) true)
 
 (do
   ;; (play-algo 10 false)
