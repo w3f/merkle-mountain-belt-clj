@@ -37,15 +37,19 @@
         zero-leaves (- index array-len)]
     (swap! peak-array concat (repeat zero-leaves 0) (list item))))
 
-(do
-  (reset! peak-map {})
-  (reset! peak-array [])
-  (reset! mergeable-stack [])
-  (reset! leaf-count 0)
-  (reset! lastP nil))
+(defn reset-all []
+ (do
+   (reset! peak-map {})
+   (reset! peak-array [])
+   (reset! mergeable-stack [])
+   (reset! leaf-count 0)
+   (reset! lastP nil)))
 
-(:height (get peak-map lastP))
+(:height (get @peak-map @lastP))
 (identity @lastP)
+
+(defn hop-left [node]
+  (:left (get @peak-map node)))
 
 (algo)
 (defn algo []
@@ -79,24 +83,55 @@
                 Q-old-hash (:hash Q)
                 Q (assoc Q :hash (str (:hash L) "||" (:hash Q)))
                 Q (assoc Q :left (:left L))]
+            ;; add new leaf to peak-map
             (swap! peak-map #(assoc % (:hash Q) Q))
+            ;; update new parent-values
+            (swap! peak-map #(assoc-in % [(:hash L) :parent] (:hash Q)))
+            (swap! peak-map #(assoc-in % [Q-old-hash :parent] (:hash Q)))
+
+            (swap! peak-map #(assoc-in % [Q-old-hash :parent] (:hash Q)))
+
             (add-internal (:hash Q) (inc (* 2 @leaf-count)))
+            ;; issue is that :left of Q can be outdated since may have had subsequent merge
             (if (= (:height Q) (:height (get @peak-map (:left Q))))
               (add-mergeable-stack Q))
             ;; if we've replaced the old lastP, should reset lastP to point to the new entry
             (if (= Q-old-hash @lastP)
               (reset! lastP (:hash Q)))
-            ))
+            ;; TODO: the following has a smarter integration
+            (if (= Q-old-hash (:left (get @peak-map @lastP)))
+              (swap! peak-map #(assoc-in % [@lastP :left] (:hash Q))))
+            (if (= Q-old-hash (:left (get @peak-map (:left (get @peak-map @lastP)))))
+              (swap! peak-map #(assoc-in % [(:left (get @peak-map @lastP)) :left] (:hash Q))))
+            ;; (if (= (:hash Q) (:parent (get @peak-map (:left (get @peak-map @lastP)))))
+            ;;   (swap! peak-map #(assoc-in % [@lastP :left] (:hash Q))))
+            )
+          )
         )
       (swap! leaf-count inc)
       ;; 5. TODO update range nodes
 
       ;; show results
-      [@peak-map @peak-array @mergeable-stack @lastP]))
+      ;; (clojure.pprint/pprint [@peak-map @peak-array @mergeable-stack @lastP])
+      ;; (clojure.pprint/pprint @peak-map)
+      ;; (clojure.pprint/pprint @peak-map)
+      ))
   )
-
 (algo)
 
 (@peak-map)
+
+(defn play-algo [n]
+  (do (reset-all)
+      (doall (repeatedly n algo))
+      (println "-----------------")
+      (clojure.pprint/pprint @peak-map)
+      ))
+
+(do
+  (play-algo 100)
+  (map (fn [[k v]] [k (:parent v)]) @peak-map)
+  (keys @peak-map)
+  )
 
 (keys @peak-map)
