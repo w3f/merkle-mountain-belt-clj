@@ -17,9 +17,17 @@
        edges)
     )
 
+;; TODO: decide at what layer to perform name parsing
+(defn force-name-parsing [form]
+  (clojure.walk/postwalk
+   #(if (map? %) (core/parse-typed-name %) %)
+   form)
+  )
+
 (defn graph [starting-node]
-  (let [[range-node-edges range-nodes] (storage/range-node-edges
-                                        (map storage/node-name (storage/parent-less-nodes)))]
+  (let [[range-node-edges range-nodes] (force-name-parsing
+                                        (storage/range-node-edges
+                                         (map storage/node-name (storage/parent-less-nodes))))]
     ;; [range-node-edges range-nodes]
     [
      ;; nodes
@@ -31,7 +39,7 @@
        ;; range nodes
        (map (fn [range-node] {:id range-node}) range-nodes))
       ;; decorate co-path nodes
-      (decorate-nodes (storage/co-path (storage/name-index starting-node)) {:color "blue"})
+      (decorate-nodes (force-name-parsing (storage/co-path (storage/name-index starting-node))) {:color "blue"})
       ;; decorate starting node
       (decorate-nodes #{starting-node} {:color "red"})
       )
@@ -45,7 +53,7 @@
                      ) (storage/parents)))
        range-node-edges)
       ;; decorate co-path edges
-      (decorate-edges (storage/path (storage/name-index starting-node))
+      (decorate-edges (force-name-parsing (storage/path (storage/name-index starting-node)))
                       {:style :dashed :color "blue"})
       )
      {:node {:shape :oval}

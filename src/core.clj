@@ -569,6 +569,10 @@
 (comment
   (storage/node-name 1536))
 
+;; TODO: this is maybe not the right place to do this - perhaps only once creating graph?
+(defn parse-typed-name [node]
+  (str (:type node) "-" (:index node)))
+
 ;; map indices to node names
 (defn belted-edges
   "map indices of peaks of an mmb to their node-names"
@@ -580,8 +584,8 @@
               (storage/node-name child)
               ;; (#(str (first %) ": " (second %)) ((juxt identity storage/node-name storage/node-height-literal) child))
              ;; child
-              (str (:type child) "-" (:index child)))
-            (str (:type parent) "-" (:index parent))])
+              (parse-typed-name child))
+            (parse-typed-name parent)])
          (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges @storage/leaf-count)))))))
 
 (defn belted-nodes
