@@ -140,11 +140,13 @@
       (doall (repeatedly n #(algo upgrade?)))
       ;; (println "-----------------")
       ;; (clojure.pprint/pprint @peak-map)
-      [@peak-map @lastP @mergeable-stack]
+      {:peak-map @peak-map
+       :lastP @lastP
+       :mergeable-stack @mergeable-stack}
       ))
 
 (defn last-algo-match
-  "plays algo until the first mismatch of a step's result"
+  "plays algo while the upgrade and old algos still match"
   []
   (last (take-while
     #(let [
@@ -153,6 +155,17 @@
            ]
        (= non-upgrade upgrade))
     (range 300))))
+
+(defn first-algo-mismatch
+  "plays algo until first mismatch and returns the differences"
+  []
+  (let [first-mismatch (inc (last-algo-match))]
+    (clojure.pprint/pprint
+     {:first-mismatch first-mismatch
+      :old (play-algo first-mismatch false)
+      :new (play-algo first-mismatch true) })))
+
+(first-algo-mismatch)
 
 (play-algo (last-algo-match) true)
 
