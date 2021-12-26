@@ -55,7 +55,8 @@
 (defn algo []
   (let [
         ;; let h be hash of new leaf
-        h (str @leaf-count "-hash")
+        ;; h (str @leaf-count "-hash")
+        h @leaf-count
         ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
         P (peak-node (:hash (get @peak-map @lastP)) 0 h nil)
         ]
