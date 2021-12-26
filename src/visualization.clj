@@ -193,18 +193,19 @@
 
 (core/belted-edges)
 
-(flatten core/belted-edges)
+(flatten (core/belted-edges))
 (nth @storage/storage-array 1536)
 (storage/node-name 1536)
 
 (storage/node-maps-updated (into [] (into #{} (flatten (core/belted-nodes)))))
 
-(storage/node-maps (do (filter #(int? %) (flatten core/belted-edges))))
-(map (juxt identity storage/node-name) (do (filter #(int? %) (flatten core/belted-edges))))
-(storage/node-name-maps (flatten core/belted-edges))
+(storage/node-maps (do (filter #(int? %) (flatten (core/belted-edges)))))
+(map (juxt identity storage/node-name) (do (filter #(int? %) (flatten (core/belted-edges)))))
+(storage/node-name-maps (flatten (core/belted-edges)))
 
 (count (core/belted-edges))
 
 (storage/node-maps '(1536))
 
-(map (juxt #(storage/node-name (first %)) second) (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache))
+;; (map (juxt #(storage/node-name (first %)) second) (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache))
+(map (juxt #(storage/node-name (first %)) second) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes)))
