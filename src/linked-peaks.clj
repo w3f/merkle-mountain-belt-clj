@@ -126,22 +126,26 @@
       ;; (clojure.pprint/pprint @peak-map)
       ))
   )
+
 (algo true)
 (play-algo (last-algo-match) true)
 (first-algo-mismatch)
 
 (play-algo 300 false)
-(let [n 0]
-  ((juxt
-    ;; number of leaves with this height
-    (comp count second)
-    ;; does every leaf "hash" start with a 2^height
-    (comp (fn [list-first-indices] (every? #(= 0.0 %) (map #(mod % (Math/pow 2 n)) list-first-indices))) sort #(map first %) second)
-    ;; is every leaf "hash" a range from the first index until first index + 2^height?
-    (comp (fn [child-list] (every? #(= % (into #{} (range (first %) (+ (first %) (Math/pow 2 n))))) child-list)) second)
-    identity)
-   ;; group the peaks by hashset length
-   (nth (sort (group-by count (keys @peak-map))) n)))
+(every? (fn [n]
+          (eval `(and ~@((juxt
+                          ;; number of leaves with this height
+                          ;; (comp count second)
+                          ;; does every leaf "hash" start with a 2^height
+                          (comp (fn [list-first-indices] (every? #(= 0.0 %) (map #(mod % (Math/pow 2 n)) list-first-indices))) sort #(map first %) second)
+                          ;; is every leaf "hash" a range from the first index until first index + 2^height?
+                          (comp (fn [child-list] (every? #(= % (into #{} (range (first %) (+ (first %) (Math/pow 2 n))))) child-list)) second)
+                          ;; identity
+                          )
+                         ;; group the peaks by hashset length
+                         (nth (sort (group-by count (keys @peak-map))) n)))))
+        (range 0 (count (core/S-n @leaf-count))))
+
 
 (def algo-new-mismatch (play-algo (inc (last-algo-match)) true))
 (def algo-old-mismatch (play-algo (inc (last-algo-match)) false))
