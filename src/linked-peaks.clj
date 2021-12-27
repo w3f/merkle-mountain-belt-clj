@@ -109,16 +109,11 @@
                   (if (= Q-old-hash (:left (get @peak-map (:left (get @peak-map @lastP)))))
                     (swap! peak-map #(assoc-in % [(:left (get @peak-map @lastP)) :left] (:hash Q)))))
               (let [
-                     left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (take @leaf-count (iterate hop-left @lastP))))
-                     correct-sibling-of-left-most (take-while some?
-                                                              (take @leaf-count (iterate hop-parent
-                                                                                         (hop-left left-most-sibling-peak))))
-                     ]
-                 ;; #dbg
-                 (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
-                   (swap! peak-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most))))))
-            ;; (if (= (:hash Q) (:parent (get @peak-map (:left (get @peak-map @lastP)))))
-            ;;   (swap! peak-map #(assoc-in % [@lastP :left] (:hash Q))))
+                    left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (iterate hop-left @lastP)))
+                    correct-sibling-of-left-most (take-while some? (iterate hop-parent (hop-left left-most-sibling-peak)))
+                    ]
+                (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
+                  (swap! peak-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most))))))
             )
           )
         )
