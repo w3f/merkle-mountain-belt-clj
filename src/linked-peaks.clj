@@ -59,7 +59,7 @@
   (let [
         ;; let h be hash of new leaf
         ;; h (str @leaf-count "-hash")
-        h @leaf-count
+        h #{@leaf-count}
         ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
         P (peak-node (:hash (get @peak-map @lastP)) 0 h nil)
         ]
@@ -85,7 +85,7 @@
                 Q (update Q :height inc)
                 L (get @peak-map (:left Q))
                 Q-old-hash (:hash Q)
-                Q (assoc Q :hash (str (:hash L) "||" (:hash Q)))
+                Q (assoc Q :hash (apply sorted-set (concat (:hash L) (:hash Q))))
                 Q (assoc Q :left (:left L))]
             ;; add new leaf to peak-map
             (swap! peak-map #(assoc % (:hash Q) Q))
@@ -190,3 +190,4 @@
   )
 
 (keys @peak-map)
+(get @peak-map #{8 9})
