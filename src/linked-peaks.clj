@@ -1,4 +1,5 @@
-(ns linked-peaks)
+(ns linked-peaks
+  (:require [core]))
 
 (defn internal-node [left height hash parent]
   {:left left
