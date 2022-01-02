@@ -132,6 +132,8 @@
 (first-algo-mismatch)
 
 (play-algo 300 false)
+
+;; check that all peaks have correct children
 (every? (fn [n]
           (eval `(and ~@((juxt
                           ;; number of leaves with this height
@@ -144,8 +146,7 @@
                           )
                          ;; group the peaks by hashset length
                          (nth (sort (group-by count (keys @peak-map))) n)))))
-        (range 0 (count (core/S-n @leaf-count))))
-
+        (range (count (core/S-n @leaf-count))))
 
 (def algo-new-mismatch (play-algo (inc (last-algo-match)) true))
 (def algo-old-mismatch (play-algo (inc (last-algo-match)) false))
@@ -169,6 +170,13 @@
        :lastP @lastP
        :mergeable-stack @mergeable-stack}
       ))
+
+;; test that that tree construction is correct
+(let [n 1222
+      nodes (play-algo n true)
+      parent-less (filter #(= nil (:parent (val %))) (:peak-map nodes))]
+  (= (reverse (sort (map (comp :height val) parent-less))) (storage/S-n n)))
+(every? nil? (map #(:parent (get @peak-map %)) (take-while #(some? (get @peak-map %)) (iterate hop-left @lastP))))
 
 (defn last-algo-match
   "plays algo while the upgrade and old algos still match"
