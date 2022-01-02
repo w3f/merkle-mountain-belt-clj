@@ -178,6 +178,20 @@
   (= (reverse (sort (map (comp :height val) parent-less))) (storage/S-n n)))
 (every? nil? (map #(:parent (get @peak-map %)) (take-while #(some? (get @peak-map %)) (iterate hop-left @lastP))))
 
+;; TODO make recursive or take-while
+(hop-left (:lastP nodes-1222))
+(:height (get @peak-map (:lastP nodes-1222)))
+(:height (get @peak-map (hop-left (:lastP nodes-1222))))
+(:height (get @peak-map (hop-left (hop-left (:lastP nodes-1222)))))
+(:height (get @peak-map (hop-left (hop-left (hop-left (:lastP nodes-1222))))))
+(:height (get @peak-map (hop-left (hop-left (hop-left (hop-left (:lastP nodes-1222)))))))
+(:height (get @peak-map (hop-left (hop-left (hop-left (hop-left (hop-left (:lastP nodes-1222))))))))
+(:height (get @peak-map (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (:lastP nodes-1222)))))))))
+(:height (get @peak-map (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (:lastP nodes-1222))))))))))
+(:height (get @peak-map (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (:lastP nodes-1222)))))))))))
+(:height (get @peak-map (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (:lastP nodes-1222))))))))))))
+(hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (hop-left (:lastP nodes-1222)))))))))))
+
 (defn last-algo-match
   "plays algo while the upgrade and old algos still match"
   []
