@@ -30,6 +30,28 @@
     (highest-exponent-st-dividing p n)
     ))
 
+(defn binary-repr-of-n [n]
+  (Integer/toBinaryString n))
+
+(comment
+  (aget (bytes (byte-array (byte 4))) 1)
+  (bit-and 1 1))
+
+;; test for n=1221
+(comment
+  (S-n 1221)
+  (binary-repr-of-n 1222))
+
+
+(defn S-n
+  "list of mountain heights for leaf-count `n`"
+  [n]
+  (let [bits (map (comp #(Integer. %) str) (binary-repr-of-n (inc n)))
+        reversed-bits (reverse bits)]
+    (reverse (map
+              #(+ % (nth reversed-bits %))
+              (range (dec (count bits)))))))
+
 (defn left-child [parent]
   (- parent (* 3 (int (Math/pow 2 (- (p-adic-order 2 parent) 1))))))
 
@@ -195,7 +217,7 @@
   (println "------")
   (doall (map #(add-leaf %) (range 1 1223)))
   ;; (doall (map #(add-leaf %) (range 1 1224)))
-  ;; (reset! parent-less-nodes-cache (parent-less-nodes))
+  (reset! parent-less-nodes-cache (parent-less-nodes))
   ;; (println (range (count @storage-array)))
   ;; (println @storage-array)
   (let [print-len 50] (apply str (map #(str %1 ": " %2 " |") (range print-len) (take print-len @storage-array))))
@@ -212,9 +234,10 @@
 (defonce parent-less-nodes-atom-5000 (atom @parent-less-nodes-atom))
 (count @storage-array-5000)
 
-(reset! parent-less-nodes-cache (parent-less-nodes))
-(empty? (clojure.set/difference @parent-less-nodes-cache @parent-less-nodes-atom))
-(empty? (clojure.set/difference (parent-less-nodes) @parent-less-nodes-atom))
+(comment
+  (reset! parent-less-nodes-cache (parent-less-nodes))
+  (empty? (clojure.set/difference @parent-less-nodes-cache @parent-less-nodes-atom))
+  (empty? (clojure.set/difference (parent-less-nodes) @parent-less-nodes-atom)))
 
 ;; trees of children
 (map (juxt left-child right-child) [6 10 12 14])
@@ -379,27 +402,6 @@
 
 (comment (map first (parent-less-nodes-sorted-height @parent-less-nodes-cache)))
 (comment ([1536 9] [1792 8] [2304 8] [2432 7] [2400 5] [2416 4] [2424 3] [2440 3] [2444 2] [2446 1]))
-
-(defn binary-repr-of-n [n]
-  (Integer/toBinaryString n))
-
-(comment
-  (aget (bytes (byte-array (byte 4))) 1)
-  (bit-and 1 1))
-
-(defn S-n
-  "list of mountain heights for leaf-count `n`"
-  [n]
-  (let [bits (map (comp #(Integer. %) str) (binary-repr-of-n (inc n)))
-        reversed-bits (reverse bits)]
-    (reverse (map
-              #(+ % (nth reversed-bits %))
-              (range (dec (count bits)))))))
-
-;; test for n=1221
-(comment
-  (S-n 1221)
-  (binary-repr-of-n 1222))
 
 ;; DONE: intermediate algo (still requires reordering of image wrt. peak order in storage array)
 (defn peak-positions-intermediate
