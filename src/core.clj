@@ -497,30 +497,40 @@
     (path-in coll)))
 
 (letfn [(discrepancy-at-index [index seqs]
-           (apply not= (map #(nth % index nil) seqs)))
-         (belt-ranges-index-routes [index n]
-           (find-index-route index (convert-nested-to-indices (belt-ranges n)))
-           )
-         ;; (belt-ranges-routes [])
-         (belt-ranges-routes [m]
-           ;; #dbg
-           (map conj
-                (map (fn [index] (belt-ranges-index-routes index m)) (range ((comp count flatten belt-ranges) m)))
-                ;; (flatten (belt-ranges m))
-                (S-n m)
-                ))
-         ]
-   (println "-------------------"
-            (println
-             (map (fn [n] (filter #(discrepancy-at-index % [(S-n n) (S-n (inc n))])
-                                 (range ((comp count S-n inc) n))))
-                  (range 30)))
-            (println
-             (map (fn [n] (filter #(discrepancy-at-index % (map belt-ranges-routes [n (inc n)]))
-                                 (range ((comp count flatten belt-ranges inc) n))))
-                  (range 30))))
-   ;; NOTE ergo: locations of changes in in belt-range splitting are only a subset of the locations of changes in S-n
-   )
+          (apply not= (map #(nth % index nil) seqs)))
+        (belt-ranges-index-routes [index n]
+          (find-index-route index (convert-nested-to-indices (belt-ranges n)))
+          )
+        ;; (belt-ranges-routes [])
+        (belt-ranges-routes [m]
+          ;; #dbg
+          (map conj
+               (map (fn [index] (belt-ranges-index-routes index m)) (range ((comp count flatten belt-ranges) m)))
+               ;; (flatten (belt-ranges m))
+               (S-n m)
+               ))
+        ]
+  (comment
+    (println "-------------------"
+             (println
+              (map (fn [n] (filter #(discrepancy-at-index % [(S-n n) (S-n (inc n))])
+                                  (range ((comp count S-n inc) n))))
+                   (range 30)))
+             (println
+              (map (fn [n] (filter #(discrepancy-at-index % (map belt-ranges-routes [n (inc n)]))
+                                  (range ((comp count flatten belt-ranges inc) n))))
+                   (range 30)))))
+  (let [maxn 1000]
+    (=
+     (pmap (fn [n] (filter #(discrepancy-at-index % [(S-n n) (S-n (inc n))])
+                          (range ((comp count S-n inc) n))))
+           (range maxn))
+     (pmap (fn [n] (filter #(discrepancy-at-index % (map belt-ranges-routes [n (inc n)]))
+                          (range ((comp count flatten belt-ranges inc) n))))
+           (range maxn))
+     ))
+  ;; NOTE ergo: locations of changes in in belt-range splitting are only a subset of the locations of changes in S-n
+  )
 
 
 ;; map indices to belt-ranges
