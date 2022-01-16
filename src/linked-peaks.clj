@@ -65,11 +65,12 @@
 (:height (get @node-map @lastP))
 (identity @lastP)
 
-(defn hop-left [node]
-  (:left (get @node-map node)))
+(defn hop-left [node & target-map]
+  (:left (get (or (first target-map) @node-map) node)))
 
-(defn hop-parent [node]
-  (:parent (get @node-map node)))
+(defn hop-parent [node & target-map]
+  (:parent (get (or (first target-map) @node-map) node)))
+
 
 
 (algo true)
