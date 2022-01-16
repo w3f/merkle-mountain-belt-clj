@@ -477,6 +477,13 @@
 ;; NOTE result: S-n & belt-ranges always have same flattened length
 (every? #(apply = (map count %)) (map (juxt S-n (comp flatten belt-ranges)) (range 0 300)))
 
+(defn deep-walk
+  "replace `value`s in nested `data` structure by (`f` `value`)"
+  [f data]
+  (vec (map #(if (coll? %)
+               (deep-walk f %)
+               (f %)) data)))
+
 ;; NOTE: fucking ugly xD
 ;; TODO: unuglify ;)
 (defn convert-nested-to-indices
@@ -542,13 +549,6 @@
 (comment
   (storage/range-node-edges (first (belt-ranges 1222)) 3))
 ;; (storage/bag-left-to-right (into [] (map storage/bag-left-to-right (belt-ranges 1222))))
-
-(defn deep-walk
-  "replace `value`s in nested `data` structure by (`f` `value`)"
-  [f data]
-  (vec (map #(if (coll? %)
-               (deep-walk f %)
-               (f %)) data)))
 
 (defonce parent-less-nodes-remainder (atom storage/parent-less-nodes-cache))
 (defn take-parent-less-node []
