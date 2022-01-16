@@ -73,7 +73,8 @@
 
 
 
-(algo true)
+(comment
+  (algo true))
 (defn algo [upgrade?]
   (let [
         ;; let h be hash of new leaf
@@ -164,17 +165,53 @@
 ;; NOTE: shifting storage left by 3 since skipping the constant offset from the beginning (always empty)
 (map #(- % 3) (sort (storage/parent-less-nodes 1222)))
 
-(let [n 1222
-      range-nodes (atom [])
-      sorted-peaks (atom (map #(- (first %) 3) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes n))))]
-  (map #(reduce (fn [left-child right-child] (range-node left-child right-child nil nil))
-                ;; (take (count %) sorted-peaks)
-                ;; (let [split-peaks (split-at (count %) @sorted-peaks)])
-                (take (count %)
-                      (first (swap-vals! sorted-peaks (fn [current] (drop (count %) current)))))
-                )
-       (core/belt-ranges n))
-  )
+(def result-1222
+  (let [n 1222
+        range-nodes (atom {})
+        belt-nodes (atom {})
+        sorted-peaks (atom (map #(get (:node-map algo-1222) (nth (:node-array algo-1222) (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes n))))]
+    (let [
+          belt-children (doall (map #(reduce (fn [left-child right-child]
+                                               (let [rn (range-node (:hash left-child) (:hash right-child)
+                                                                    (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
+                                                   (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
+                                                   rn
+                                                   ))
+                                               ;; (take (count %) sorted-peaks)
+                                               ;; (let [split-peaks (split-at (count %) @sorted-peaks)])
+                                               (take (count %)
+                                                     (first (swap-vals! sorted-peaks (fn [current] (drop (count %) current)))))
+                                               )
+                                    (core/belt-ranges n)))
+          belts (doall
+                 ;; #dbg
+                 (reduce (fn [left-child right-child]
+                                       (let [bn (belt-node (:hash left-child) (:hash right-child)
+                                                            (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
+                                         (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
+                                         bn
+                                         ))
+                                     ;; (take (count %) sorted-peaks)
+                                     ;; (let [split-peaks (split-at (count %) @sorted-peaks)])
+                                     belt-children
+                                     ))
+          ]
+      {:belt-children belt-children
+       :range-nodes range-nodes
+       :belts belt-nodes})
+
+    ))
+
+(nth (map :hash (:belt-children result-1222)) 3)
+
+(count @(:range-nodes result-1222))
+(count @(:belts result-1222))
+(get @(:range-nodes result-1222)
+     (:hash (first (:belt-children result-1222))))
+
+(map #(get (:node-map algo-1222)
+           (nth (:node-array algo-1222) %))
+     (map #(- % 3) (storage/parent-less-nodes 1222)))
 
 (algo true)
 (play-algo (last-algo-match) true)
@@ -216,7 +253,8 @@
       ;; (clojure.pprint/pprint @node-map)
       {:node-map @node-map
        :lastP @lastP
-       :mergeable-stack @mergeable-stack}
+       :mergeable-stack @mergeable-stack
+       :node-array @node-array}
       ))
 
 ;; test that that tree construction is correct
