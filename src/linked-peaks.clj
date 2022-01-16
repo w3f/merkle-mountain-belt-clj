@@ -153,7 +153,28 @@
   )
 
 (def algo-1222 (play-algo 1222 true))
-(count (filter #(= :peak (:type (val %))) (:node-map algo-1222)))
+(def algo-1277 (play-algo 1277 true))
+(def algo-1278 (play-algo 1278 true))
+(def algo-1279 (play-algo 1279 true))
+
+(filter #(= :peak (:type (get (:node-map algo-1222) (nth (:node-array algo-1222) %))))
+        (range (count (:node-array algo-1222))))
+(comment (list 1533 1789 2301 2397 2413 2421 2429 2437 2441 2443))
+
+;; NOTE: shifting storage left by 3 since skipping the constant offset from the beginning (always empty)
+(map #(- % 3) (sort (storage/parent-less-nodes 1222)))
+
+(let [n 1222
+      range-nodes (atom [])
+      sorted-peaks (atom (map #(- (first %) 3) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes n))))]
+  (map #(reduce (fn [left-child right-child] (range-node left-child right-child nil nil))
+                ;; (take (count %) sorted-peaks)
+                ;; (let [split-peaks (split-at (count %) @sorted-peaks)])
+                (take (count %)
+                      (first (swap-vals! sorted-peaks (fn [current] (drop (count %) current)))))
+                )
+       (core/belt-ranges n))
+  )
 
 (algo true)
 (play-algo (last-algo-match) true)
