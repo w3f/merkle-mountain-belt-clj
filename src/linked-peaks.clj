@@ -167,16 +167,24 @@
 
 (def result-1222
   (let [n 1222
+        node-map (atom (:node-map algo-1222))
+        node-array (atom (:node-array algo-1222))
         range-nodes (atom {})
         belt-nodes (atom {})
-        sorted-peaks (atom (map #(get (:node-map algo-1222) (nth (:node-array algo-1222) (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes n))))]
+        sorted-peaks (atom (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes n))))]
     (let [
           belt-children (doall (map #(reduce (fn [left-child right-child]
                                                (let [rn (range-node (:hash left-child) (:hash right-child)
-                                                                    (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
-                                                   (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
-                                                   rn
-                                                   ))
+                                                                    (clojure.set/union (:hash left-child) (:hash right-child)) nil)
+                                                     storage-maps {:peak node-map
+                                                                   :range range-nodes}]
+                                                 ;; #dbg
+                                                 (doall (map
+                                                   (fn [child] (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash left-child) :parent] (:hash rn)))))
+                                                   [left-child right-child]))
+                                                 (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
+                                                 rn
+                                                 ))
                                                ;; (take (count %) sorted-peaks)
                                                ;; (let [split-peaks (split-at (count %) @sorted-peaks)])
                                                (take (count %)
@@ -187,7 +195,12 @@
                  ;; #dbg
                  (reduce (fn [left-child right-child]
                                        (let [bn (belt-node (:hash left-child) (:hash right-child)
-                                                            (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
+                                                           (clojure.set/union (:hash left-child) (:hash right-child)) nil)
+                                             storage-maps {:peak node-map
+                                                           :range range-nodes}]
+                                         (map
+                                          (fn [child] (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash left-child) :parent] (:hash bn)))))
+                                          [left-child right-child])
                                          (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
                                          bn
                                          ))
@@ -198,7 +211,9 @@
           ]
       {:belt-children belt-children
        :range-nodes range-nodes
-       :belts belt-nodes})
+       :belts belt-nodes
+       :node-map node-map
+       :node-array node-array})
 
     ))
 
