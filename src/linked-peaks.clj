@@ -200,7 +200,7 @@
                                                            :range range-nodes
                                                            :belt belt-nodes}]
                                          (doall (map
-                                           (fn [child] (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash left-child) :parent] (:hash bn)))))
+                                           (fn [child] (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash bn)))))
                                            [left-child right-child]))
                                          (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
                                          bn
@@ -233,6 +233,10 @@
                 (map :hash (filter (fn [entry] (= :range (:type entry)))
                                    (map #(select-keys % [:type :hash]) (:belt-children result-1222))))))
 ;; ERGO -> the two last belt children don't have a daddy set, i.e. we're not updating this with final belt node? TODO: Investigate!!!
+
+(count @(:range-nodes result-1222))
+;; ERGO -> it adds new range nodes, and the old ones don't attain parents!
+
 (map some? (map (fn [val] (:parent (get @(:range-nodes result-1222) val)))
                 (map :hash (filter (fn [entry] (= :range (:type entry)))
                                    (map #(select-keys % [:type :hash]) @(:range-nodes result-1222))))))
