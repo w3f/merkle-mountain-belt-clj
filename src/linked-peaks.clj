@@ -179,7 +179,7 @@
     (letfn [(update-parent [parent child]
               (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent)))))]
       (let [
-            belt-children (doall (map (fn [belt-range]
+            belt-children (doall (map (fn [belt-range-count]
                                         (reduce (fn [left-child right-child]
                                                  (let [rn (range-node (:hash left-child) (:hash right-child)
                                                                       (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
@@ -189,10 +189,9 @@
                                                    (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
                                                    rn
                                                    ))
-                                               (take (count belt-range)
-                                                     (first (swap-vals! sorted-peaks (fn [current] (drop (count belt-range) current)))))
+                                               (take belt-range-count
+                                                     (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))
                                                ))
-                                     (core/belt-ranges n)))
            belts (doall
                   (reduce (fn [left-child right-child]
                             (let [bn (belt-node (:hash left-child) (:hash right-child)
@@ -205,6 +204,7 @@
                               ))
                           belt-children
                           ))
+                                      (map count (core/belt-ranges n))))
            ]
        {:belt-children belt-children
         :range-nodes range-nodes
