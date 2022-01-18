@@ -218,11 +218,30 @@
     ))
 
 (nth (map :hash (:belt-children result-1222)) 3)
+(map some? (map (fn [val] (get @(:range-nodes result-1222) val))
+                (map :hash (filter (fn [entry] (= :range (:type entry)))
+                                   (map #(select-keys % [:type :hash]) (:belt-children result-1222))))))
+;; -> can find all range nodes in collector
+
+(map some? (map (fn [val] (get @(:node-map result-1222) val))
+                (map :hash (filter (fn [entry] (= :range (:type entry)))
+                                   ;; (map #(select-keys % [:type :hash]) (:belt-children result-1222) )))))
+                                   (:belt-children result-1222)))))
+;; -> can find first range node in collector
+
 (map some? (map (fn [val] (:parent (get @(:range-nodes result-1222) val)))
-                (map :hash (filter (fn [entry] (= :range (:type entry))) (map #(select-keys % [:type :hash]) (:belt-children result-1222) )))))
+                (map :hash (filter (fn [entry] (= :range (:type entry)))
+                                   (map #(select-keys % [:type :hash]) (:belt-children result-1222))))))
 ;; ERGO -> the two last belt children don't have a daddy set, i.e. we're not updating this with final belt node? TODO: Investigate!!!
-(map (fn [val] (get @(:node-map result-1222) val))
-     (map :hash (filter (fn [entry] (= :peak (:type entry))) (map #(select-keys % [:type :hash]) (:belt-children result-1222) ))))
+(map some? (map (fn [val] (:parent (get @(:range-nodes result-1222) val)))
+                (map :hash (filter (fn [entry] (= :range (:type entry)))
+                                   (map #(select-keys % [:type :hash]) @(:range-nodes result-1222))))))
+;; ERGO -> the two last belt children don't have a daddy set, i.e. we're not updating this with final belt node? TODO: Investigate!!!
+
+(map some? (map (fn [val] (get @(:node-map result-1222) val))
+      (map :hash (filter (fn [entry] (= :peak (:type entry))) (map #(select-keys % [:type :hash]) (:belt-children result-1222) )))))
+;; -> peaks have parents set
+
 
 (count @(:range-nodes result-1222))
 (count @(:belts result-1222))
