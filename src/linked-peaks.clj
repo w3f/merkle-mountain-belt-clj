@@ -176,44 +176,40 @@
                       :range range-nodes
                       :belt belt-nodes}]
 
-    (let [
-          belt-children (doall (map #(reduce (fn [left-child right-child]
-                                               (let [rn (range-node (:hash left-child) (:hash right-child)
-                                                                    (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
-                                                 ;; #dbg
-                                                 (doall (map
-                                                   (fn [child] (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash left-child) :parent] (:hash rn)))))
-                                                   [left-child right-child]))
-                                                 (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
-                                                 rn
-                                                 ))
-                                               ;; (take (count %) sorted-peaks)
-                                               ;; (let [split-peaks (split-at (count %) @sorted-peaks)])
-                                               (take (count %)
-                                                     (first (swap-vals! sorted-peaks (fn [current] (drop (count %) current)))))
-                                               )
-                                    (core/belt-ranges n)))
-          belts (doall
-                 ;; #dbg
-                 (reduce (fn [left-child right-child]
-                                       (let [bn (belt-node (:hash left-child) (:hash right-child)
-                                                           (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
-                                         (doall (map
-                                           (fn [child] (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash bn)))))
-                                           [left-child right-child]))
-                                         (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
-                                         bn
-                                         ))
-                                     ;; (take (count %) sorted-peaks)
-                                     ;; (let [split-peaks (split-at (count %) @sorted-peaks)])
-                                     belt-children
-                                     ))
-          ]
-      {:belt-children belt-children
-       :range-nodes range-nodes
-       :belts belt-nodes
-       :node-map node-map
-       :node-array node-array})
+    (letfn [(update-parent [parent child]
+              (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent)))))]
+      (let [
+           belt-children (doall (map #(reduce (fn [left-child right-child]
+                                                (let [rn (range-node (:hash left-child) (:hash right-child)
+                                                                     (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
+                                                  (doall (map
+                                                          (partial update-parent rn)
+                                                          [left-child right-child]))
+                                                  (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
+                                                  rn
+                                                  ))
+                                              (take (count %)
+                                                    (first (swap-vals! sorted-peaks (fn [current] (drop (count %) current)))))
+                                              )
+                                     (core/belt-ranges n)))
+           belts (doall
+                  (reduce (fn [left-child right-child]
+                            (let [bn (belt-node (:hash left-child) (:hash right-child)
+                                                (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
+                              (doall (map
+                                      (partial update-parent bn)
+                                      [left-child right-child]))
+                              (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
+                              bn
+                              ))
+                          belt-children
+                          ))
+           ]
+       {:belt-children belt-children
+        :range-nodes range-nodes
+        :belts belt-nodes
+        :node-map node-map
+        :node-array node-array}))
     ))
 
 (nth (map :hash (:belt-children result-1222)) 3)
@@ -234,6 +230,7 @@
 ;; ERGO -> the two last belt children don't have a daddy set, i.e. we're not updating this with final belt node? TODO: Investigate!!!
 
 (count @(:range-nodes result-1222))
+(count @(:belts result-1222))
 ;; ERGO -> it adds new range nodes, and the old ones don't attain parents!
 
 (map some? (map (fn [val] (:parent (get @(:range-nodes result-1222) val)))
