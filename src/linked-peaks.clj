@@ -137,6 +137,21 @@
                         :lastP (atom @lastP)
                         }))
 
+(def pointers (atom #{}))
+;; could switch to object pointers to avoid :right values, but not convinced that the advantages outweigh the disadvantages:
+;; +: don't need to update left pointers of right siblings
+;; -: harder links to node-array
+;; -: I suspect we need right pointers for peaks anyways to facilitate range node updates
+(defn get-pointer []
+  (let [pointer-upper-bound 9999
+        pointer (first (drop-while
+                        #(contains? @pointers %)
+                        (repeatedly #(rand-int pointer-upper-bound))))]
+    (swap! pointers #(conj % pointer))
+    pointer)
+  )
+(reset! pointers #{})
+
 (defn algo [upgrade? & [cached]]
   (let [
         node-map (if cached (:node-map cached) node-map)
@@ -156,6 +171,7 @@
         ;; let h be hash of new leaf
         ;; h (str @leaf-count "-hash")
         h #{@leaf-count}
+        ;; pointer (get-pointer)
         ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
         P (peak-node (:hash (get @node-map @lastP)) 0 h)
         ]
@@ -163,6 +179,7 @@
       ;; 1. Add step
       ;; store object P in peak map
       (swap! node-map #(assoc % h P))
+      ;; (swap! node-map #(assoc % pointer P))
       ;; A[R*n+1]<-h
       (add-internal h (* 2 @leaf-count) cached)
 
