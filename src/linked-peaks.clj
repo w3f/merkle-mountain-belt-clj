@@ -29,7 +29,7 @@
    :parent parent
    :type :belt})
 
-(def lastP (atom (peak-node nil 0 nil)))
+(def lastP (atom nil))
 
 ;; (def R-count (atom 0))
 
