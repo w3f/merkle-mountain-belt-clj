@@ -107,13 +107,14 @@
 
       ;; 2. Check mergeable
       ;; if lastP.height==0 then M.add(P)
-      (if (= (:height (get @node-map @lastP)) 0)
+      (if (and @lastP (= (:height (get @node-map @lastP)) 0))
         (add-mergeable-stack (get @node-map h)))
 
       ;; 3. reset lastP
       (reset! lastP h)
 
       ;; 4. merge if mergeable
+      ;; #dbg
       (if (not (zero? (count @mergeable-stack)))
         (do
           (let [Q (pop-mergeable-stack)
