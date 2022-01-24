@@ -6,10 +6,11 @@
    :height height
    :hash hash
    :parent parent
-   :type :peak})
+   :type :internal})
 
-(defn peak-node [left height hash]
+(defn peak-node [left right height hash]
   {:left left
+   :right right
    :height height
    :hash hash
    :parent nil
@@ -95,7 +96,8 @@
         h #{@leaf-count}
         ;; pointer (get-pointer)
         ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
-        P (peak-node (:hash (get @node-map @lastP)) 0 h)
+        P (peak-node (:hash (get @node-map @lastP)) nil 0 h)
+        ;; P (peak-node (:hash (get @node-map @lastP)) nil 0 h)
         ]
     (do
       ;; 1. Add step
