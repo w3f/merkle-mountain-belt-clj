@@ -186,6 +186,37 @@
 (def algo-1278 (play-algo 1278 true))
 (def algo-1279 (play-algo 1279 true))
 
+(defn reset-atoms-from-cached [cached]
+  (reset! node-map (:node-map cached))
+  (reset! node-array (:node-array cached))
+  (reset! mergeable-stack (:mergeable-stack cached))
+  (reset! lastP (:lastP cached))
+  (reset! leaf-count (:leaf-count cached))
+  )
+
+(defn current-atom-states []
+  {
+   :node-map @node-map
+   :node-array @node-array
+   :mergeable-stack @mergeable-stack
+   :leaf-count @leaf-count
+   :lastP @lastP
+   })
+
+(defn oneshot-nesting-from-cached [cached]
+  (do (reset-atoms-from-cached cached)
+      (merge (current-atom-states) (oneshot-nesting true))))
+
+(defn oneshot-nesting-from-fresh [n]
+  (do (play-algo n true)
+      (merge (current-atom-states) (oneshot-nesting true))))
+
+;; test that caching vs fresh has same result
+(let [fresh-1222 (oneshot-nesting-from-fresh 1222)
+      cached-1222 (oneshot-nesting-from-cached algo-1222)]
+  (= fresh-1222 cached-1222)
+  )
+
 (filter #(= :peak (:type (get (:node-map algo-1222) (nth (:node-array algo-1222) %))))
         (range (count (:node-array algo-1222))))
 (comment (list 1533 1789 2301 2397 2413 2421 2429 2437 2441 2443))
@@ -193,16 +224,14 @@
 ;; NOTE: shifting storage left by 3 since skipping the constant offset from the beginning (always empty)
 (map #(- % 3) (sort (storage/parent-less-nodes 1222)))
 
-(defn play-algo-with-oneshot-nesting [n upgrade?]
+(defn oneshot-nesting [upgrade?]
   (let [
-        {:keys [node-map node-array]} (select-keys (play-algo n upgrade?) [:node-map :node-array])
-        node-map (atom node-map)
-        node-array (atom node-array)
+        ;; {:keys [node-map node-array]} (select-keys (play-algo @leaf-count upgrade?) [:node-map :node-array])
         ;; node-map (atom (:node-map algo-1222))
         ;; node-array (atom (:node-array algo-1222))
         range-nodes (atom {})
         belt-nodes (atom {})
-        sorted-peaks (atom (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes n))))
+        sorted-peaks (atom (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count))))
         storage-maps {:peak node-map
                       :range range-nodes
                       :belt belt-nodes}]
@@ -223,7 +252,7 @@
                                                 (take belt-range-count
                                                       (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))
                                                 ))
-                                      (map count (core/belt-ranges n))))
+                                      (map count (core/belt-ranges @leaf-count))))
             belts (doall
                    (reduce (fn [left-child right-child]
                              (let [bn (belt-node (:hash left-child) (:hash right-child)
@@ -238,10 +267,11 @@
                            ))
             ]
         {:belt-children belt-children
-         :range-nodes range-nodes
-         :belts belt-nodes
-         :node-map node-map
-         :node-array node-array}))
+         :range-nodes @range-nodes
+         :belts @belt-nodes
+         ;; :node-map node-map
+         ;; :node-array node-array
+         }))
     ))
 
 (defonce result-1222-cached (play-algo-with-oneshot-nesting 1222 true))
@@ -328,7 +358,8 @@
       {:node-map @node-map
        :lastP @lastP
        :mergeable-stack @mergeable-stack
-       :node-array @node-array}
+       :node-array @node-array
+       :leaf-count @leaf-count}
       ))
 
 ;; test that that tree construction is correct
