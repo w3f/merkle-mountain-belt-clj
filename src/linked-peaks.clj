@@ -141,8 +141,14 @@
 
             (add-internal (:hash Q) (inc (* 2 @leaf-count)))
             ;; issue is that :left of Q can be outdated since may have had subsequent merge
-            (if (= (:height Q) (:height (get @node-map (:left Q))))
-              (add-mergeable-stack Q))
+            (if (= (:height Q) (:height (get @node-map (:left Q)))
+                     )
+              (if (nil? (:parent (get @node-map (:left Q))))
+                (add-mergeable-stack Q)
+                (throw (Exception. ":left should always be updated whenever we have a merge - can't have a parent!"))
+                )
+              )
+
             ;; if we've replaced the old lastP, should reset lastP to point to the new entry
             (if (= (:hash Q-old) @lastP)
               (reset! lastP (:hash Q)))
