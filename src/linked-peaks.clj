@@ -120,33 +120,37 @@
       (if (not (zero? (count @mergeable-stack)))
         (do
           (let [Q (pop-mergeable-stack)
+                Q-old Q
+                ;; Q-old-hash (:hash Q-old)
                 Q (update Q :height inc)
                 L (get @node-map (:left Q))
-                Q-old-hash (:hash Q)
                 Q (assoc Q :hash (apply sorted-set (concat (:hash L) (:hash Q))))
                 Q (assoc Q :left (:left L))]
             ;; add new leaf to node-map
             (swap! node-map #(assoc % (:hash Q) Q))
             ;; update new parent-values
-            (swap! node-map #(assoc-in % [(:hash L) :parent] (:hash Q)))
-            (swap! node-map #(assoc-in % [Q-old-hash :parent] (:hash Q)))
+            ;; (swap! node-map #(assoc-in % [(:hash L) :parent] (:hash Q)))
+            ;; (swap! node-map #(assoc-in % [Q-old-hash :parent] (:hash Q)))
 
+            ;; update new parent-values, change type of children to internal (also removes :right key)
+            (swap! node-map #(assoc % (:hash L) (internal-node (:left L) (:height L) (:hash L) (:hash Q))))
+            (swap! node-map #(assoc % (:hash Q-old) (internal-node (:left Q-old) (:height Q-old) (:hash Q-old) (:hash Q))))
             ;; change type of children to internal
-            (swap! node-map #(assoc-in % [(:hash L) :type] :internal))
-            (swap! node-map #(assoc-in % [Q-old-hash :type] :internal))
+            ;; (swap! node-map #(assoc-in % [(:hash L) :type] :internal))
+            ;; (swap! node-map #(assoc-in % [Q-old-hash :type] :internal))
 
             (add-internal (:hash Q) (inc (* 2 @leaf-count)))
             ;; issue is that :left of Q can be outdated since may have had subsequent merge
             (if (= (:height Q) (:height (get @node-map (:left Q))))
               (add-mergeable-stack Q))
             ;; if we've replaced the old lastP, should reset lastP to point to the new entry
-            (if (= Q-old-hash @lastP)
+            (if (= (:hash Q-old) @lastP)
               (reset! lastP (:hash Q)))
             ;; TODO: the following has a smarter integration
             (if (not upgrade?)
-              (do (if (= Q-old-hash (hop-left @lastP))
+              (do (if (= (:hash Q-old) (hop-left @lastP))
                     (swap! node-map #(assoc-in % [@lastP :left] (:hash Q))))
-                  (if (= Q-old-hash (:left (get @node-map (:left (get @node-map @lastP)))))
+                  (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
                     (swap! node-map #(assoc-in % [(:left (get @node-map @lastP)) :left] (:hash Q)))))
               (let [
                     left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (iterate hop-left @lastP)))
