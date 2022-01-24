@@ -40,23 +40,18 @@
 (def node-map (atom {}))
 (def node-array (atom []))
 
-(defn pop-mergeable-stack [& [cached]]
-  (let [
-        mergeable-stack (if cached (:mergeable-stack cached) mergeable-stack)
-        pop-item (last @mergeable-stack)]
+(defn pop-mergeable-stack []
+  (let [pop-item (last @mergeable-stack)]
     (swap! mergeable-stack (comp #(into [] %) drop-last))
     pop-item))
 
-(defn add-mergeable-stack [item & [cached]]
-  (let [mergeable-stack (if cached (:mergeable-stack cached) mergeable-stack)]
-    (swap! mergeable-stack #(assoc % (count %) item))))
+(defn add-mergeable-stack [item]
+  (swap! mergeable-stack #(assoc % (count %) item)))
 
-(defn add-internal [item index & [cached]]
+(defn add-internal [item index]
   (let [array-len (count @node-array)
         ;; incidentally correct since index is calculated starting at 1 in lieu of 0
-        zero-leaves (- index array-len)
-        node-array (if cached (:node-array cached) node-array)
-        ]
+        zero-leaves (- index array-len)]
     (swap! node-array concat (repeat zero-leaves 0) (list item))))
 
 (defn reset-all []
@@ -76,67 +71,6 @@
 (defn hop-parent [node & target-map]
   (:parent (get (or (first target-map) @node-map) node)))
 
-
-
-(comment
-  (algo true))
-
-(def algo-1223-cached
-  (algo true {
-              :node-map (atom @node-map)
-              :node-array (atom @node-array)
-              :mergeable-stack (atom @mergeable-stack)
-              :leaf-count (atom @leaf-count)
-              :lastP (atom @lastP)
-              }))
-
-(def algo-1223-cached-2
-  (algo true {
-              :node-map (atom @node-map)
-              :node-array (atom @node-array)
-              :mergeable-stack (atom @mergeable-stack)
-              :leaf-count (atom @leaf-count)
-              :lastP (atom @lastP)
-              }))
-
-(count @(:node-array algo-1223-cached))
-(count @(:node-array algo-1223-cached-2))
-
-(let [
-      algo-1223-cached-3 (algo true {
-                                     :node-map (atom @node-map)
-                                     :node-array (atom @node-array)
-                                     :mergeable-stack (atom @mergeable-stack)
-                                     :leaf-count (atom @leaf-count)
-                                     :lastP (atom @lastP)
-                                     })
-      ]
-  (map (fn [k]
-         [k
-          (= @(k algo-1223-cached)
-             @(k algo-1223-cached-3))])
-       (keys algo-1223-cached)
-       ))
-
-(count @(:node-array algo-1223-cached))
-(count @(:node-array algo-1223-cached-2))
-
-(def algo-1222-nested (merge
-                       (play-algo-with-oneshot-nesting 1222 true)
-                       {
-                        :mergeable-stack (atom @mergeable-stack)
-                        :leaf-count (atom @leaf-count)
-                        :lastP (atom @lastP)
-                        }))
-
-(def algo-1223-nested (merge
-                       (play-algo-with-oneshot-nesting 1223 true)
-                       {
-                        :mergeable-stack (atom @mergeable-stack)
-                        :leaf-count (atom @leaf-count)
-                        :lastP (atom @lastP)
-                        }))
-
 (def pointers (atom #{}))
 ;; could switch to object pointers to avoid :right values, but not convinced that the advantages outweigh the disadvantages:
 ;; +: don't need to update left pointers of right siblings
@@ -152,13 +86,10 @@
   )
 (reset! pointers #{})
 
-(defn algo [upgrade? & [cached]]
+(comment
+  (algo true))
+(defn algo [upgrade?]
   (let [
-        node-map (if cached (:node-map cached) node-map)
-        node-array (if cached (:node-array cached) node-array)
-        mergeable-stack (if cached (:mergeable-stack cached) mergeable-stack)
-        leaf-count (if cached (:leaf-count cached) leaf-count)
-        lastP (if cached (:lastP cached) lastP)
         ;; let h be hash of new leaf
         ;; h (str @leaf-count "-hash")
         h #{@leaf-count}
@@ -172,12 +103,12 @@
       (swap! node-map #(assoc % h P))
       ;; (swap! node-map #(assoc % pointer P))
       ;; A[R*n+1]<-h
-      (add-internal h (* 2 @leaf-count) cached)
+      (add-internal h (* 2 @leaf-count))
 
       ;; 2. Check mergeable
       ;; if lastP.height==0 then M.add(P)
       (if (= (:height (get @node-map @lastP)) 0)
-        (add-mergeable-stack (get @node-map h) cached))
+        (add-mergeable-stack (get @node-map h)))
 
       ;; 3. reset lastP
       (reset! lastP h)
@@ -185,7 +116,7 @@
       ;; 4. merge if mergeable
       (if (not (zero? (count @mergeable-stack)))
         (do
-          (let [Q (pop-mergeable-stack cached)
+          (let [Q (pop-mergeable-stack)
                 Q (update Q :height inc)
                 L (get @node-map (:left Q))
                 Q-old-hash (:hash Q)
@@ -201,23 +132,22 @@
             (swap! node-map #(assoc-in % [(:hash L) :type] :internal))
             (swap! node-map #(assoc-in % [Q-old-hash :type] :internal))
 
-            (add-internal (:hash Q) (inc (* 2 @leaf-count)) cached)
+            (add-internal (:hash Q) (inc (* 2 @leaf-count)))
             ;; issue is that :left of Q can be outdated since may have had subsequent merge
             (if (= (:height Q) (:height (get @node-map (:left Q))))
-              (add-mergeable-stack Q cached))
+              (add-mergeable-stack Q))
             ;; if we've replaced the old lastP, should reset lastP to point to the new entry
             (if (= Q-old-hash @lastP)
               (reset! lastP (:hash Q)))
             ;; TODO: the following has a smarter integration
             (if (not upgrade?)
-              (do (if (= Q-old-hash (hop-left @lastP node-map))
+              (do (if (= Q-old-hash (hop-left @lastP))
                     (swap! node-map #(assoc-in % [@lastP :left] (:hash Q))))
                   (if (= Q-old-hash (:left (get @node-map (:left (get @node-map @lastP)))))
                     (swap! node-map #(assoc-in % [(:left (get @node-map @lastP)) :left] (:hash Q)))))
               (let [
-                    left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent % node-map)))
-                                                             (iterate (fn [node] (hop-left node node-map)) @lastP)))
-                    correct-sibling-of-left-most (take-while some? (iterate (fn [node] (hop-parent node node-map)) (hop-left left-most-sibling-peak node-map)))
+                    left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (iterate hop-left @lastP)))
+                    correct-sibling-of-left-most (take-while some? (iterate hop-parent (hop-left left-most-sibling-peak)))
                     ]
                 (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
                   (swap! node-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most))))))
@@ -235,13 +165,6 @@
       ;; (clojure.pprint/pprint [@node-map @node-array @mergeable-stack @lastP])
       ;; (clojure.pprint/pprint @node-map)
       ;; (clojure.pprint/pprint @node-map)
-      {
-       :node-map node-map
-       :node-array node-array
-       :mergeable-stack mergeable-stack
-       :leaf-count leaf-count
-       :lastP lastP
-       }
       ))
   )
 
@@ -262,6 +185,8 @@
         {:keys [node-map node-array]} (select-keys (play-algo n upgrade?) [:node-map :node-array])
         node-map (atom node-map)
         node-array (atom node-array)
+        ;; node-map (atom (:node-map algo-1222))
+        ;; node-array (atom (:node-array algo-1222))
         range-nodes (atom {})
         belt-nodes (atom {})
         sorted-peaks (atom (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes n))))
