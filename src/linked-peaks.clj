@@ -159,15 +159,6 @@
         mergeable-stack (if cached (:mergeable-stack cached) mergeable-stack)
         leaf-count (if cached (:leaf-count cached) leaf-count)
         lastP (if cached (:lastP cached) lastP)
-
-        ;; impermanent state
-        ;; range-nodes (if cached (:range-nodes cached) (throw (new Exception "not provided")))
-        ;; belts (if cached (:belts cached) (throw (new Exception "not provided")))
-        ;; belt-children (if cached (:belt-children cached) (throw (new Exception "not provided")))
-        range-nodes (if cached (:range-nodes cached))
-        belts (if cached (:belts cached))
-        belt-children (if cached (:belt-children cached))
-
         ;; let h be hash of new leaf
         ;; h (str @leaf-count "-hash")
         h #{@leaf-count}
@@ -212,9 +203,7 @@
 
             (add-internal (:hash Q) (inc (* 2 @leaf-count)) cached)
             ;; issue is that :left of Q can be outdated since may have had subsequent merge
-            (if (and (= (:height Q) (:height (get @node-map (:left Q))))
-                     ;; TODO: this is dumb and will break for instance if (:left Q) has a left partner they'll still merge with - just temporary fix to see how far we'll get
-                     (nil? (:parent (get @node-map (:left Q)))))
+            (if (= (:height Q) (:height (get @node-map (:left Q))))
               (add-mergeable-stack Q cached))
             ;; if we've replaced the old lastP, should reset lastP to point to the new entry
             (if (= Q-old-hash @lastP)
@@ -252,9 +241,6 @@
        :mergeable-stack mergeable-stack
        :leaf-count leaf-count
        :lastP lastP
-       :belt-children belt-children
-       :range-nodes range-nodes
-       :belts belts
        }
       ))
   )
@@ -317,9 +303,7 @@
          :range-nodes range-nodes
          :belts belt-nodes
          :node-map node-map
-         :node-array node-array
-         }
-        ))
+         :node-array node-array}))
     ))
 
 (defonce result-1222-cached (play-algo-with-oneshot-nesting 1222 true))
