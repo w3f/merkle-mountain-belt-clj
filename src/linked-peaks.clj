@@ -205,10 +205,23 @@
 (def algo-1278 (play-algo 1278 true))
 (def algo-1279 (play-algo 1279 true))
 
-;; TODO: seems :left of #{8..15} is outdated -> FIX!
 (filter #(some? (:right %)) (vals (:node-map (play-algo 20 true))))
 (filter #(= :peak (:type %)) (vals (:node-map (play-algo 20 true))))
 (filter #(= :internal (:type %)) (vals (:node-map (play-algo 20 true))))
+
+;; test: all peak nodes are connected and can be reached from one another
+(let [nodes (:node-map algo-1222)
+      peaks (filter #(not= :internal (:type %)) (vals nodes))
+      left-most (filter #(nil? (:left %)) peaks)
+      right-most (filter #(nil? (:right %)) peaks)]
+  {:only-peaks
+   (and
+    (every? #(= 1 (count %)) [left-most right-most])
+    (every? #(= :peak (:type %)) (take-while some? (iterate #(get nodes (:right %)) (first left-most))))
+    (every? #(= :peak (:type %)) (take-while some? (iterate #(get nodes (:left %)) (first right-most)))))
+   :left-most (map :hash left-most)
+   :right-most (map :hash right-most)}
+  )
 
 (defn reset-atoms-from-cached [cached]
   (reset! node-map (:node-map cached))
