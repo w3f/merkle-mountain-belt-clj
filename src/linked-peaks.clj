@@ -213,12 +213,23 @@
 (let [nodes (:node-map algo-1222)
       peaks (filter #(not= :internal (:type %)) (vals nodes))
       left-most (filter #(nil? (:left %)) peaks)
-      right-most (filter #(nil? (:right %)) peaks)]
-  {:only-peaks
+      right-most (filter #(nil? (:right %)) peaks)
+      chain-from-left (take-while some? (iterate #(get nodes (:right %)) (first left-most)))
+      chain-from-right (take-while some? (iterate #(get nodes (:left %)) (first right-most)))
+      ]
+  {:only-peaks-and-all-peaks
    (and
+    ;; check that only one node lacks a :left or a :right
     (every? #(= 1 (count %)) [left-most right-most])
-    (every? #(= :peak (:type %)) (take-while some? (iterate #(get nodes (:right %)) (first left-most))))
-    (every? #(= :peak (:type %)) (take-while some? (iterate #(get nodes (:left %)) (first right-most)))))
+    (not= left-most right-most)
+
+    ;; check that only peaks are chained
+    (every? #(= :peak (:type %)) chain-from-left)
+    (every? #(= :peak (:type %)) chain-from-right)
+
+    ;; check that every chain contains all peaks
+    (every? #(= (count peaks) (count %)) [chain-from-left chain-from-right])
+    )
    :left-most (map :hash left-most)
    :right-most (map :hash right-most)}
   )
