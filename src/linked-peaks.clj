@@ -136,6 +136,9 @@
             (if (:right Q-old)
               ;; #dbg
               (swap! node-map #(assoc-in % [(:right Q-old) :left] (:hash Q))))
+            ;; update :right pointer of L's :left
+            (if (:left L)
+              (swap! node-map #(assoc-in % [(:left L) :right] (:hash Q))))
             ;; update new parent-values
             ;; (swap! node-map #(assoc-in % [(:hash L) :parent] (:hash Q)))
             ;; (swap! node-map #(assoc-in % [Q-old-hash :parent] (:hash Q)))
@@ -162,24 +165,30 @@
             (if (= (:hash Q-old) @lastP)
               (reset! lastP (:hash Q)))
             ;; TODO: the following has a smarter integration
-            ;; (if (not upgrade?)
-            ;;   (do (if (= (:hash Q-old) (hop-left @lastP))
-            ;;         #dbg
-            ;;         (swap! node-map #(assoc-in % [@lastP :left] (:hash Q))))
-            ;;       (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
-            ;;         #dbg
-            ;;         (swap! node-map #(assoc-in % [(:left (get @node-map @lastP)) :left] (:hash Q)))))
-            ;;   (let [
-            ;;         left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (iterate hop-left @lastP)))
-            ;;         correct-sibling-of-left-most (take-while some? (iterate hop-parent (hop-left left-most-sibling-peak)))
-            ;;         ]
-            ;;     (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
-            ;;       ;; (throw (Exception. "should never get :left dissociated"))
-            ;;       ;; #dbg
-            ;;       (get-in @node-map [left-most-sibling-peak :left])
-            ;;       ;; #dbg
-            ;;       (swap! node-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most)))
-            ;;       )))
+
+            (if (= (:hash Q-old) (hop-left @lastP))
+              (throw (Exception. ":left of lastP is outdated")))
+            (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
+              (throw (Exception. ":left of lastP's left is outdated")))
+
+            (if (not upgrade?)
+              (do (if (= (:hash Q-old) (hop-left @lastP))
+                    #dbg
+                    (swap! node-map #(assoc-in % [@lastP :left] (:hash Q))))
+                  (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
+                    #dbg
+                    (swap! node-map #(assoc-in % [(:left (get @node-map @lastP)) :left] (:hash Q)))))
+              (let [
+                    left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (iterate hop-left @lastP)))
+                    correct-sibling-of-left-most (take-while some? (iterate hop-parent (hop-left left-most-sibling-peak)))
+                    ]
+                (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
+                  ;; (throw (Exception. "should never get :left dissociated"))
+                  ;; #dbg
+                  (get-in @node-map [left-most-sibling-peak :left])
+                  ;; #dbg
+                  (swap! node-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most)))
+                  )))
             )
           )
         )
@@ -197,6 +206,7 @@
       ))
   )
 
+(some? (play-algo 1222 false))
 (def algo-1222 (play-algo 1222 true))
 (def algo-1277 (play-algo 1277 true))
 (def algo-1278 (play-algo 1278 true))
