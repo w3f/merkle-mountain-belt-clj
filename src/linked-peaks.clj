@@ -171,13 +171,7 @@
             (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
               (throw (Exception. ":left of lastP's left is outdated")))
 
-            (if (not upgrade?)
-              (do (if (= (:hash Q-old) (hop-left @lastP))
-                    #dbg
-                    (swap! node-map #(assoc-in % [@lastP :left] (:hash Q))))
-                  (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
-                    #dbg
-                    (swap! node-map #(assoc-in % [(:left (get @node-map @lastP)) :left] (:hash Q)))))
+            (if upgrade?
               (let [
                     left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (iterate hop-left @lastP)))
                     correct-sibling-of-left-most (take-while some? (iterate hop-parent (hop-left left-most-sibling-peak)))
