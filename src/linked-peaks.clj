@@ -113,6 +113,9 @@
       (if (and @lastP (= (:height (get @node-map @lastP)) 0))
         (add-mergeable-stack (get @node-map h)))
 
+      ;; prelim: set right pointer of lastP to h
+      ;; #dbg
+      (if @lastP (swap! node-map #(assoc-in % [@lastP :right] h)))
       ;; 3. reset lastP
       (reset! lastP h)
 
@@ -129,11 +132,16 @@
                 Q (assoc Q :left (:left L))]
             ;; add new leaf to node-map
             (swap! node-map #(assoc % (:hash Q) Q))
+            ;; update :left pointer of Q-old's :right
+            (if (:right Q-old)
+              ;; #dbg
+              (swap! node-map #(assoc-in % [(:right Q-old) :left] (:hash Q))))
             ;; update new parent-values
             ;; (swap! node-map #(assoc-in % [(:hash L) :parent] (:hash Q)))
             ;; (swap! node-map #(assoc-in % [Q-old-hash :parent] (:hash Q)))
 
             ;; update new parent-values, change type of children to internal (also removes :right key)
+            ;; TODO: simply remove these nodes - they aren't needed beyond debugging and just clutter the interface
             (swap! node-map #(assoc % (:hash L) (internal-node (:left L) (:height L) (:hash L) (:hash Q))))
             (swap! node-map #(assoc % (:hash Q-old) (internal-node (:left Q-old) (:height Q-old) (:hash Q-old) (:hash Q))))
             ;; change type of children to internal
@@ -154,17 +162,24 @@
             (if (= (:hash Q-old) @lastP)
               (reset! lastP (:hash Q)))
             ;; TODO: the following has a smarter integration
-            (if (not upgrade?)
-              (do (if (= (:hash Q-old) (hop-left @lastP))
-                    (swap! node-map #(assoc-in % [@lastP :left] (:hash Q))))
-                  (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
-                    (swap! node-map #(assoc-in % [(:left (get @node-map @lastP)) :left] (:hash Q)))))
-              (let [
-                    left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (iterate hop-left @lastP)))
-                    correct-sibling-of-left-most (take-while some? (iterate hop-parent (hop-left left-most-sibling-peak)))
-                    ]
-                (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
-                  (swap! node-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most))))))
+            ;; (if (not upgrade?)
+            ;;   (do (if (= (:hash Q-old) (hop-left @lastP))
+            ;;         #dbg
+            ;;         (swap! node-map #(assoc-in % [@lastP :left] (:hash Q))))
+            ;;       (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
+            ;;         #dbg
+            ;;         (swap! node-map #(assoc-in % [(:left (get @node-map @lastP)) :left] (:hash Q)))))
+            ;;   (let [
+            ;;         left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (iterate hop-left @lastP)))
+            ;;         correct-sibling-of-left-most (take-while some? (iterate hop-parent (hop-left left-most-sibling-peak)))
+            ;;         ]
+            ;;     (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
+            ;;       ;; (throw (Exception. "should never get :left dissociated"))
+            ;;       ;; #dbg
+            ;;       (get-in @node-map [left-most-sibling-peak :left])
+            ;;       ;; #dbg
+            ;;       (swap! node-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most)))
+            ;;       )))
             )
           )
         )
@@ -186,6 +201,11 @@
 (def algo-1277 (play-algo 1277 true))
 (def algo-1278 (play-algo 1278 true))
 (def algo-1279 (play-algo 1279 true))
+
+;; TODO: seems :left of #{8..15} is outdated -> FIX!
+(filter #(some? (:right %)) (vals (:node-map (play-algo 20 true))))
+(filter #(= :peak (:type %)) (vals (:node-map (play-algo 20 true))))
+(filter #(= :internal (:type %)) (vals (:node-map (play-algo 20 true))))
 
 (defn reset-atoms-from-cached [cached]
   (reset! node-map (:node-map cached))
