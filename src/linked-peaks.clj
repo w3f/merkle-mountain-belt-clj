@@ -1,6 +1,7 @@
 (ns linked-peaks
   (:require [core]))
 
+;; TODO: remove these entirely: they're only here for debugging now: only need hashes later
 (defn internal-node [left height hash parent]
   {:left left
    :height height
@@ -44,10 +45,10 @@
 (defn pop-mergeable-stack []
   (let [pop-item (last @mergeable-stack)]
     (swap! mergeable-stack (comp #(into [] %) drop-last))
-    pop-item))
+    (get @node-map pop-item)))
 
 (defn add-mergeable-stack [item]
-  (swap! mergeable-stack #(assoc % (count %) item)))
+  (swap! mergeable-stack #(assoc % (count %) (:hash item))))
 
 (defn add-internal [item index]
   (let [array-len (count @node-array)
