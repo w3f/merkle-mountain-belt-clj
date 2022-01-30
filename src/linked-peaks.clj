@@ -215,12 +215,17 @@
         (str "#{" (apply min %) ".." (apply max %) "}")
         (str %))
       %)
-   data)
+   (sort-by #(apply min (:hash %)) data))
   )
 
-(filter #(some? (:right %)) (vals (:node-map (play-algo 20 true))))
+(defn display-type-filtered [data type]
+  (truncate-#set-display
+   (filter #(= type (:type %)) data)))
+
+(truncate-#set-display (filter #(some? (:right %)) (vals (:node-map (play-algo 20 true)))))
 (count (filter #(not= :internal (:type %)) (vals (:node-map (play-algo 1222 true)))))
-(truncate-#set-display (filter #(= :internal (:type %)) (vals (:node-map (play-algo 20 true)))))
+(display-type-filtered (vals (:node-map (play-algo 1222 true))) :peak)
+(display-type-filtered (vals (:node-map (play-algo 20 true))) :internal)
 
 ;; test: all peak nodes are connected and can be reached from one another
 (let [nodes (:node-map algo-1222)
