@@ -205,9 +205,32 @@
 (def algo-1278 (play-algo 1278 true))
 (def algo-1279 (play-algo 1279 true))
 
+(core/deep-walk #(inc %) #{1 2 3})
+(let [set #{1 2 3}]
+  (walk))
+
+(letfn [(walk-hashset [f data]
+          (vec ))
+        (deep-walk
+          [f data]
+          (map #(if (coll? %)
+                  (deep-walk f %)
+                  (f %)) data))]
+  (deep-walk #(inc %) #{1 2 3}))
+
+(type #{1})
+
+(defn truncate-#set-display [data]
+  (clojure.walk/postwalk
+   #(if (= (type %) clojure.lang.PersistentHashSet)
+      (str "#{" (apply min %) ".." (apply max %) "}")
+      %)
+   data)
+  )
+
 (filter #(some? (:right %)) (vals (:node-map (play-algo 20 true))))
-(filter #(= :peak (:type %)) (vals (:node-map (play-algo 20 true))))
-(filter #(= :internal (:type %)) (vals (:node-map (play-algo 20 true))))
+(count (filter #(not= :internal (:type %)) (vals (:node-map (play-algo 1222 true)))))
+(truncate-#set-display (filter #(= :internal (:type %)) (vals (:node-map (play-algo 20 true)))))
 
 ;; test: all peak nodes are connected and can be reached from one another
 (let [nodes (:node-map algo-1222)
