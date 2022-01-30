@@ -205,25 +205,15 @@
 (def algo-1278 (play-algo 1278 true))
 (def algo-1279 (play-algo 1279 true))
 
-(core/deep-walk #(inc %) #{1 2 3})
-(let [set #{1 2 3}]
-  (walk))
-
-(letfn [(walk-hashset [f data]
-          (vec ))
-        (deep-walk
-          [f data]
-          (map #(if (coll? %)
-                  (deep-walk f %)
-                  (f %)) data))]
-  (deep-walk #(inc %) #{1 2 3}))
-
-(type #{1})
 
 (defn truncate-#set-display [data]
   (clojure.walk/postwalk
-   #(if (= (type %) clojure.lang.PersistentHashSet)
-      (str "#{" (apply min %) ".." (apply max %) "}")
+   #(if (and (contains? #{clojure.lang.PersistentHashSet
+                          clojure.lang.PersistentTreeSet} (type %))
+             (every? number? %))
+      (if (< 2 (count %))
+        (str "#{" (apply min %) ".." (apply max %) "}")
+        (str %))
       %)
    data)
   )
