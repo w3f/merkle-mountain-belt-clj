@@ -41,6 +41,9 @@
 
 (def node-map (atom {}))
 (def node-array (atom []))
+(def belt-nodes (atom {}))
+(def range-nodes (atom {}))
+(def belt-children (atom {}))
 
 (defn pop-mergeable-stack []
   (let [pop-item (last @mergeable-stack)]
@@ -62,7 +65,10 @@
    (reset! node-array [])
    (reset! mergeable-stack [])
    (reset! leaf-count 0)
-   (reset! lastP nil)))
+   (reset! lastP nil)
+   (reset! belt-nodes {})
+   (reset! range-nodes {})
+   ))
 
 (:height (get @node-map @lastP))
 (identity @lastP)
@@ -258,6 +264,8 @@
   (reset! mergeable-stack (:mergeable-stack cached))
   (reset! lastP (:lastP cached))
   (reset! leaf-count (:leaf-count cached))
+  (reset! belt-nodes (:belt-nodes cached))
+  (reset! range-nodes (:range-nodes cached))
   )
 
 (defn current-atom-states []
@@ -267,6 +275,8 @@
    :mergeable-stack @mergeable-stack
    :leaf-count @leaf-count
    :lastP @lastP
+   :belt-nodes @belt-nodes
+   :range-nodes @range-nodes
    })
 
 (defn oneshot-nesting-from-cached [cached]
@@ -295,8 +305,8 @@
         ;; {:keys [node-map node-array]} (select-keys (play-algo @leaf-count upgrade?) [:node-map :node-array])
         ;; node-map (atom (:node-map algo-1222))
         ;; node-array (atom (:node-array algo-1222))
-        range-nodes (atom {})
-        belt-nodes (atom {})
+        ;; range-nodes (atom {})
+        ;; belt-nodes (atom {})
         sorted-peaks (atom (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count))))
         storage-maps {:peak node-map
                       :range range-nodes
@@ -334,16 +344,16 @@
             ]
         {:belt-children belt-children
          :range-nodes @range-nodes
-         :belts @belt-nodes
+         :belt-nodes @belt-nodes
          ;; :node-map node-map
          ;; :node-array node-array
          }))
     ))
 
-(defonce result-1222-cached (play-algo-with-oneshot-nesting 1222 true))
+(oneshot-nesting-from-fresh 1)
 (=
  (map #(if (instance? clojure.lang.Atom %) @% %) (vals result-1222-cached))
- (map #(if (instance? clojure.lang.Atom %) @% %) (vals (play-algo-with-oneshot-nesting 1222 true))))
+ (map #(if (instance? clojure.lang.Atom %) @% %) (vals (oneshot-nesting-from-fresh 1222))))
 (map some? (map (fn [val] (get @(:range-nodes result-1222) val))
                 (map :hash (filter (fn [entry] (= :range (:type entry)))
                                    (map #(select-keys % [:type :hash]) (:belt-children result-1222))))))
@@ -361,7 +371,7 @@
 ;; ERGO -> the two last belt children don't have a daddy set, i.e. we're not updating this with final belt node? TODO: Investigate!!!
 
 (count @(:range-nodes result-1222))
-(count @(:belts result-1222))
+(count @(:belt-nodes result-1222))
 ;; ERGO -> it adds new range nodes, and the old ones don't attain parents!
 
 (map some? (map (fn [val] (:parent (get @(:range-nodes result-1222) val)))
@@ -375,7 +385,7 @@
 
 
 (count @(:range-nodes result-1222))
-(count @(:belts result-1222))
+(count @(:belt-nodes result-1222))
 (get @(:range-nodes result-1222)
      (:hash (first (:belt-children result-1222))))
 
