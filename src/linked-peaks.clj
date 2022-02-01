@@ -94,6 +94,21 @@
   )
 (reset! pointers #{})
 
+(defn sanity-checks [Q-old]
+  (if (= (:hash Q-old) (hop-left @lastP))
+    (throw (Exception. ":left of lastP is outdated")))
+  (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
+    (throw (Exception. ":left of lastP's left is outdated")))
+  (let [
+        left-most-sibling-peak (last (take-while #(and (some? %) (not (contains? #{:internal :peak} (:type (get @node-map (hop-parent %)))))) (iterate hop-left @lastP)))
+        correct-sibling-of-left-most (take-while #(and (some? %) (contains? #{:internal :peak} (:type (get @node-map %)))) (iterate hop-parent (hop-left left-most-sibling-peak)))
+        ]
+    (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
+      (throw (Exception. "should never get :left dissociated"))
+      ;; #dbg
+      ;; (swap! node-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most)))
+      )))
+
 (comment
   (algo true))
 (defn algo [upgrade?]
@@ -170,21 +185,7 @@
             (if (= (:hash Q-old) @lastP)
               (reset! lastP (:hash Q)))
             ;; TODO: the following has a smarter integration
-
-            (if (= (:hash Q-old) (hop-left @lastP))
-              (throw (Exception. ":left of lastP is outdated")))
-            (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
-              (throw (Exception. ":left of lastP's left is outdated")))
-            (let [
-                  left-most-sibling-peak (last (take-while #(and (some? %) (nil? (hop-parent %))) (iterate hop-left @lastP)))
-                  correct-sibling-of-left-most (take-while some? (iterate hop-parent (hop-left left-most-sibling-peak)))
-                  ]
-              (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
-                (throw (Exception. "should never get :left dissociated"))
-                ;; #dbg
-                ;; (swap! node-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most)))
-                )
-              )
+            (if (= 4 @leaf-count) (sanity-checks Q-old))
 
             (comment (if upgrade?))
 
