@@ -111,7 +111,7 @@
 
 (comment
   (algo true))
-(defn algo [upgrade?]
+(defn algo [belts?]
   (let [
         ;; let h be hash of new leaf
         ;; h (str @leaf-count "-hash")
@@ -155,7 +155,6 @@
             (swap! node-map #(assoc % (:hash Q) Q))
             ;; update :left pointer of Q-old's :right
             (if (:right Q-old)
-              ;; #dbg
               (swap! node-map #(assoc-in % [(:right Q-old) :left] (:hash Q))))
             ;; update :right pointer of L's :left
             (if (:left L)
@@ -175,10 +174,12 @@
             (add-internal (:hash Q) (inc (* 2 @leaf-count)))
             ;; issue is that :left of Q can be outdated since may have had subsequent merge
             (if (= (:height Q) (:height (get @node-map (:left Q))))
-              (if (nil? (:parent (get @node-map (:left Q))))
-                (add-mergeable-stack Q)
-                (throw (Exception. ":left should always be updated whenever we have a merge - can't have a parent!"))
-                )
+              (let [left's-parent (:parent (get @node-map (:left Q)))]
+                (if (or (nil? left's-parent)
+                        (not (contains? #{:internal :peak} (:type (get @node-map left's-parent)))))
+                 (add-mergeable-stack Q)
+                 (throw (Exception. ":left should always be updated whenever we have a merge - can't have a non-ephemeral parent!"))
+                 ))
               )
 
             ;; if we've replaced the old lastP, should reset lastP to point to the new entry
@@ -194,8 +195,10 @@
         )
       (swap! leaf-count inc)
 
+
       ;; 5. TODO update range nodes
 
+      (if belts? (oneshot-nesting))
       ;; check (difference (S-n n) (S-n (dec n)))
       ;; recalculate only those members of S-n that are in the difference set from above
 
