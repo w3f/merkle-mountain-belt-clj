@@ -151,6 +151,34 @@
                 L (get @node-map (:left Q))
                 Q (assoc Q :hash (apply sorted-set (concat (:hash L) (:hash Q))))
                 Q (assoc Q :left (:left L))]
+
+            ;; Q and L (should) have a preexisting parent, either a range or a belt node
+            (if (:parent Q-old)
+              #dbg
+              ;; just another check to ensure that we're merging
+              (if (= (:parent Q-old)
+                      (:parent L))
+                 (let [parent-contenders (filter some? (map #(get @% (:parent Q-old)) [node-map range-nodes belt-nodes]))]
+                   ;; refactor here by splitting head of contenders from tail in let binding
+                   (if (= 1 (count parent-contenders))
+                     (if (not (contains? #{:internal :peak} (:type (first parent-contenders))))
+                       (((:type (first parent-contenders)) {
+                                                  :range #(throw (Exception. "unimplemented"))
+                                                  :belt #(throw (Exception. "unimplemented"))
+                                                  }))
+                       (throw (Exception. "parent is an illegal: internal or peak"))
+                       )
+                     (throw (Exception. "multiple parent contenders - no bueno!"))
+                     )
+                   )
+                 (throw (Exception. "parents don't match"))
+                 ))
+            ;; (if (= (:hash Q) #{8 9 10 11 12 13 14 15})
+            (comment
+              (if (= (:hash Q) #{0 1 2 3 4 5 6 7})
+               #dbg
+               (if (:right Q-old)
+                 (swap! node-map #(assoc-in % [(:right Q-old) :left] (:hash Q))))))
             ;; add new leaf to node-map
             (swap! node-map #(assoc % (:hash Q) Q))
             ;; update :left pointer of Q-old's :right
