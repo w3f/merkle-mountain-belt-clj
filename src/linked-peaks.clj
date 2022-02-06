@@ -112,7 +112,7 @@
 
 (comment
   (algo true))
-(defn algo [belts?]
+(defn algo [oneshot-nesting?]
   (let [
         ;; let h be hash of new leaf
         ;; h (str @leaf-count "-hash")
@@ -156,13 +156,16 @@
             (swap! Q #(assoc % :left (:left L)))
 
             ;; Q and L (should) have a preexisting parent, either a range or a belt node
-            (if (:parent Q-old)
-              ;; #dbg
+            (if (and (not oneshot-nesting?) (:parent Q-old))
+              #dbg
               ;; just another check to ensure that we're merging
               (if (= (:parent Q-old)
                       (:parent L))
                 ;; then
-                (let [parent-contenders (filter some? (map #(get @% (:parent Q-old)) [node-map range-nodes belt-nodes]))]
+                (let [
+                      ;; check where parent lives: should only exist in one of the maps
+                      parent-contenders (filter some? (map #(get @% (:parent Q-old)) [node-map range-nodes belt-nodes]))
+                      ]
                   ;; refactor here by splitting head of contenders from tail in let binding
                   (if (= 1 (count parent-contenders))
                     (if (not (contains? #{:internal :peak} (:type (first parent-contenders))))
@@ -180,7 +183,8 @@
                     )
                   )
                 ;; else
-                (throw (Exception. "parents don't match"))
+                (throw (Exception. (str "parents don't match @ leaf count " @leaf-count)))
+                ;; introduce more complicated algorithm: if parents don't match, still valid if 
                 ))
             ;; (if (= (:hash Q) #{8 9 10 11 12 13 14 15})
             (comment
@@ -236,7 +240,7 @@
 
       ;; 5. TODO update range nodes
 
-      (if belts? (oneshot-nesting))
+      (if oneshot-nesting? (oneshot-nesting true))
       ;; check (difference (S-n n) (S-n (dec n)))
       ;; recalculate only those members of S-n that are in the difference set from above
 
@@ -363,14 +367,14 @@
    :range-nodes @range-nodes
    })
 
-(defn oneshot-nesting-from-cached [cached]
+(defn oneshot-nesting-from-cached [cached singleton-ranges?]
   (do (reset-atoms-from-cached cached)
       ;; (oneshot-nesting)
-      (merge (current-atom-states) (oneshot-nesting))))
+      (merge (current-atom-states) (oneshot-nesting singleton-ranges?))))
 
-(defn oneshot-nesting-from-fresh [n]
+(defn oneshot-nesting-from-fresh [n singleton-ranges?]
   (do (play-algo n true)
-      (merge (current-atom-states) (oneshot-nesting))))
+      (merge (current-atom-states) (oneshot-nesting singleton-ranges?))))
 
 ;; test that caching vs fresh has same result
 (let [fresh-1222 (oneshot-nesting-from-fresh 1222)
@@ -385,7 +389,9 @@
 ;; NOTE: shifting storage left by 3 since skipping the constant offset from the beginning (always empty)
 (map #(- % 3) (sort (storage/parent-less-nodes 1222)))
 
-(defn oneshot-nesting []
+(defn oneshot-nesting
+  "performs a oneshot nesting of ephemeral range and belt nodes. takes flag `singleton-ranges?` to specify whether singleton peaks should also have a range node above them"
+  [singleton-ranges?]
   (let [
         ;; {:keys [node-map node-array]} (select-keys (play-algo @leaf-count upgrade?) [:node-map :node-array])
         ;; node-map (atom (:node-map algo-1222))
@@ -398,8 +404,11 @@
                       :belt belt-nodes}]
     (reset! range-nodes {})
     (reset! belt-nodes {})
-    (letfn [(update-parent [parent child]
-              (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent)))))]
+    (letfn [
+            ;; takes type of child to find its storage map, and then updates its parent
+            (update-parent [parent child]
+              (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent)))))
+            ]
       (let [
             belt-children (doall (map (fn [belt-range-count]
                                         (reduce (fn [left-child right-child]
@@ -411,9 +420,11 @@
                                                     (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
                                                     rn
                                                     ))
+                                                ;; returns all peaks that are in the given range. drops these nodes from the list of sorted peaks
                                                 (take belt-range-count
                                                       (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))
                                                 ))
+                                      ;; returns number of nodes in each range
                                       (map count (core/belt-ranges @leaf-count))))
             belts (doall
                    (reduce (fn [left-child right-child]
@@ -436,7 +447,7 @@
          }))
     ))
 
-(oneshot-nesting-from-fresh 1)
+(:belt-children (oneshot-nesting-from-fresh 9 true))
 (=
  (map #(if (instance? clojure.lang.Atom %) @% %) (vals result-1222-cached))
  (map #(if (instance? clojure.lang.Atom %) @% %) (vals (oneshot-nesting-from-fresh 1222))))
@@ -517,11 +528,7 @@
       (doall (repeatedly n #(algo upgrade?)))
       ;; (println "-----------------")
       ;; (clojure.pprint/pprint @node-map)
-      {:node-map @node-map
-       :lastP @lastP
-       :mergeable-stack @mergeable-stack
-       :node-array @node-array
-       :leaf-count @leaf-count}
+      (current-atom-states)
       ))
 
 ;; test that that tree construction is correct
