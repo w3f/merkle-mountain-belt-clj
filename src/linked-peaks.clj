@@ -14,6 +14,7 @@
    :right right
    :height height
    :hash hash
+   ;; peak nodes are instantiated without a parent
    :parent nil
    :type :peak})
 
@@ -144,77 +145,86 @@
       ;; #dbg
       (if (not (zero? (count @mergeable-stack)))
         (do
-          (let [Q (pop-mergeable-stack)
-                Q-old Q
+          (let [Q (atom (pop-mergeable-stack))
+                Q-old @Q
                 ;; Q-old-hash (:hash Q-old)
-                Q (update Q :height inc)
-                L (get @node-map (:left Q))
-                Q (assoc Q :hash (apply sorted-set (concat (:hash L) (:hash Q))))
-                Q (assoc Q :left (:left L))]
+                L (get @node-map (:left @Q))
+                ]
+
+            (swap! Q #(update % :height inc))
+            (swap! Q #(assoc % :hash (apply sorted-set (concat (:hash L) (:hash Q-old)))))
+            (swap! Q #(assoc % :left (:left L)))
 
             ;; Q and L (should) have a preexisting parent, either a range or a belt node
             (if (:parent Q-old)
-              #dbg
+              ;; #dbg
               ;; just another check to ensure that we're merging
               (if (= (:parent Q-old)
                       (:parent L))
-                 (let [parent-contenders (filter some? (map #(get @% (:parent Q-old)) [node-map range-nodes belt-nodes]))]
-                   ;; refactor here by splitting head of contenders from tail in let binding
-                   (if (= 1 (count parent-contenders))
-                     (if (not (contains? #{:internal :peak} (:type (first parent-contenders))))
-                       (((:type (first parent-contenders)) {
-                                                  :range #(throw (Exception. "unimplemented"))
-                                                  :belt #(throw (Exception. "unimplemented"))
-                                                  }))
-                       (throw (Exception. "parent is an illegal: internal or peak"))
-                       )
-                     (throw (Exception. "multiple parent contenders - no bueno!"))
-                     )
-                   )
-                 (throw (Exception. "parents don't match"))
-                 ))
+                ;; then
+                (let [parent-contenders (filter some? (map #(get @% (:parent Q-old)) [node-map range-nodes belt-nodes]))]
+                  ;; refactor here by splitting head of contenders from tail in let binding
+                  (if (= 1 (count parent-contenders))
+                    (if (not (contains? #{:internal :peak} (:type (first parent-contenders))))
+                      (((:type (first parent-contenders)) {
+                                                           :range (fn [] (do
+                                                                          (swap! Q #(assoc % :parent (:parent (first parent-contenders))))
+                                                                          (swap! range-nodes #(dissoc % (:hash (first parent-contenders))))
+                                                                          ;; (throw (Exception. "unimplemented"))
+                                                                          ))
+                                                           :belt (fn [] (throw (Exception. "unimplemented")))
+                                                           }))
+                      (throw (Exception. "parent is an illegal: internal or peak"))
+                      )
+                    (throw (Exception. "multiple parent contenders - no bueno!"))
+                    )
+                  )
+                ;; else
+                (throw (Exception. "parents don't match"))
+                ))
             ;; (if (= (:hash Q) #{8 9 10 11 12 13 14 15})
             (comment
-              (if (= (:hash Q) #{0 1 2 3 4 5 6 7})
+              (if (= (:hash @Q) #{0 1 2 3 4 5 6 7})
                #dbg
                (if (:right Q-old)
-                 (swap! node-map #(assoc-in % [(:right Q-old) :left] (:hash Q))))))
+                 (swap! node-map #(assoc-in % [(:right Q-old) :left] (:hash @Q))))))
             ;; add new leaf to node-map
-            (swap! node-map #(assoc % (:hash Q) Q))
+            (swap! node-map #(assoc % (:hash @Q) @Q))
             ;; update :left pointer of Q-old's :right
             (if (:right Q-old)
-              (swap! node-map #(assoc-in % [(:right Q-old) :left] (:hash Q))))
+              (swap! node-map #(assoc-in % [(:right Q-old) :left] (:hash @Q))))
             ;; update :right pointer of L's :left
             (if (:left L)
-              (swap! node-map #(assoc-in % [(:left L) :right] (:hash Q))))
+              (swap! node-map #(assoc-in % [(:left L) :right] (:hash @Q))))
             ;; update new parent-values
             ;; (swap! node-map #(assoc-in % [(:hash L) :parent] (:hash Q)))
             ;; (swap! node-map #(assoc-in % [Q-old-hash :parent] (:hash Q)))
 
             ;; update new parent-values, change type of children to internal (also removes :right key)
             ;; TODO: simply remove these nodes - they aren't needed beyond debugging and just clutter the interface
-            (swap! node-map #(assoc % (:hash L) (internal-node (:left L) (:height L) (:hash L) (:hash Q))))
-            (swap! node-map #(assoc % (:hash Q-old) (internal-node (:left Q-old) (:height Q-old) (:hash Q-old) (:hash Q))))
+            (swap! node-map #(assoc % (:hash L) (internal-node (:left L) (:height L) (:hash L) (:hash @Q))))
+            (swap! node-map #(assoc % (:hash Q-old) (internal-node (:left Q-old) (:height Q-old) (:hash Q-old) (:hash @Q))))
             ;; change type of children to internal
             ;; (swap! node-map #(assoc-in % [(:hash L) :type] :internal))
             ;; (swap! node-map #(assoc-in % [Q-old-hash :type] :internal))
 
-            (add-internal (:hash Q) (inc (* 2 @leaf-count)))
+            (add-internal (:hash @Q) (inc (* 2 @leaf-count)))
             ;; issue is that :left of Q can be outdated since may have had subsequent merge
-            (if (= (:height Q) (:height (get @node-map (:left Q))))
-              (let [left's-parent (:parent (get @node-map (:left Q)))]
+            (if (= (:height @Q) (:height (get @node-map (:left @Q))))
+              (let [left's-parent (:parent (get @node-map (:left @Q)))]
                 (if (or (nil? left's-parent)
                         (not (contains? #{:internal :peak} (:type (get @node-map left's-parent)))))
-                 (add-mergeable-stack Q)
+                 (add-mergeable-stack @Q)
                  (throw (Exception. ":left should always be updated whenever we have a merge - can't have a non-ephemeral parent!"))
                  ))
               )
 
             ;; if we've replaced the old lastP, should reset lastP to point to the new entry
             (if (= (:hash Q-old) @lastP)
-              (reset! lastP (:hash Q)))
+              (reset! lastP (:hash @Q)))
+
             ;; TODO: the following has a smarter integration
-            (if (= 4 @leaf-count) (sanity-checks Q-old))
+            ;; (if (= 4 @leaf-count) (sanity-checks Q-old))
 
             (comment (if upgrade?))
 
