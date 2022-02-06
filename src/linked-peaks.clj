@@ -365,11 +365,12 @@
 
 (defn oneshot-nesting-from-cached [cached]
   (do (reset-atoms-from-cached cached)
-      (merge (current-atom-states) (oneshot-nesting true))))
+      ;; (oneshot-nesting)
+      (merge (current-atom-states) (oneshot-nesting))))
 
 (defn oneshot-nesting-from-fresh [n]
   (do (play-algo n true)
-      (merge (current-atom-states) (oneshot-nesting true))))
+      (merge (current-atom-states) (oneshot-nesting))))
 
 ;; test that caching vs fresh has same result
 (let [fresh-1222 (oneshot-nesting-from-fresh 1222)
@@ -384,7 +385,7 @@
 ;; NOTE: shifting storage left by 3 since skipping the constant offset from the beginning (always empty)
 (map #(- % 3) (sort (storage/parent-less-nodes 1222)))
 
-(defn oneshot-nesting [upgrade?]
+(defn oneshot-nesting []
   (let [
         ;; {:keys [node-map node-array]} (select-keys (play-algo @leaf-count upgrade?) [:node-map :node-array])
         ;; node-map (atom (:node-map algo-1222))
@@ -395,7 +396,8 @@
         storage-maps {:peak node-map
                       :range range-nodes
                       :belt belt-nodes}]
-
+    (reset! range-nodes {})
+    (reset! belt-nodes {})
     (letfn [(update-parent [parent child]
               (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent)))))]
       (let [
