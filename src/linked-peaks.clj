@@ -215,11 +215,15 @@
             (add-internal (:hash @Q) (inc (* 2 @leaf-count)))
             ;; issue is that :left of Q can be outdated since may have had subsequent merge
             (if (= (:height @Q) (:height (get @node-map (:left @Q))))
+              ;; #dbg
               (let [left's-parent (:parent (get @node-map (:left @Q)))]
+                ;; TODO: debug why this broke when adding nil lefty and including last peak from prior range in current range
                 (if (or (nil? left's-parent)
-                        (not (contains? #{:internal :peak} (:type (get @node-map left's-parent)))))
+                        ;; DONE: This is now a meaningless test since node-map now only contains peaks and internal nodes
+                        (contains? @range-nodes left's-parent)
+)
                  (add-mergeable-stack @Q)
-                 (throw (Exception. ":left should always be updated whenever we have a merge - can't have a non-ephemeral parent!"))
+                 (throw (Exception. (str ":left should always be updated whenever we have a merge - can't have a non-ephemeral parent! leaf count " @leaf-count)))
                  ))
               )
 
@@ -398,7 +402,10 @@
         ;; node-array (atom (:node-array algo-1222))
         ;; range-nodes (atom {})
         ;; belt-nodes (atom {})
-        sorted-peaks (atom (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count))))
+        original-sorted-peaks (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
+        ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
+        ;; TODO: add singleton-ranges? flag to later cases where relevant
+        sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) nil nil) original-sorted-peaks) original-sorted-peaks))
         storage-maps {:peak node-map
                       :range range-nodes
                       :belt belt-nodes}]
@@ -409,23 +416,28 @@
             (update-parent [parent child]
               (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent)))))
             ]
+      ;; #dbg
       (let [
             belt-children (doall (map (fn [belt-range-count]
                                         (reduce (fn [left-child right-child]
-                                                  (let [rn (range-node (:hash left-child) (:hash right-child)
-                                                                       (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
+                                                  (let [left-most (:intruder left-child)
+                                                        rn (range-node (:hash left-child) (:hash right-child)
+                                                                       (clojure.set/union (if-not (and singleton-ranges? left-most) (:hash left-child)) (:hash right-child)) nil)]
                                                     (doall (map
                                                             (partial update-parent rn)
-                                                            [left-child right-child]))
+                                                            (if (and singleton-ranges? left-most) [right-child] [left-child right-child])))
                                                     (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
                                                     rn
                                                     ))
-                                                ;; returns all peaks that are in the given range. drops these nodes from the list of sorted peaks
-                                                (take belt-range-count
-                                                      (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))
+                                                ;; returns all peaks that are in the given range. for every iteration, include the last node from the prior range, to make a linked list of all range nodes
+                                                ;; TODO: tag the first node as NOT being in the same range
+                                                (update (into [] (take (if singleton-ranges? (inc belt-range-count) belt-range-count)
+                                                                       (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current))))))
+                                                        0 #(if singleton-ranges? (assoc % :intruder true) %))
                                                 ))
                                       ;; returns number of nodes in each range
                                       (map count (core/belt-ranges @leaf-count))))
+            ;; belt-children ()
             belts (doall
                    (reduce (fn [left-child right-child]
                              (let [bn (belt-node (:hash left-child) (:hash right-child)
