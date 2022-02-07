@@ -404,7 +404,7 @@
         ;; belt-nodes (atom {})
         original-sorted-peaks (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
         ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
-        ;; TODO: add singleton-ranges? flag to later cases where relevant
+        ;; DONE: add singleton-ranges? flag to later cases where relevant
         sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) nil nil) original-sorted-peaks) original-sorted-peaks))
         storage-maps {:peak node-map
                       :range range-nodes
@@ -430,7 +430,7 @@
                                                     rn
                                                     ))
                                                 ;; returns all peaks that are in the given range. for every iteration, include the last node from the prior range, to make a linked list of all range nodes
-                                                ;; TODO: tag the first node as NOT being in the same range
+                                                ;; DONE: tag the first node as NOT being in the same range
                                                 (update (into [] (take (if singleton-ranges? (inc belt-range-count) belt-range-count)
                                                                        (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current))))))
                                                         0 #(if singleton-ranges? (assoc % :intruder true) %))
