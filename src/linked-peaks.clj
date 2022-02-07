@@ -463,8 +463,13 @@
 (def cached-oneshot-9 (oneshot-nesting-from-fresh 9 true))
 (identity @range-nodes)
 (identity @belt-nodes)
+
+(identity cached-oneshot-9)
+;; (comment {:node-map {#{6} {:left #{4 5}, :height 0, :hash #{6}, :parent #{6 7}, :type :internal}, #{0 1} {:left nil, :height 1, :hash #{0 1}, :parent #{0 1 2 3}, :type :internal}, #{6 7} {:left #{4 5}, :height 1, :hash #{6 7}, :parent #{4 5 6 7}, :type :internal}, #{4 5 6 7} {:left #{0 1 2 3}, :right #{8}, :height 2, :hash #{4 5 6 7}, :parent #{0 1 2 3 4 5 6 7}, :type :peak}, #{3} {:left #{2}, :height 0, :hash #{3}, :parent #{2 3}, :type :internal}, #{7} {:left #{6}, :height 0, :hash #{7}, :parent #{6 7}, :type :internal}, #{2} {:left #{0 1}, :height 0, :hash #{2}, :parent #{2 3}, :type :internal}, #{8} {:left #{4 5 6 7}, :right nil, :height 0, :hash #{8}, :parent #{0 1 2 3 4 5 6 7 8}, :type :peak}, #{1} {:left #{0}, :height 0, :hash #{1}, :parent #{0 1}, :type :internal}, #{5} {:left #{4}, :height 0, :hash #{5}, :parent #{4 5}, :type :internal}, #{0} {:left nil, :height 0, :hash #{0}, :parent #{0 1}, :type :internal}, #{0 1 2 3} {:left nil, :right #{4 5 6 7}, :height 2, :hash #{0 1 2 3}, :parent #{0 1 2 3 4 5 6 7}, :type :peak}, #{4 5} {:left #{0 1 2 3}, :height 1, :hash #{4 5}, :parent #{4 5 6 7}, :type :internal}, #{4} {:left #{0 1 2 3}, :height 0, :hash #{4}, :parent #{4 5}, :type :internal}, #{2 3} {:left #{0 1}, :height 1, :hash #{2 3}, :parent #{0 1 2 3}, :type :internal}}, :node-array (#{0} 0 #{1} #{0 1} #{2} 0 #{3} #{2 3} #{4} #{0 1 2 3} #{5} #{4 5} #{6} 0 #{7} #{6 7} #{8} #{4 5 6 7}), :mergeable-stack [#{4 5 6 7}], :leaf-count 9, :lastP #{8}, :belt-nodes {#{0 1 2 3 4 5 6 7 8} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{0 1 2 3 4 5 6 7 8}, :parent nil, :type :belt}}, :range-nodes {#{0 1 2 3 4 5 6 7} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :parent #{0 1 2 3 4 5 6 7 8}, :type :range}}, :belt-children ({:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :parent nil, :type :range} {:left #{4 5 6 7}, :right nil, :height 0, :hash #{8}, :parent #{0 1 2 3 4 5 6 7 8}, :type :peak})})
 (:range-nodes cached-oneshot-9)
+(comment {#{0 1 2 3 4 5 6 7} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :parent #{0 1 2 3 4 5 6 7 8}, :type :range}})
 (:belt-nodes cached-oneshot-9)
+(comment {#{0 1 2 3 4 5 6 7 8} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{0 1 2 3 4 5 6 7 8}, :parent nil, :type :belt}})
 
 (:belt-children (oneshot-nesting-from-fresh 9 true))
 (=
