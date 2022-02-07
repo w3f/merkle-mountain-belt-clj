@@ -263,38 +263,24 @@
             (nth b-reverse j))
          (range 1500)))
 
-(let [n 1339
-      b (storage/binary-repr-of-n (inc n))
-      ;; [b1 b0] (map #(Integer/parseInt %) (map str (drop (- (count b) 2) b)))
-      j (storage/p-adic-order 2 (inc n))
-      m1 (if (< 1 j) "new leaf joins last range"
-             (get {0 "new leaf participates in merge"
-                   1 "new leaf forms a range alone"} j))
-      [bj+2 bj+1 bj] (map #(Integer/parseInt (str %)) (map #(nth (reverse b) %) [(+ j 2) (+ j 1) j]))
-      m2 (if (= [bj+1 bj] [0 1])
-           "M.M. not alone in range"
-           (if (= [bj+2 bj+1 bj] [0 1 1])
-             "M.M. alone in range"
-             (if (= [bj+2 bj+1 bj] [1 1 1])
-               "M.M. joins prev range"
-               )))
-      ;; {
-      ;;  {
-      ;;   1 "new leaf participates in merge"
-      ;;   0 {:b1 {
-      ;;           0 "new leaf joins last range"
-      ;;           1 "new leaf formas a range alone"
-      ;;           }}
-      ;;   }
-      ;;  :j {}
-      ;;  }
-      ;; j-map {0
-      ;;        }
-      ]
-  [m1 m2]
-  ;; [b1 b0 j]
-
-  )
+(defn merge-rule [n]
+  (let [
+        b (storage/binary-repr-of-n (inc n))
+        j (storage/p-adic-order 2 (inc n))
+        m1 (if (< 1 j) "new leaf joins last range"
+               (get {0 "new leaf participates in merge"
+                     1 "new leaf forms a range alone"} j))
+        [bj+2 bj+1 bj] (map #(Integer/parseInt (str %)) (map #(nth (reverse b) %) [(+ j 2) (+ j 1) j]))
+        m2 (if (= [bj+1 bj] [0 1])
+             "M.M. not alone in range"
+             (if (= [bj+2 bj+1 bj] [0 1 1])
+               "M.M. alone in range"
+               (if (= [bj+2 bj+1 bj] [1 1 1])
+                 "M.M. joins prev range"
+                 )))
+        ]
+    [m1 m2]
+    ))
 
 (some? (play-algo 1222 true))
 (def algo-1222 (play-algo 1222 true))
