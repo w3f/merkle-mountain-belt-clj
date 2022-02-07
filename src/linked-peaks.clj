@@ -459,6 +459,13 @@
          }))
     ))
 
+(oneshot-nesting-from-fresh 9 false)
+(def cached-oneshot-9 (oneshot-nesting-from-fresh 9 true))
+(identity @range-nodes)
+(identity @belt-nodes)
+(:range-nodes cached-oneshot-9)
+(:belt-nodes cached-oneshot-9)
+
 (:belt-children (oneshot-nesting-from-fresh 9 true))
 (=
  (map #(if (instance? clojure.lang.Atom %) @% %) (vals result-1222-cached))
