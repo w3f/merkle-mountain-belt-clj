@@ -420,7 +420,9 @@
         (str "#{" (apply min %) ".." (apply max %) "}")
         (str %))
       %)
-   (sort-by #(apply min (:hash %)) data))
+   ;; (sort-by #(apply min (:hash %)) data)
+   data
+   )
   )
 
 (defn display-type-filtered [data type]
