@@ -389,7 +389,7 @@
         m1 (if (< 1 j) "new leaf joins last range"
                (get {0 "new leaf participates in merge"
                      1 "new leaf forms a range alone"} j))
-        [bj+2 bj+1 bj] (if (< 3 n)
+        [bj+2 bj+1 bj] (if (< (+ j 2) (count b))
                          (map #(Integer/parseInt (str %)) (map #(nth (reverse b) %) [(+ j 2) (+ j 1) j]))
                          )
         m2 (if (= [bj+1 bj] [0 1])
