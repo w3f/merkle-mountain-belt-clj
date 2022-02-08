@@ -362,7 +362,11 @@
         ]
   (filter #(true? (second %)) (map-indexed (fn [idx n] [idx (= (map mapulation (vals (:range-nodes (play-algo n true))))
                                                               (map mapulation (vals (:range-nodes (play-algo-manual-end n)))))])
-                                           (range 50))))
+                                           (range 60))))
+
+(map merge-rule [0 9 13 41 57])
+(filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
+(filter #(nil? ((comp second second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
 
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo 10 true))))
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 10))))
