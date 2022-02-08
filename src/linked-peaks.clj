@@ -140,6 +140,7 @@
       (if @lastP (swap! node-map #(assoc-in % [@lastP :right] h)))
       ;; prelim: create range node for newly appended node if its height difference to the last peak is 2, or the last peak can be merged with the mountain to its left
       ;; TODO: otherwise, the new node is involved in merge?
+      ;; #dbg ^{:break/when (not oneshot-nesting?)}
       (if (and
            ;; (not oneshot-nesting?)
            (or (= 2 (:height (get @node-map @lastP)))
@@ -175,6 +176,7 @@
             (swap! Q #(assoc % :left (:left L)))
 
             ;; Q and L (should) have a preexisting parent, either a range or a belt node
+            ;; #dbg ^{:break/when (not oneshot-nesting?)}
             (if (and (not oneshot-nesting?) (:parent Q-old))
               ;; #dbg
               ;; just another check to ensure that we're merging
@@ -215,9 +217,10 @@
                          (= (:parent L) (:left (get @range-nodes (:parent Q-old))))
                          )
                   ;; #dbg
+                  #dbg ^{:break/when (and (not oneshot-nesting?) @global-debugging)}
                   (let [
                         ;; this is the range node that will replace their former parent range nodes
-                        rn (clojure.set/union (if (not= (:hash L) (:right L)) (:left L)) (:hash @Q))
+                        rn (clojure.set/union (if (not= (:hash L) (:right L)) (:left (get @range-nodes (:parent L)))) (:hash @Q))
                         ;; Q-old is a peak node, so its immediate parent is certainly a range node. The only unknown is the type of the parent's parent
                         grandparent-type (if (contains? @range-nodes (:parent (get @range-nodes (:parent Q-old))))
                                       :range
@@ -355,21 +358,43 @@
      (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end n))))))
 
 (letfn [
-        ;; (mapulation [value]
-        ;;   (dissoc value :parent))
         (mapulation [value]
-          (:hash value))
+          (dissoc value :parent))
+        ;; (mapulation [value]
+        ;;   (:hash value))
         ]
   (filter #(true? (second %)) (map-indexed (fn [idx n] [idx (= (map mapulation (vals (:range-nodes (play-algo n true))))
                                                               (map mapulation (vals (:range-nodes (play-algo-manual-end n)))))])
                                            (range 60))))
+(comment
+  (:hash value)
+  ([0 true] [9 true] [13 true] [17 true] [25 true] [33 true] [41 true] [49 true] [57 true]))
+(comment
+  (dissoc value :parent)
+  ([0 true] [9 true] [13 true] [17 true] [25 true] [33 true] [49 true]))
 
 (map merge-rule [0 9 13 41 57])
 (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
 (filter #(nil? ((comp second second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
+(map :hash (vals (:range-nodes (play-algo 16 true))))
+(#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15})
+(map :hash (vals (:range-nodes (play-algo 17 true))))
+(#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16})
+(map :hash (vals (:range-nodes (play-algo-manual-end 17))))
+(#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16})
+(#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16} #{8 9 10 11 12 13 14 15})
 
-(map #(dissoc % :parent) (vals (:range-nodes (play-algo 10 true))))
-(map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 10))))
+(map #(dissoc % :parent) (vals (:range-nodes (play-algo 9 true))))
+({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{8}, :type :range})
+(map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 9))))
+({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{8}, :type :range})
+
+(def global-debugging (atom false))
+(reset! global-debugging (not @global-debugging))
+
+;; DONE: debug n=17 discrepancy. new leaf looks correct, but merge is fucked
+(map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 17))))
+({:left nil, :right #{0 1 2 3 4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8 9 10 11}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13}, :right #{14 15}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :type :range} {:left #{8 9 10 11 12 13 14 15}, :right #{16}, :hash #{16}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11}, :right #{12 13 14 15}, :hash #{8 9 10 11 12 13 14 15}, :type :range})
 
 (= (last [#{0} #{0}]) #{0})
 (get {#{0} 4} #{0})
