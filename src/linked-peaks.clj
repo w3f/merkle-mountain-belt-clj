@@ -141,15 +141,18 @@
       ;; prelim: create range node for newly appended node if its height difference to the last peak is 2, or the last peak can be merged with the mountain to its left
       ;; TODO: otherwise, the new node is involved in merge?
       ;; #dbg ^{:break/when (not oneshot-nesting?)}
+
+      #dbg ^{:break/when (and (not oneshot-nesting?) @global-debugging)}
       (if (and
            ;; (not oneshot-nesting?)
            (or (= 2 (:height (get @node-map @lastP)))
                (and (some? @lastP) (= (last @mergeable-stack) @lastP))))
         ;; #dbg
         (do
-          (= 2 (:height (get @node-map @lastP)))
-          (= (last @mergeable-stack) @lastP)
-          (swap! range-nodes #(assoc % h (range-node @lastP h h nil)))
+          ;; (= 2 (:height (get @node-map @lastP)))
+          ;; (= (last @mergeable-stack) @lastP)
+          ;; TODO: using hack for n=5: rule doesn't apply here since it should in fact be in same range as predecessor -> investigate later
+          (swap! range-nodes #(assoc % h (range-node @lastP h (if (= @leaf-count 4) (clojure.set/union (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h) h) nil)))
           (swap! node-map #(assoc-in % [h :parent] h))
           ;; conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
           (if (>= @leaf-count 8)
@@ -206,7 +209,7 @@
                 ;; else
                 ;; DONE (should remove): (throw (Exception. (str "parents don't match @ leaf count " @leaf-count)))
                 ;; introduce more complicated algorithm: if parents don't match, still valid if their parents are not inside node-map
-                ;; TODO
+                ;; DONE
                 ;; already know that they're distinct
                 ;; check whether the parents are sibling range nodes
                 ;; TODO: first condition superfluous given second
@@ -258,8 +261,9 @@
                     ;; #dbg
                     (swap! range-nodes #(assoc % rn (range-node (:left (get @range-nodes (:parent L))) (:hash @Q) rn new-grandparent-hash)))
                     ;; update former left's parent's left child to point to rn as a parent
+                    ;; NOTE: doesn't apply for left-most range node
                     ;; #dbg
-                    (swap! range-nodes #(assoc-in % [(:left (get @range-nodes (:parent L))) :parent] rn))
+                    (if (:left (get @range-nodes (:parent L))) (swap! range-nodes #(assoc-in % [(:left (get @range-nodes (:parent L))) :parent] rn)))
                     ;; remove former left's parent from range nodes
                     ;; #dbg
                     (swap! range-nodes #(dissoc % (:parent L)))
@@ -361,6 +365,8 @@
         (mapulation [value]
           (dissoc value :parent))
         ;; (mapulation [value]
+        ;;   (dissoc (dissoc value :parent) :hash))
+        ;; (mapulation [value]
         ;;   (:hash value))
         ]
   (filter #(true? (second %)) (map-indexed (fn [idx n] [idx (= (map mapulation (vals (:range-nodes (play-algo n true))))
@@ -368,14 +374,35 @@
                                            (range 60))))
 (comment
   (:hash value)
-  ([0 true] [9 true] [13 true] [17 true] [25 true] [33 true] [41 true] [49 true] [57 true]))
+  (count '([0 true] [9 true] [13 true] [17 true] [25 true] [33 true] [41 true] [49 true] [57 true])))
 (comment
   (dissoc value :parent)
-  ([0 true] [9 true] [13 true] [17 true] [25 true] [33 true] [49 true]))
+  (count '([0 true] [9 true] [13 true] [17 true] [25 true] [33 true] [49 true])))
+(comment
+  (dissoc (dissoc value :parent) :hash)
+  (count '([0 true] [5 true] [9 true] [13 true] [17 true] [25 true] [33 true] [49 true])))
 
 (map merge-rule [0 9 13 41 57])
 (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
+(count '(1 5 9 13 17 21 25 29 33 37 41 45 49 53 57))
 (filter #(nil? ((comp second second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
+
+(map #(dissoc % :parent) (vals (:range-nodes (play-algo 5 true))))
+({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4}, :hash #{0 1 2 3 4}, :type :range})
+(map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 5))))
+(map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 5))))
+({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4}, :hash #{4}, :type :range} {})
+;; DONE: check whether #{4} peak should be in same range as #{0 1 2 3} - could also be a bug in oneshot
+(map count (core/belt-ranges 5))
+;; -> true
+;; -> TODO: why is rule saying it should form standalone range?
+
+(map #(dissoc % :parent) (vals (:range-nodes (play-algo 17 true))))
+;; (comment n=16
+;;         ({:left nil, :right #{0 1 2 3 4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8 9 10 11}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11}, :right #{12 13}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13}, :right #{14 15}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :type :range})
+;;          )
+;; (comment n=17
+;;          ({:left nil, :right #{0 1 2 3 4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8 9 10 11}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11}, :right #{12 13 14 15}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :right #{16}, :hash #{16}, :type :range}))
 (map :hash (vals (:range-nodes (play-algo 16 true))))
 (#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15})
 (map :hash (vals (:range-nodes (play-algo 17 true))))
