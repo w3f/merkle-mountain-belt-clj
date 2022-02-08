@@ -390,7 +390,6 @@
         ;; belt-nodes (atom {})
         original-sorted-peaks (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
         ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
-        ;; DONE: add singleton-ranges? flag to later cases where relevant
         sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) nil nil) original-sorted-peaks) original-sorted-peaks))
         storage-maps {:peak node-map
                       :range range-nodes
@@ -415,12 +414,21 @@
                                                     (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
                                                     rn
                                                     ))
-                                                ;; returns all peaks that are in the given range. for every iteration, include the last node from the prior range, to make a linked list of all range nodes
-                                                ;; DONE: tag the first node as NOT being in the same range
-                                                (update (into [] (take (if singleton-ranges? (inc belt-range-count) belt-range-count)
-                                                                       (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current))))))
-                                                        0 #(if singleton-ranges? (assoc % :intruder true) %))
-                                                ))
+                                                ;; returns all peaks that are in the given range.
+                                                ;; for every iteration, include the last node from the prior range, to make a linked list of all range nodes.
+                                                (update (into [] (if singleton-ranges?
+                                                                   (let [[dropped remainder] (split-at (inc belt-range-count) @sorted-peaks)
+                                                                         new-leader (apply clojure.set/union (map :hash dropped))]
+                                                                     (reset! sorted-peaks (cons {:hash new-leader} remainder))
+                                                                     dropped
+                                                                     )
+                                                                   (take belt-range-count
+                                                                         (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))
+                                                                   ))
+                                                        ;; TODO: first value shouldn't be last peak, but the actual range node's hash, i.e. the concatenation of hashes of the entire range
+                                                        ;; tags the first node as NOT being in the same range
+                                                        0 #(if singleton-ranges? (assoc % :intruder true) %)
+                                                        )))
                                       ;; returns number of nodes in each range
                                       (map count (core/belt-ranges @leaf-count))))
             ;; belt-children ()
