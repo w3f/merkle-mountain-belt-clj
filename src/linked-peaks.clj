@@ -605,8 +605,8 @@
                                                 ;; for every iteration, include the last node from the prior range, to make a linked list of all range nodes.
                                                 (update (into [] (if singleton-ranges?
                                                                    (let [[dropped remainder] (split-at (inc belt-range-count) @sorted-peaks)
-                                                                         new-leader (apply clojure.set/union (map :hash dropped))]
                                                                      (reset! sorted-peaks (cons {:hash new-leader} remainder))
+                                                                         new-leader (apply clojure.set/union (map :hash (rest dropped)))]
                                                                      dropped
                                                                      )
                                                                    (take belt-range-count
