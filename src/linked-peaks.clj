@@ -222,8 +222,10 @@
                   ;; #dbg
                   #dbg ^{:break/when (and (not oneshot-nesting?) @global-debugging)}
                   (let [
+                        parent-L (get @range-nodes (:parent L))
                         ;; this is the range node that will replace their former parent range nodes
-                        rn (clojure.set/union (if (not= (:hash L) (:right L)) (:left (get @range-nodes (:parent L)))) (:hash @Q))
+                        ;; if the range node above former left is not leftmost node, include its left in the hash (otherwise, its left is in another range)
+                        rn (clojure.set/union (if (not= (:hash parent-L) (:right parent-L)) (:left parent-L)) (:hash @Q))
                         ;; Q-old is a peak node, so its immediate parent is certainly a range node. The only unknown is the type of the parent's parent
                         grandparent-type (if (contains? @range-nodes (:parent (get @range-nodes (:parent Q-old))))
                                       :range
@@ -374,10 +376,10 @@
                                            (range 60))))
 (comment
   (:hash value)
-  (count '([0 true] [9 true] [13 true] [17 true] [25 true] [33 true] [41 true] [49 true] [57 true])))
+  (count '([0 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true])))
 (comment
   (dissoc value :parent)
-  (count '([0 true] [9 true] [13 true] [17 true] [25 true] [33 true] [49 true])))
+  (count '([0 true] [5 true] [9 true] [13 true] [17 true] [25 true] [33 true] [49 true])))
 (comment
   (dissoc (dissoc value :parent) :hash)
   (count '([0 true] [5 true] [9 true] [13 true] [17 true] [25 true] [33 true] [49 true])))
