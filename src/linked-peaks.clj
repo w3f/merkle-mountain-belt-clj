@@ -390,10 +390,10 @@
 (filter #(nil? ((comp second second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
 
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo 5 true))))
-({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4}, :hash #{0 1 2 3 4}, :type :range})
+;; ({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4}, :hash #{0 1 2 3 4}, :type :range})
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 5))))
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 5))))
-({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4}, :hash #{4}, :type :range} {})
+;; ({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4}, :hash #{4}, :type :range} {})
 ;; DONE: check whether #{4} peak should be in same range as #{0 1 2 3} - could also be a bug in oneshot
 (map count (core/belt-ranges 5))
 ;; -> true
@@ -406,27 +406,25 @@
 ;; (comment n=17
 ;;          ({:left nil, :right #{0 1 2 3 4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8 9 10 11}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11}, :right #{12 13 14 15}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :right #{16}, :hash #{16}, :type :range}))
 (map :hash (vals (:range-nodes (play-algo 16 true))))
-(#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15})
+;; (#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15})
 (map :hash (vals (:range-nodes (play-algo 17 true))))
-(#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16})
+;; (#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16})
 (map :hash (vals (:range-nodes (play-algo-manual-end 17))))
-(#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16})
-(#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16} #{8 9 10 11 12 13 14 15})
+;; (#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16})
+;; (#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16} #{8 9 10 11 12 13 14 15})
 
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo 9 true))))
-({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{8}, :type :range})
+;; ({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{8}, :type :range})
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 9))))
-({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{8}, :type :range})
+;; ({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{8}, :type :range})
+
 
 (def global-debugging (atom false))
 (reset! global-debugging (not @global-debugging))
 
 ;; DONE: debug n=17 discrepancy. new leaf looks correct, but merge is fucked
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 17))))
-({:left nil, :right #{0 1 2 3 4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8 9 10 11}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13}, :right #{14 15}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :type :range} {:left #{8 9 10 11 12 13 14 15}, :right #{16}, :hash #{16}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11}, :right #{12 13 14 15}, :hash #{8 9 10 11 12 13 14 15}, :type :range})
-
-(= (last [#{0} #{0}]) #{0})
-(get {#{0} 4} #{0})
+;; ({:left nil, :right #{0 1 2 3 4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8 9 10 11}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13}, :right #{14 15}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :type :range} {:left #{8 9 10 11 12 13 14 15}, :right #{16}, :hash #{16}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11}, :right #{12 13 14 15}, :hash #{8 9 10 11 12 13 14 15}, :type :range})
 
 (let [left-most-sibling-peak (last (take-while #(and (some? %) (not (contains? #{:internal :peak} (:type (get @node-map (hop-parent %)))))) (iterate hop-left @lastP)))]
   (take-while #(and (some? %) (contains? #{:internal :peak} (:type (get @node-map %)))) (iterate hop-parent (hop-left left-most-sibling-peak)))
