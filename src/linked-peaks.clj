@@ -142,7 +142,7 @@
       ;; TODO: otherwise, the new node is involved in merge?
       ;; #dbg ^{:break/when (not oneshot-nesting?)}
 
-      #dbg ^{:break/when (and (not oneshot-nesting?) @global-debugging)}
+      #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:singleton-range]))}
       (if (and
            ;; (not oneshot-nesting?)
            (or (= 2 (:height (get @node-map @lastP)))
@@ -420,7 +420,14 @@
 
 
 (def global-debugging (atom false))
-(reset! global-debugging (not @global-debugging))
+(defn toggle-debugging [] (swap! global-debugging #(not %)))
+(toggle-debugging)
+(def debugging-flags (atom #{:singleton-range}))
+(defn set-debugging-flags [flags]
+  (reset! debugging-flags (into #{} flags)))
+(defn debugging [flags]
+  (and @global-debugging
+       (every? #(contains? @debugging-flags %) flags)))
 
 ;; DONE: debug n=17 discrepancy. new leaf looks correct, but merge is fucked
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 17))))
