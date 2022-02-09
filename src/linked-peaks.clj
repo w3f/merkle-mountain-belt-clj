@@ -152,7 +152,8 @@
           ;; (= 2 (:height (get @node-map @lastP)))
           ;; (= (last @mergeable-stack) @lastP)
           ;; TODO: using hack for n=5: rule doesn't apply here since it should in fact be in same range as predecessor -> investigate later
-          (swap! range-nodes #(assoc % h (range-node @lastP h (if (= @leaf-count 4) (clojure.set/union (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h) h) nil)))
+          ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
+          (swap! range-nodes #(assoc % h (range-node (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h (if (= @leaf-count 4) (clojure.set/union (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h) h) nil)))
           (swap! node-map #(assoc-in % [h :parent] h))
           ;; conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
           (if (>= @leaf-count 8)
