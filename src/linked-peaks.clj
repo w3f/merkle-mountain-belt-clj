@@ -146,7 +146,7 @@
       (if (and
            ;; (not oneshot-nesting?)
            (or (= 2 (:height (get @node-map @lastP)))
-               (and (some? @lastP) (= (last @mergeable-stack) @lastP))))
+               (= (last @mergeable-stack) @lastP)))
         ;; #dbg
         (do
           ;; (= 2 (:height (get @node-map @lastP)))
@@ -383,18 +383,19 @@
         ;; (mapulation [value]
         ;;   (:hash value))
         ]
-  (filter #(true? (second %)) (map-indexed (fn [idx n] [idx (= (map mapulation (vals (:range-nodes (play-algo n true))))
+  (filter #(true? (second %)) (map-indexed (fn [idx n] [(inc idx) (= (map mapulation (vals (:range-nodes (play-algo n true))))
                                                               (map mapulation (vals (:range-nodes (play-algo-manual-end n)))))])
-                                           (range 60))))
+                                           (range 1 60))))
 (comment
   (:hash value)
-  ([0 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
+  ([1 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true])
+  )
 (comment
   (dissoc value :parent)
-  ([0 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
+  ([1 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
 (comment
   (dissoc (dissoc value :parent) :hash)
-  ([0 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
+  ([1 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
 
 (map merge-rule [0 9 13 41 57])
 (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
