@@ -364,6 +364,17 @@
   (= (map #(dissoc % :parent) (vals (:range-nodes (play-algo n true))))
      (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end n))))))
 
+;; DONE: fix n=21 discrepancy: it could well be that the oneshot binning is incorrect wrt. siblings of nodes
+;; siblings work, only parents are still "broken" since we're not doing belt nodes yet
+(map :hash (vals (:range-nodes (play-algo 21 true))))
+(truncate-#set-display (vals (:range-nodes (play-algo 21 true))))
+({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{0..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent "#{0..19}", :type :range} {:left "#{0..19}", :right "#{20}", :hash "#{20}", :parent "#{0..20}", :type :range})
+(map :hash (vals (:range-nodes (play-algo-manual-end 21))))
+(truncate-#set-display (vals (:range-nodes (play-algo-manual-end 21))))
+({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{16..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent nil, :type :range} {:left "#{16..19}", :right "#{20}", :hash "#{20}", :parent nil, :type :range})
+;; DONE: check whether #{} peak should be in same range as #{0 1 2 3} - could also be a bug in oneshot
+(map count (core/belt-ranges 21))
+
 (letfn [
         (mapulation [value]
           (dissoc value :parent))
@@ -377,16 +388,17 @@
                                            (range 60))))
 (comment
   (:hash value)
-  (count '([0 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true])))
+  ([0 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
 (comment
   (dissoc value :parent)
-  (count '([0 true] [5 true] [9 true] [13 true] [17 true] [25 true] [33 true] [49 true])))
+  ([0 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
 (comment
   (dissoc (dissoc value :parent) :hash)
-  (count '([0 true] [5 true] [9 true] [13 true] [17 true] [25 true] [33 true] [49 true])))
+  ([0 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
 
 (map merge-rule [0 9 13 41 57])
 (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
+(map first (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60))))
 (count '(1 5 9 13 17 21 25 29 33 37 41 45 49 53 57))
 (filter #(nil? ((comp second second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
 
@@ -406,6 +418,7 @@
 ;;          )
 ;; (comment n=17
 ;;          ({:left nil, :right #{0 1 2 3 4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8 9 10 11}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11}, :right #{12 13 14 15}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :right #{16}, :hash #{16}, :type :range}))
+
 (map :hash (vals (:range-nodes (play-algo 16 true))))
 ;; (#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15})
 (map :hash (vals (:range-nodes (play-algo 17 true))))
@@ -613,7 +626,7 @@
                                                                    (take belt-range-count
                                                                          (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))
                                                                    ))
-                                                        ;; TODO: first value shouldn't be last peak, but the actual range node's hash, i.e. the concatenation of hashes of the entire range
+                                                        ;; DONE: first value shouldn't be last peak, but the actual range node's hash, i.e. the concatenation of hashes of the entire range
                                                         ;; tags the first node as NOT being in the same range
                                                         0 #(if singleton-ranges? (assoc % :intruder true) %)
                                                         )))
