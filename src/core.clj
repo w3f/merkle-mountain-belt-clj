@@ -417,7 +417,6 @@
 
 (mmr-graph (mmr-from-leafcount 2))
 
-
 ;; new idea: create just the belt with the S-n as the effective leaves
 ;; thereafter, map parent-less-nodes to effective leaves
 ;; ()
@@ -441,7 +440,6 @@
 
 ;; (reduce)
 
-;; TODO: add handling of bitlength = 2
 (defn create-new-range? [[n-2 n-1] n]
   (or (and (= 1 n-1) (= 0 n))
       (and (= 0 n-2) (= 1 n-1))))
@@ -457,6 +455,7 @@
     ;; else, append to last current range
     (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)])))
 
+;; DONE: add handling of bitlength = 2
 (defn append-to-belt-range [running-range new-bit]
   (let [flattened-running-range (flatten running-range)
         preceding-bits (drop (- (count flattened-running-range) 2) flattened-running-range)

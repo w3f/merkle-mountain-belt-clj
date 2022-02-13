@@ -62,7 +62,7 @@
 
 (defn reset-all []
  (do
-   (reset! node-map {})
+   (reset! node-map {nil {:height ##Inf}})
    (reset! node-array [])
    (reset! mergeable-stack [])
    (reset! leaf-count 0)
@@ -70,9 +70,6 @@
    (reset! belt-nodes {})
    (reset! range-nodes {})
    ))
-
-(:height (get @node-map @lastP))
-(identity @lastP)
 
 (defn hop-left [node & target-map]
   (:left (get (or (first target-map) @node-map) node)))
