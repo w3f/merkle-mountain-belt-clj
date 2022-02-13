@@ -441,6 +441,7 @@
 
 ;; (reduce)
 
+;; TODO: add handling of bitlength = 2
 (defn create-new-range? [[n-2 n-1] n]
   (or (and (= 1 n-1) (= 0 n))
       (and (= 0 n-2) (= 1 n-1))))
@@ -457,8 +458,13 @@
     (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)])))
 
 (defn append-to-belt-range [running-range new-bit]
-  (let [flattened-running-range (flatten running-range)]
-    (if (create-new-range? (drop (- (count flattened-running-range) 2) flattened-running-range) new-bit)
+  (let [flattened-running-range (flatten running-range)
+        preceding-bits (drop (- (count flattened-running-range) 2) flattened-running-range)
+        preceding-bits-length (count preceding-bits)
+        preceding-bits-padded (if (< preceding-bits-length 2)
+                                (concat (repeat (- 2 preceding-bits-length) nil) preceding-bits)
+                                preceding-bits)]
+    (if (create-new-range? preceding-bits-padded new-bit)
       ;; if true, create new range
       (conj (into [] running-range) [new-bit])
       ;; else, append to last current range
