@@ -218,7 +218,8 @@
                          (= (:parent L) (:left (get @range-nodes (:parent Q-old))))
                          )
                   ;; #dbg
-                  #dbg ^{:break/when (and (not oneshot-nesting?) @global-debugging)}
+
+                  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:merge]))}
                   (let [
                         parent-L (get @range-nodes (:parent L))
                         ;; this is the range node that will replace their former parent range nodes
@@ -434,7 +435,7 @@
 (def global-debugging (atom false))
 (defn toggle-debugging [] (swap! global-debugging #(not %)))
 (toggle-debugging)
-(def debugging-flags (atom #{:singleton-range}))
+(def debugging-flags (atom #{:singleton-range :merge}))
 (defn set-debugging-flags [flags]
   (reset! debugging-flags (into #{} flags)))
 (defn debugging [flags]
