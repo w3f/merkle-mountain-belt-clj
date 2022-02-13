@@ -109,6 +109,12 @@
 
 (comment
   (algo true))
+
+(defn distinct-ranges [M M']
+  (or (= 2 (- (:height M) (:height M')))
+      (contains? (into #{} @mergeable-stack) (:hash M))
+    ))
+
 (defn algo [oneshot-nesting?]
   (let [
         ;; let h be hash of new leaf
@@ -224,7 +230,17 @@
                         parent-L (get @range-nodes (:parent L))
                         ;; this is the range node that will replace their former parent range nodes
                         ;; if the range node above former left is not leftmost node, include its left in the hash (otherwise, its left is in another range)
-                        rn (clojure.set/union (if (not= (:hash parent-L) (:right parent-L)) (:left parent-L)) (:hash @Q))
+                        ;; DONE: update the nodes referred to to be left: left, right: newly merged peak
+                        ;; TODO: should kill old parent range node that's no longer applicable
+                        rn (clojure.set/union (if (not
+                                                   ;; (or (= 2 (- (:height (get @node-map (:left @Q))) (:height @Q)))
+                                                   ;;     (contains? @mergeable-stack (:left @Q)))
+                                                   (distinct-ranges (get @node-map (:left @Q)) @Q)
+                                                   )
+                                                (:left parent-L))
+                                              (:hash @Q))
+                        ;; DONE (fixed above): the following currently only *preserves* range splits - should check whether the two range nodes should now be in the same range
+                        ;; rn (clojure.set/union (if (not= (:hash parent-L) (:right parent-L)) (:left parent-L)) (:hash @Q))
                         ;; Q-old is a peak node, so its immediate parent is certainly a range node. The only unknown is the type of the parent's parent
                         grandparent-type (if (contains? @range-nodes (:parent (get @range-nodes (:parent Q-old))))
                                       :range
@@ -274,12 +290,7 @@
                   (throw (Exception. (str "not handling range nodes with disting belt nodes above yet @ leaf count " @leaf-count)))
                 )
                 ))
-            ;; (if (= (:hash Q) #{8 9 10 11 12 13 14 15})
-            (comment
-              (if (= (:hash @Q) #{0 1 2 3 4 5 6 7})
-               #dbg
-               (if (:right Q-old)
-                 (swap! node-map #(assoc-in % [(:right Q-old) :left] (:hash @Q))))))
+
             ;; add new leaf to node-map
             (swap! node-map #(assoc % (:hash @Q) @Q))
             ;; update :left pointer of Q-old's :right
