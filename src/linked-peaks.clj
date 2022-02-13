@@ -232,6 +232,7 @@
                         ;; if the range node above former left is not leftmost node, include its left in the hash (otherwise, its left is in another range)
                         ;; DONE: update the nodes referred to to be left: left, right: newly merged peak
                         ;; TODO: should kill old parent range node that's no longer applicable
+                        distinct-ranges (distinct-ranges (get @node-map (:left @Q)) @Q)
                         rn (clojure.set/union (if (not
                                                    ;; (or (= 2 (- (:height (get @node-map (:left @Q))) (:height @Q)))
                                                    ;;     (contains? @mergeable-stack (:left @Q)))
@@ -356,7 +357,7 @@
 
 ;; check against one-shot
 (def range-node-manual-9 @range-nodes)
-;; TODO: left reference of #{8} should be #{0 .. 7} - not #{4..7}
+;; DONE: left reference of #{8} should be #{0 .. 7} - not #{4..7}
 (vals (:range-nodes (play-algo 9 true)))
 (vals range-node-manual-9)
 
@@ -369,20 +370,28 @@
    (map #(dissoc % :parent) (vals range-node-manual-9)))
 
 ;; show that, barring missing belt node impl in incremental algo, get matching result between incremental & oneshot
-(let [n 9]
+;; TODO: seems that performance got worse and the following is no longer feasible
+(let [n 1229]
   (= (map #(dissoc % :parent) (vals (:range-nodes (play-algo n true))))
      (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end n))))))
 
-;; DONE: fix n=21 discrepancy: it could well be that the oneshot binning is incorrect wrt. siblings of nodes
-;; siblings work, only parents are still "broken" since we're not doing belt nodes yet
-(map :hash (vals (:range-nodes (play-algo 21 true))))
+(map :hash (vals (:range-nodes (play-algo 29 true))))
+(truncate-#set-display (vals (:range-nodes (play-algo 28 true))))
+({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{0..23}", :right "#{24 25}", :hash "#{24 25}", :parent "#{24..27}", :type :range} {:left "#{24 25}", :right "#{26 27}", :hash "#{24..27}", :parent "#{0..27}", :type :range})
+(truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
+(truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
+(truncate-#set-display (map :hash (vals (:range-nodes (play-algo 28 true)))))
+(truncate-#set-display (map :hash (vals (:range-nodes (play-algo 29 true)))))
+;; TODO: trailing #{24..27} range node - should be removed when setting new split parent
+(truncate-#set-display (map :hash (vals (:range-nodes (play-algo-manual-end 29)))))
+(truncate-#set-display (vals (:range-nodes (play-algo-manual-end 29))))
+
+;; DONE: fix n=21 discrepancy
+;; n=21
 (truncate-#set-display (vals (:range-nodes (play-algo 21 true))))
-({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{0..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent "#{0..19}", :type :range} {:left "#{0..19}", :right "#{20}", :hash "#{20}", :parent "#{0..20}", :type :range})
-(map :hash (vals (:range-nodes (play-algo-manual-end 21))))
+({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{0..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent "#{0..19}", :type :range} {:left "#{16..19}", :right "#{20}", :hash "#{20}", :parent "#{0..20}", :type :range})
 (truncate-#set-display (vals (:range-nodes (play-algo-manual-end 21))))
 ({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{16..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent nil, :type :range} {:left "#{16..19}", :right "#{20}", :hash "#{20}", :parent nil, :type :range})
-;; DONE: check whether #{} peak should be in same range as #{0 1 2 3} - could also be a bug in oneshot
-(map count (core/belt-ranges 21))
 
 (letfn [
         (mapulation [value]
@@ -394,14 +403,16 @@
         ]
   (filter #(true? (second %)) (map-indexed (fn [idx n] [(inc idx) (= (map mapulation (vals (:range-nodes (play-algo n true))))
                                                               (map mapulation (vals (:range-nodes (play-algo-manual-end n)))))])
-                                           (range 1 60))))
+                                           (range 1 100))))
+
 (comment
   (:hash value)
-  ([1 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true])
+  ([1 true] [5 true] [9 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true] [65 true] [69 true] [73 true] [81 true] [85 true] [89 true] [97 true])
   )
 (comment
   (dissoc value :parent)
-  ([1 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
+  ([1 true] [5 true] [9 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true] [65 true] [69 true] [73 true] [81 true] [85 true] [89 true] [97 true])
+  )
 (comment
   (dissoc (dissoc value :parent) :hash)
   ([1 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
