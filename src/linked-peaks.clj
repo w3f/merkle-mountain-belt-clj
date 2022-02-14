@@ -161,12 +161,16 @@
               (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
         ;; else new leaf joins last range, i.e. get new range node above new leaf
         (let [last-range (get @range-nodes (:parent (get @node-map @lastP)))
-              new-range (range-node (:hash last-range) h (clojure.set/union (:hash last-range) h) (:parent last-range))]
+              new-range (range-node (:hash last-range) h (clojure.set/union (:hash last-range) h) (:parent last-range))
+              belt-parent (get @belt-nodes (:parent last-range))]
           (do
             (swap! range-nodes #(assoc % (:hash new-range) new-range))
             (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
             (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
             (swap! belt-nodes #(assoc-in % [(:parent new-range) :right] (:hash new-range)))
+            ;; recalculate belt-node hash since has new right child
+            ;; TODO: delay until last possible moment since left child may be updated too during merge
+            (swap! belt-nodes #(assoc-in % [(:parent new-range) :hash] (clojure.set/union (:left belt-parent) (:hash new-range))))
             ))
         )
       ;; 3. reset lastP
@@ -373,11 +377,12 @@
       ))
   )
 
-;; check against one-shot
-(def range-node-manual-9 @range-nodes)
-;; DONE: left reference of #{8} should be #{0 .. 7} - not #{4..7}
-(vals (:range-nodes (play-algo 9 true)))
-(vals (:range-nodes (play-algo-manual-end 9)))
+(vals (:range-nodes (play-algo 6 true)))
+({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :parent #{0 1 2 3 4 5}, :type :range} {:left #{0 1 2 3}, :right #{4 5}, :hash #{0 1 2 3 4 5}, :parent nil, :type :range})
+(vals (:range-nodes (play-algo-manual-end 6)))
+({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :parent #{0 1 2 3 4 5}, :type :range} {:left #{0 1 2 3}, :right #{4 5}, :hash #{0 1 2 3 4 5}, :parent nil, :type :range} {:left #{0 1 2 3 4 5}})
+;; -> issue is that when M.M. joins last range, still create superfluous left reference to it
+(toggle-debugging)
 
 ;; show that manual-end algo matches cached result
 (= (vals range-node-manual-9)
@@ -437,7 +442,7 @@
    #(true? (second %))
    (map-indexed (fn [idx n] [(inc idx) (=
                                        (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-algos n)))))
-                                       (into #{} (map mapulation (vals (:range-nodes (nth @manual-algos n))))))])
+                                       (into #{} (map mapulation (filter #(some? (:hash %)) (vals (:range-nodes (nth @manual-algos n)))))))])
                 (range (count @manual-algos)))))
 
 ;; TODO: fix outliers
