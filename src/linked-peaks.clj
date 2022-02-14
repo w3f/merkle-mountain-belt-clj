@@ -110,7 +110,7 @@
 (comment
   (algo true))
 
-(defn distinct-ranges [M M']
+(defn distinct-ranges? [M M']
   (or (= 2 (- (:height M) (:height M')))
       (contains? (into #{} @mergeable-stack) (:hash M))
     ))
@@ -154,7 +154,7 @@
         (do
           ;; (= 2 (:height (get @node-map @lastP)))
           ;; (= (last @mergeable-stack) @lastP)
-          ;; TODO: using hack for n=5: rule doesn't apply here since it should in fact be in same range as predecessor -> investigate later
+          ;; DONE: removed n=5 hack
           ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
           (swap! range-nodes #(assoc % h (range-node (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h h nil)))
           (swap! node-map #(assoc-in % [h :parent] h))
@@ -232,12 +232,8 @@
                         ;; if the range node above former left is not leftmost node, include its left in the hash (otherwise, its left is in another range)
                         ;; DONE: update the nodes referred to to be left: left, right: newly merged peak
                         ;; TODO: should kill old parent range node that's no longer applicable
-                        distinct-ranges (distinct-ranges (get @node-map (:left @Q)) @Q)
-                        rn (clojure.set/union (if (not
-                                                   ;; (or (= 2 (- (:height (get @node-map (:left @Q))) (:height @Q)))
-                                                   ;;     (contains? @mergeable-stack (:left @Q)))
-                                                   (distinct-ranges (get @node-map (:left @Q)) @Q)
-                                                   )
+                        distinct-ranges (distinct-ranges? (get @node-map (:left @Q)) @Q)
+                        rn (clojure.set/union (if (not distinct-ranges)
                                                 (:left parent-L))
                                               (:hash @Q))
                         ;; DONE (fixed above): the following currently only *preserves* range splits - should check whether the two range nodes should now be in the same range
@@ -285,6 +281,24 @@
                     ;; remove former left's parent from range nodes
                     ;; #dbg
                     (swap! range-nodes #(dissoc % (:parent L)))
+
+                    ;; TODO: integrate this neater!
+                    ;; if range nodes contains old
+                    (if (and (not distinct-ranges) (contains? @range-nodes (:hash @Q)) (not= 4 @leaf-count))
+                      #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-merge-replace]))}
+                      (let [former-range (get @range-nodes (:hash @Q))]
+                        (swap! range-nodes #(dissoc % (:hash @Q)))
+                        (swap! Q #(assoc % :parent rn))
+                        (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right @Q))) :left] (:parent @Q)))
+                        ;; UNTRUE: if former range's parent is a range node, then former range was a left child
+                        ;; (if (contains? @range-nodes (:parent former-range))
+                        ;;   (swap! range-nodes #(assoc-in % [(:parent former-range) :left] (:parent @Q))))
+
+                        ;; (swap! range-nodes #(assoc-in % [(:left former-range) :parent] (:parent @Q)))
+                        ;; (swap! range-nodes #(assoc-in % [(:left former-range) :parent] (:parent @Q)))
+                        ;; (swap! range-nodes #(assoc-in % [(:parent former-range) :right] (:parent @Q)))
+                        )
+                      )
 
                     ;; TODO: update parent's child reference, and update the parent's other child's parent pointer, and recurse over chain of parents (note: children of parents only need their parent pointer updated - doesn't affect their hash [and hence also not the hash of anything referring to said children])
                     )
@@ -359,7 +373,7 @@
 (def range-node-manual-9 @range-nodes)
 ;; DONE: left reference of #{8} should be #{0 .. 7} - not #{4..7}
 (vals (:range-nodes (play-algo 9 true)))
-(vals range-node-manual-9)
+(vals (:range-nodes (play-algo-manual-end 9)))
 
 ;; show that manual-end algo matches cached result
 (= (vals range-node-manual-9)
@@ -367,7 +381,7 @@
 
 ;; show that, barring missing belt node impl in incremental algo, get matching result between cached incremental & oneshot
 (= (map #(dissoc % :parent) (vals (:range-nodes (play-algo 9 true))))
-   (map #(dissoc % :parent) (vals range-node-manual-9)))
+   (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 9)))))
 
 ;; show that, barring missing belt node impl in incremental algo, get matching result between incremental & oneshot
 ;; TODO: seems that performance got worse and the following is no longer feasible
@@ -381,9 +395,18 @@
 (truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
 (truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
 (truncate-#set-display (map :hash (vals (:range-nodes (play-algo 28 true)))))
-(truncate-#set-display (map :hash (vals (:range-nodes (play-algo 29 true)))))
+(truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
 ;; TODO: trailing #{24..27} range node - should be removed when setting new split parent
-(truncate-#set-display (map :hash (vals (:range-nodes (play-algo-manual-end 29)))))
+(truncate-#set-display (map :hash (vals (:range-nodes (play-algo-manual-end 5)))))
+(let [n 5]
+  (= (into #{} (truncate-#set-display (map #(dissoc % :parent)(vals (:range-nodes (play-algo-manual-end n))))))
+     (into #{} (truncate-#set-display (map #(dissoc % :parent)(vals (:range-nodes (play-algo n true))))))))
+(toggle-debugging)
+
+(truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
+({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{0..23}", :right "#{24..27}", :hash "#{0..27}", :parent "#{0..28}", :type :range} {:left "#{0..27}", :right "#{28}", :hash "#{28}", :parent "#{0..28}", :type :range})
+(truncate-#set-display (vals (:range-nodes (play-algo-manual-end 29))))
+({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{24..27}", :right "#{28}", :hash "#{28}", :parent nil, :type :range} {:left "#{0..23}", :right "#{24..27}", :hash "#{0..27}", :parent nil, :type :range})
 (truncate-#set-display (vals (:range-nodes (play-algo-manual-end 29))))
 
 ;; DONE: fix n=21 discrepancy
@@ -393,6 +416,11 @@
 (truncate-#set-display (vals (:range-nodes (play-algo-manual-end 21))))
 ({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{16..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent nil, :type :range} {:left "#{16..19}", :right "#{20}", :hash "#{20}", :parent nil, :type :range})
 
+(toggle-debugging)
+
+(def oneshot-algos (atom (doall (map #(play-algo % true) (range 1 100)))))
+(def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 100)))))
+
 (letfn [
         (mapulation [value]
           (dissoc value :parent))
@@ -401,9 +429,9 @@
         ;; (mapulation [value]
         ;;   (:hash value))
         ]
-  (filter #(true? (second %)) (map-indexed (fn [idx n] [(inc idx) (= (map mapulation (vals (:range-nodes (play-algo n true))))
-                                                              (map mapulation (vals (:range-nodes (play-algo-manual-end n)))))])
-                                           (range 1 100))))
+  (filter #(true? (second %)) (map-indexed (fn [idx n] [(inc idx) (= (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-algos n)))))
+                                                                    (into #{} (map mapulation (vals (:range-nodes (nth @manual-algos n))))))])
+                                           (range (count @oneshot-algos)))))
 
 (comment
   (:hash value)
@@ -417,8 +445,8 @@
   (dissoc (dissoc value :parent) :hash)
   ([1 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
 
-(map merge-rule [0 9 13 41 57])
 (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
+(count '(1 5 9 13 17 21 25 29 33 37 41 45 49 53 57 61 65 69 73 77 81 85 89 93 97))
 (map first (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60))))
 (count '(1 5 9 13 17 21 25 29 33 37 41 45 49 53 57))
 (filter #(nil? ((comp second second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
@@ -457,7 +485,7 @@
 (def global-debugging (atom false))
 (defn toggle-debugging [] (swap! global-debugging #(not %)))
 (toggle-debugging)
-(def debugging-flags (atom #{:singleton-range :merge}))
+(def debugging-flags (atom #{:singleton-range :merge :range-merge-replace}))
 (defn set-debugging-flags [flags]
   (reset! debugging-flags (into #{} flags)))
 (defn debugging [flags]
@@ -800,6 +828,8 @@
            ]
        (= non-upgrade upgrade))
     (range 300))))
+
+(last-algo-match)
 
 (defn first-algo-mismatch
   "plays algo until first mismatch and returns the differences"
