@@ -144,7 +144,7 @@
       ;; #dbg
       (if @lastP (swap! node-map #(assoc-in % [@lastP :right] h)))
       ;; prelim: create range node for newly appended node if its height difference to the last peak is 2, or the last peak can be merged with the mountain to its left
-      ;; TODO: otherwise, the new node is involved in merge?
+      ;; DONE: otherwise, the new node is involved in merge
       ;; #dbg ^{:break/when (not oneshot-nesting?)}
 
       #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:singleton-range]))}
@@ -159,6 +159,15 @@
                   last-belt-node-hash (:parent (get @range-nodes last-range-node-hash))
                   new-belt-hash (clojure.set/union (or last-belt-node-hash last-range-node-hash) h)]
               (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
+        ;; else new leaf joins last range, i.e. get new range node above new leaf
+        (let [last-range (get @range-nodes (:parent (get @node-map @lastP)))
+              new-range (range-node (:hash last-range) h (clojure.set/union (:hash last-range) h) (:parent last-range))]
+          (do
+            (swap! range-nodes #(assoc % (:hash new-range) new-range))
+            (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
+            (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
+            (swap! belt-nodes #(assoc-in % [(:parent new-range) :right] (:hash new-range)))
+            ))
         )
       ;; 3. reset lastP
       (reset! lastP h)
@@ -413,8 +422,8 @@
 
 (toggle-debugging)
 
-(def oneshot-algos (atom (doall (map #(play-algo % true) (range 1 100)))))
-(def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 100)))))
+(def oneshot-algos (atom (doall (map #(play-algo % true) (range 1 101)))))
+(def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 101)))))
 
 (letfn [
         (mapulation [value]
@@ -424,21 +433,32 @@
         ;; (mapulation [value]
         ;;   (:hash value))
         ]
-  (filter #(true? (second %)) (map-indexed (fn [idx n] [(inc idx) (= (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-algos n)))))
-                                                                    (into #{} (map mapulation (vals (:range-nodes (nth @manual-algos n))))))])
-                                           (range (count @oneshot-algos)))))
+  (filter
+   #(true? (second %))
+   (map-indexed (fn [idx n] [(inc idx) (=
+                                       (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-algos n)))))
+                                       (into #{} (map mapulation (vals (:range-nodes (nth @manual-algos n))))))])
+                (range (count @manual-algos)))))
+
+;; TODO: fix outliers
+(comment
+  (map (juxt identity merge-rule) '(6 14 22 30 38 46 54 62 70 78 86 94))
+  ([6 ["new leaf participates in merge" "M.M. joins prev range"]] [14 ["new leaf participates in merge" "M.M. joins prev range"]] [22 ["new leaf participates in merge" "M.M. joins prev range"]] [30 ["new leaf participates in merge" "M.M. joins prev range"]] [38 ["new leaf participates in merge" "M.M. joins prev range"]] [46 ["new leaf participates in merge" "M.M. joins prev range"]] [54 ["new leaf participates in merge" "M.M. joins prev range"]] [62 ["new leaf participates in merge" "M.M. joins prev range"]] [70 ["new leaf participates in merge" "M.M. joins prev range"]] [78 ["new leaf participates in merge" "M.M. joins prev range"]] [86 ["new leaf participates in merge" "M.M. joins prev range"]] [94 ["new leaf participates in merge" "M.M. joins prev range"]]))
+
+(filter #(and (= "new leaf participates in merge" ((comp first second) %))
+              (= "M.M. joins prev range" ((comp second second) %))) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 100)))
+(filter #(and (= "new leaf participates in merge" ((comp first second) %))
+              ) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 100)))
+;; ERGO: all outliers are cases where M.M. also joins the previous range
 
 (comment
   (:hash value)
-  ([1 true] [5 true] [9 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true] [65 true] [69 true] [73 true] [81 true] [85 true] [89 true] [97 true])
+  ([1 true] [2 true] [3 true] [4 true] [5 true] [7 true] [8 true] [9 true] [10 true] [11 true] [12 true] [13 true] [15 true] [16 true] [17 true] [18 true] [19 true] [20 true] [21 true] [23 true] [24 true] [25 true] [26 true] [27 true] [28 true] [29 true] [31 true] [32 true] [33 true] [34 true] [35 true] [36 true] [37 true] [39 true] [40 true] [41 true] [42 true] [43 true] [44 true] [45 true] [47 true] [48 true] [49 true] [50 true] [51 true] [52 true] [53 true] [55 true] [56 true] [57 true] [58 true] [59 true] [60 true] [61 true] [63 true] [64 true] [65 true] [66 true] [67 true] [68 true] [69 true] [71 true] [72 true] [73 true] [74 true] [75 true] [76 true] [77 true] [79 true] [80 true] [81 true] [82 true] [83 true] [84 true] [85 true] [87 true] [88 true] [89 true] [90 true] [91 true] [92 true] [93 true] [95 true] [96 true] [97 true] [98 true] [99 true] [100 true])
   )
 (comment
   (dissoc value :parent)
-  ([1 true] [5 true] [9 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true] [65 true] [69 true] [73 true] [81 true] [85 true] [89 true] [97 true])
+  ([1 true] [2 true] [3 true] [4 true] [5 true] [7 true] [8 true] [9 true] [10 true] [11 true] [12 true] [13 true] [15 true] [16 true] [17 true] [18 true] [19 true] [20 true] [21 true] [23 true] [24 true] [25 true] [26 true] [27 true] [28 true] [29 true] [31 true] [32 true] [33 true] [34 true] [35 true] [36 true] [37 true] [39 true] [40 true] [41 true] [42 true] [43 true] [44 true] [45 true] [47 true] [48 true] [49 true] [50 true] [51 true] [52 true] [53 true] [55 true] [56 true] [57 true] [58 true] [59 true] [60 true] [61 true] [63 true] [64 true] [65 true] [66 true] [67 true] [68 true] [69 true] [71 true] [72 true] [73 true] [74 true] [75 true] [76 true] [77 true] [79 true] [80 true] [81 true] [82 true] [83 true] [84 true] [85 true] [87 true] [88 true] [89 true] [90 true] [91 true] [92 true] [93 true] [95 true] [96 true] [97 true] [98 true] [99 true] [100 true])
   )
-(comment
-  (dissoc (dissoc value :parent) :hash)
-  ([1 true] [5 true] [9 true] [13 true] [17 true] [21 true] [25 true] [33 true] [37 true] [41 true] [49 true] [53 true] [57 true]))
 
 (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
 (count '(1 5 9 13 17 21 25 29 33 37 41 45 49 53 57 61 65 69 73 77 81 85 89 93 97))
