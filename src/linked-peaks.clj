@@ -113,6 +113,8 @@
 (defn distinct-ranges? [M M']
   (or (= 2 (- (:height M) (:height M')))
       (contains? (into #{} @mergeable-stack) (:hash M))
+      ;; TODO: might be able to remove the following if/once have unified rules independent of singleton-ness of new leaf
+      (nil? (:hash M))
     ))
 
 (defn algo [oneshot-nesting?]
@@ -146,15 +148,8 @@
       ;; #dbg ^{:break/when (not oneshot-nesting?)}
 
       #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:singleton-range]))}
-      (if (and
-           ;; (not oneshot-nesting?)
-           (or (= 2 (:height (get @node-map @lastP)))
-               (= (last @mergeable-stack) @lastP)))
-        ;; #dbg
+      (if (distinct-ranges? (get @node-map @lastP) P)
         (do
-          ;; (= 2 (:height (get @node-map @lastP)))
-          ;; (= (last @mergeable-stack) @lastP)
-          ;; DONE: removed n=5 hack
           ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
           (swap! range-nodes #(assoc % h (range-node (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h h nil)))
           (swap! node-map #(assoc-in % [h :parent] h))
@@ -398,9 +393,9 @@
 (truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
 ;; TODO: trailing #{24..27} range node - should be removed when setting new split parent
 (truncate-#set-display (map :hash (vals (:range-nodes (play-algo-manual-end 5)))))
-(let [n 5]
-  (= (into #{} (truncate-#set-display (map #(dissoc % :parent)(vals (:range-nodes (play-algo-manual-end n))))))
-     (into #{} (truncate-#set-display (map #(dissoc % :parent)(vals (:range-nodes (play-algo n true))))))))
+(let [n 1]
+  (list (into #{} (truncate-#set-display (map #(dissoc % :parent)(vals (:range-nodes (play-algo-manual-end n))))))
+        (into #{} (truncate-#set-display (map #(dissoc % :parent)(vals (:range-nodes (play-algo n true))))))))
 (toggle-debugging)
 
 (truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
