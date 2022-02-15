@@ -226,19 +226,19 @@
                         ;; new-parent-hash SHOULD refer to the parent of the range node
                         [new-grandparent-hash child-leg] (if (= :range grandparent-type)
                                                       ;; if parent is range node, this was its left child (since range nodes don't have other range nodes as right children)
-                                                      [(clojure.set/union rn (:right (:parent (get @range-nodes (:parent Q-old))))) :right]
-                                                      ;; else, parent is belt - then we must check whether left or right child
-                                                      ;; TODO: this check should only be applicable to left-most belt node - all others have a belt node as their left child and a range node as their right
-                                                      (if (= :belt grandparent-type)
-                                                        (let [left (:left (get @belt-nodes (:parent Q-old)))
-                                                              right (:right (get @belt-nodes (:parent Q-old)))]
-                                                          (if (= left (:parent Q-old))
-                                                            [(clojure.set/union rn right) :left]
-                                                            (if (= right (:parent Q-old))
-                                                              [(clojure.set/union left rn) :right])
-                                                            ))
-                                                        ;; if grandparent neither range nor belt, we just leave blank
-                                                        [nil nil])
+                                                           [(clojure.set/union rn (:right (get @range-nodes (:parent (get @range-nodes (:parent Q-old)))))) :right]
+                                                           ;; else, parent is belt - then we must check whether left or right child
+                                                           ;; TODO: this check should only be applicable to left-most belt node - all others have a belt node as their left child and a range node as their right
+                                                           (if (= :belt grandparent-type)
+                                                             (let [left (:left (get @belt-nodes (:parent Q-old)))
+                                                                   right (:right (get @belt-nodes (:parent Q-old)))]
+                                                               (if (= left (:parent Q-old))
+                                                                 [(clojure.set/union rn right) :left]
+                                                                 (if (= right (:parent Q-old))
+                                                                   [(clojure.set/union left rn) :right])
+                                                                 ))
+                                                             ;; if grandparent neither range nor belt, we just leave blank
+                                                             [nil nil])
                                                       )]
                     ;; if Q-old's grandparent is a range node, and Q-old's parent is not the left-child of Q-old's grandparent range, then it's the right-child, hence the range node to the right of Q-old's parent is in another range, so need to hop to it via path: Q-old's right's parent, and then update its left reference (without updating hash, since other range)
                     ;; #dbg
@@ -397,8 +397,12 @@
    (vals (:range-nodes (play-algo-manual-end 9))))
 
 ;; show that, barring missing belt node impl in incremental algo, get matching result between cached incremental & oneshot
-(= (map #(dissoc % :parent) (vals (:range-nodes (play-algo 9 true))))
-   (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 9)))))
+(= (map #(dissoc % :parent) (vals (:range-nodes (play-algo 11 false))))
+   (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 11)))))
+
+;; show that, barring missing belt node impl in incremental algo, get matching result between cached incremental & oneshot
+(= (vals (:node-map (play-algo 11 false)))
+   (vals (:node-map (play-algo-manual-end 11))))
 
 ;; show that, barring missing belt node impl in incremental algo, get matching result between incremental & oneshot
 ;; TODO: seems that performance got worse and the following is no longer feasible
@@ -435,12 +439,17 @@
 
 (toggle-debugging)
 
-(def oneshot-algos (atom (doall (map #(play-algo % true) (range 1 101)))))
+(def oneshot-only-algos (atom (doall (map #(play-algo % true) (range 1 101)))))
+(def oneshot-algos (atom (doall (map #(play-algo-oneshot-end %) (range 1 101)))))
 (def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 101)))))
+(def manual-only-algos (atom (doall (map #(play-algo % false) (range 1 101)))))
+(def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 101)))))
 
 (letfn [
         (mapulation [value]
-          (dissoc value :parent))
+          (identity value))
+        ;; (mapulation [value]
+        ;;   (dissoc value :parent))
         ;; (mapulation [value]
         ;;   (dissoc (dissoc value :parent) :hash))
         ;; (mapulation [value]
@@ -449,11 +458,11 @@
   (filter
    #(false? (second %))
    (map-indexed (fn [idx n] [(inc idx) (=
-                                       (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-algos n)))))
-                                       (into #{} (map mapulation (filter #(some? (:hash %)) (vals (:range-nodes (nth @manual-algos n)))))))])
+                                       (into #{} (map mapulation (vals (:node-map (nth @oneshot-only-algos n)))))
+                                       (into #{} (map mapulation (vals (:node-map (nth @manual-only-algos n))))))])
                 (range (count @manual-algos)))))
 
-;; TODO: fix outliers
+;; DONE: fix outliers
 (comment
   (map (juxt identity merge-rule) '(6 14 22 30 38 46 54 62 70 78 86 94))
   ([6 ["new leaf participates in merge" "M.M. joins prev range"]] [14 ["new leaf participates in merge" "M.M. joins prev range"]] [22 ["new leaf participates in merge" "M.M. joins prev range"]] [30 ["new leaf participates in merge" "M.M. joins prev range"]] [38 ["new leaf participates in merge" "M.M. joins prev range"]] [46 ["new leaf participates in merge" "M.M. joins prev range"]] [54 ["new leaf participates in merge" "M.M. joins prev range"]] [62 ["new leaf participates in merge" "M.M. joins prev range"]] [70 ["new leaf participates in merge" "M.M. joins prev range"]] [78 ["new leaf participates in merge" "M.M. joins prev range"]] [86 ["new leaf participates in merge" "M.M. joins prev range"]] [94 ["new leaf participates in merge" "M.M. joins prev range"]]))
@@ -831,6 +840,21 @@
   (do (reset-all)
       (doall (repeatedly (dec n) #(algo true)))
       (algo false)
+      (current-atom-states)
+      ))
+
+(defn play-algo-optimized [n]
+  (do (reset-all)
+      (doall (repeatedly (dec (dec n)) #(algo false)))
+      (if (< 1 n) (algo true))
+      (if (< 0 n) (algo false))
+      (current-atom-states)
+      ))
+
+(defn play-algo-oneshot-end [n]
+  (do (reset-all)
+      (doall (repeatedly (dec n) #(algo false)))
+      (algo true)
       (current-atom-states)
       ))
 
