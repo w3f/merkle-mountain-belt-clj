@@ -117,68 +117,36 @@
       (nil? (:hash M))
     ))
 
-(defn algo [oneshot-nesting?]
-  (let [
-        ;; let h be hash of new leaf
-        ;; h (str @leaf-count "-hash")
-        h #{@leaf-count}
-        ;; pointer (get-pointer)
-        ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
-        P (peak-node (:hash (get @node-map @lastP)) nil 0 h)
-        ;; P (peak-node (:hash (get @node-map @lastP)) nil 0 h)
-        ]
+(defn new-leaf-range [oneshot-nesting? h P]
+  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:singleton-range]))}
+  (if (distinct-ranges? (get @node-map @lastP) P)
     (do
-      ;; 1. Add step
-      ;; store object P in peak map
-      (swap! node-map #(assoc % h P))
-      ;; (swap! node-map #(assoc % pointer P))
-      ;; A[R*n+1]<-h
-      (add-internal h (* 2 @leaf-count))
+      ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
+      (swap! range-nodes #(assoc % h (range-node (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h h nil)))
+      (swap! node-map #(assoc-in % [h :parent] h))
+      ;; conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
+      (if (>= @leaf-count 8)
+        (let [last-range-node-hash (:parent (get @node-map @lastP))
+              last-belt-node-hash (:parent (get @range-nodes last-range-node-hash))
+              new-belt-hash (clojure.set/union (or last-belt-node-hash last-range-node-hash) h)]
+          (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
+    ;; else new leaf joins last range, i.e. get new range node above new leaf
+    (let [last-range (get @range-nodes (:parent (get @node-map @lastP)))
+          new-range (range-node (:hash last-range) h (clojure.set/union (:hash last-range) h) (:parent last-range))
+          belt-parent (get @belt-nodes (:parent last-range))]
+      (do
+        (swap! range-nodes #(assoc % (:hash new-range) new-range))
+        (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
+        (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
+        (swap! belt-nodes #(assoc-in % [(:parent new-range) :right] (:hash new-range)))
+        ;; recalculate belt-node hash since has new right child
+        ;; TODO: delay until last possible moment since left child may be updated too during merge
+        (swap! belt-nodes #(assoc-in % [(:parent new-range) :hash] (clojure.set/union (:left belt-parent) (:hash new-range))))
+        ))
+    ))
 
-      ;; 2. Check mergeable
-      ;; if lastP.height==0 then M.add(P)
-      (if (and @lastP (= (:height (get @node-map @lastP)) 0))
-        (add-mergeable-stack (get @node-map h)))
-
-      ;; prelim: set right pointer of lastP to h
-      ;; #dbg
-      (if @lastP (swap! node-map #(assoc-in % [@lastP :right] h)))
-      ;; prelim: create range node for newly appended node if its height difference to the last peak is 2, or the last peak can be merged with the mountain to its left
-      ;; DONE: otherwise, the new node is involved in merge
-      ;; #dbg ^{:break/when (not oneshot-nesting?)}
-
-      #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:singleton-range]))}
-      (if (distinct-ranges? (get @node-map @lastP) P)
-        (do
-          ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
-          (swap! range-nodes #(assoc % h (range-node (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h h nil)))
-          (swap! node-map #(assoc-in % [h :parent] h))
-          ;; conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
-          (if (>= @leaf-count 8)
-            (let [last-range-node-hash (:parent (get @node-map @lastP))
-                  last-belt-node-hash (:parent (get @range-nodes last-range-node-hash))
-                  new-belt-hash (clojure.set/union (or last-belt-node-hash last-range-node-hash) h)]
-              (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
-        ;; else new leaf joins last range, i.e. get new range node above new leaf
-        (let [last-range (get @range-nodes (:parent (get @node-map @lastP)))
-              new-range (range-node (:hash last-range) h (clojure.set/union (:hash last-range) h) (:parent last-range))
-              belt-parent (get @belt-nodes (:parent last-range))]
-          (do
-            (swap! range-nodes #(assoc % (:hash new-range) new-range))
-            (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
-            (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
-            (swap! belt-nodes #(assoc-in % [(:parent new-range) :right] (:hash new-range)))
-            ;; recalculate belt-node hash since has new right child
-            ;; TODO: delay until last possible moment since left child may be updated too during merge
-            (swap! belt-nodes #(assoc-in % [(:parent new-range) :hash] (clojure.set/union (:left belt-parent) (:hash new-range))))
-            ))
-        )
-      ;; 3. reset lastP
-      (reset! lastP h)
-
-      ;; 4. merge if mergeable
-      ;; #dbg
-      (if (not (zero? (count @mergeable-stack)))
+(defn peak-merge [oneshot-nesting?]
+  (if (not (zero? (count @mergeable-stack)))
         (do
           (let [Q (atom (pop-mergeable-stack))
                 Q-old @Q
@@ -297,7 +265,8 @@
                       (let [former-range (get @range-nodes (:hash @Q))]
                         (swap! range-nodes #(dissoc % (:hash @Q)))
                         (swap! Q #(assoc % :parent rn))
-                        (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right @Q))) :left] (:parent @Q)))
+                        ;; if merged peak is not rightmost peak, also update the reference to it from its left neighbour
+                        (if (:right @Q) (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right @Q))) :left] (:parent @Q))))
                         ;; UNTRUE: if former range's parent is a range node, then former range was a left child
                         ;; (if (contains? @range-nodes (:parent former-range))
                         ;;   (swap! range-nodes #(assoc-in % [(:parent former-range) :left] (:parent @Q))))
@@ -310,7 +279,7 @@
 
                     ;; TODO: update parent's child reference, and update the parent's other child's parent pointer, and recurse over chain of parents (note: children of parents only need their parent pointer updated - doesn't affect their hash [and hence also not the hash of anything referring to said children])
                     )
-                  (throw (Exception. (str "not handling range nodes with disting belt nodes above yet @ leaf count " @leaf-count)))
+                  (throw (Exception. (str "not handling range nodes with distinct belt nodes above yet @ leaf count " @leaf-count)))
                 )
                 ))
 
@@ -360,9 +329,48 @@
 
             )
           )
-        )
-      (swap! leaf-count inc)
+        ))
 
+(defn algo [oneshot-nesting?]
+  (let [
+        ;; let h be hash of new leaf
+        ;; h (str @leaf-count "-hash")
+        h #{@leaf-count}
+        ;; pointer (get-pointer)
+        ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
+        P (peak-node (:hash (get @node-map @lastP)) nil 0 h)
+        ;; P (peak-node (:hash (get @node-map @lastP)) nil 0 h)
+        ]
+    (do
+      ;; 1. Add step
+      ;; store object P in peak map
+      (swap! node-map #(assoc % h P))
+      ;; (swap! node-map #(assoc % pointer P))
+      ;; A[R*n+1]<-h
+      (add-internal h (* 2 @leaf-count))
+
+      ;; 2. Check mergeable
+      ;; if lastP.height==0 then M.add(P)
+      (if (and @lastP (= (:height (get @node-map @lastP)) 0))
+        (add-mergeable-stack (get @node-map h)))
+
+      ;; prelim: set right pointer of lastP to h
+      ;; #dbg
+      (if @lastP (swap! node-map #(assoc-in % [@lastP :right] h)))
+      ;; prelim: create range node for newly appended node if its height difference to the last peak is 2, or the last peak can be merged with the mountain to its left
+      ;; DONE: otherwise, the new node is involved in merge
+      ;; #dbg ^{:break/when (not oneshot-nesting?)}
+
+      (new-leaf-range oneshot-nesting? h P)
+
+      ;; 3. reset lastP
+      (reset! lastP h)
+
+      ;; 4. merge if mergeable
+      ;; #dbg
+      (peak-merge oneshot-nesting?)
+
+      (swap! leaf-count inc)
 
       ;; 5. TODO update range nodes
 
@@ -439,7 +447,7 @@
         ;;   (:hash value))
         ]
   (filter
-   #(true? (second %))
+   #(false? (second %))
    (map-indexed (fn [idx n] [(inc idx) (=
                                        (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-algos n)))))
                                        (into #{} (map mapulation (filter #(some? (:hash %)) (vals (:range-nodes (nth @manual-algos n)))))))])
