@@ -207,8 +207,6 @@
   ([n]
    (into #{} (parent-less-nodes-internal n))))
 
-(parent-less-nodes)
-
 (clojure.set/difference @parent-less-nodes-cache @parent-less-nodes-atom)
 
 (do

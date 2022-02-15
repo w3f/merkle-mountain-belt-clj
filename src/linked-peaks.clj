@@ -1,6 +1,56 @@
 (ns linked-peaks
   (:require [core]))
 
+;; generic tooling
+(def global-debugging (atom false))
+(defn toggle-debugging [] (swap! global-debugging #(not %)))
+(toggle-debugging)
+(def debugging-flags (atom #{:singleton-range :merge :range-merge-replace}))
+(defn set-debugging-flags [flags]
+  (reset! debugging-flags (into #{} flags)))
+(defn debugging [flags]
+  (and @global-debugging
+       (every? #(contains? @debugging-flags %) flags)))
+
+(defn truncate-#set-display [data]
+  (clojure.walk/postwalk
+   #(if (and (contains? #{clojure.lang.PersistentHashSet
+                          clojure.lang.PersistentTreeSet} (type %))
+             (every? number? %))
+      (if (< 1 (count %))
+        (str "#{" (apply min %) ".." (apply max %) "}")
+        (str %))
+      %)
+   ;; (sort-by #(apply min (:hash %)) data)
+   data
+   )
+  )
+
+(defn display-type-filtered [data type]
+  (truncate-#set-display
+   (filter #(= type (:type %)) data)))
+
+(defn merge-rule [n]
+  (let [
+        b (storage/binary-repr-of-n (inc n))
+        j (storage/p-adic-order 2 (inc n))
+        m1 (if (< 1 j) "new leaf joins last range"
+               (get {0 "new leaf participates in merge"
+                     1 "new leaf forms a range alone"} j))
+        [bj+2 bj+1 bj] (if (< (+ j 2) (count b))
+                         (map #(Integer/parseInt (str %)) (map #(nth (reverse b) %) [(+ j 2) (+ j 1) j]))
+                         )
+        m2 (if (= [bj+1 bj] [0 1])
+             "M.M. not alone in range"
+             (if (= [bj+2 bj+1 bj] [0 1 1])
+               "M.M. alone in range"
+               (if (= [bj+2 bj+1 bj] [1 1 1])
+                 "M.M. joins prev range"
+                 )))
+        ]
+    [m1 m2]
+    ))
+
 ;; TODO: remove these entirely: they're only here for debugging now: only need hashes later
 (defn internal-node [left height hash parent]
   {:left left
@@ -109,6 +159,87 @@
 
 (comment
   (algo true))
+
+
+(comment (:range-nodes (play-algo 5 true))
+         (oneshot-nesting-from-fresh 8 false)
+         (algo false)
+         (oneshot-nesting true))
+
+(defn oneshot-nesting
+  "performs a oneshot nesting of ephemeral range and belt nodes. takes flag `singleton-ranges?` to specify whether singleton peaks should also have a range node above them"
+  [singleton-ranges?]
+  (let [
+        ;; {:keys [node-map node-array]} (select-keys (play-algo @leaf-count upgrade?) [:node-map :node-array])
+        ;; node-map (atom (:node-map algo-1222))
+        ;; node-array (atom (:node-array algo-1222))
+        ;; range-nodes (atom {})
+        ;; belt-nodes (atom {})
+        original-sorted-peaks (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
+        ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
+        sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) nil nil) original-sorted-peaks) original-sorted-peaks))
+        storage-maps {:peak node-map
+                      :range range-nodes
+                      :belt belt-nodes}]
+    (reset! range-nodes {})
+    (reset! belt-nodes {})
+    (letfn [
+            ;; takes type of child to find its storage map, and then updates its parent
+            (update-parent [parent child]
+              (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent)))))
+            ]
+      ;; #dbg
+      (let [
+            belt-children (doall (map (fn [belt-range-count]
+                                        (reduce (fn [left-child right-child]
+                                                  (let [left-most (:intruder left-child)
+                                                        rn (range-node (:hash left-child) (:hash right-child)
+                                                                       (clojure.set/union (if-not (and singleton-ranges? left-most) (:hash left-child)) (:hash right-child)) nil)]
+                                                    (doall (map
+                                                            (partial update-parent rn)
+                                                            (if (and singleton-ranges? left-most) [right-child] [left-child right-child])))
+                                                    (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
+                                                    rn
+                                                    ))
+                                                ;; returns all peaks that are in the given range.
+                                                ;; for every iteration, include the last node from the prior range, to make a linked list of all range nodes.
+                                                (update (into [] (if singleton-ranges?
+                                                                   (let [[dropped remainder] (split-at (inc belt-range-count) @sorted-peaks)
+                                                                         new-leader (apply clojure.set/union (map :hash (rest dropped)))]
+                                                                     ;; NOTE: since sorted-peaks is never read again after last step, the (if (empty? remainder) ..) check is in fact superfluous, but putting it in nonetheless, in case this features as a bug later
+                                                                     (reset! sorted-peaks (if (empty? remainder) remainder (cons {:hash new-leader} remainder)))
+                                                                     dropped
+                                                                     )
+                                                                   (take belt-range-count
+                                                                         (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))
+                                                                   ))
+                                                        ;; DONE: first value shouldn't be last peak, but the actual range node's hash, i.e. the concatenation of hashes of the entire range
+                                                        ;; tags the first node as NOT being in the same range
+                                                        0 #(if singleton-ranges? (assoc % :intruder true) %)
+                                                        )))
+                                      ;; returns number of nodes in each range
+                                      (map count (core/belt-ranges @leaf-count))))
+            ;; belt-children ()
+            belts (doall
+                   (reduce (fn [left-child right-child]
+                             (let [bn (belt-node (:hash left-child) (:hash right-child)
+                                                 (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
+                               (doall (map
+                                       (partial update-parent bn)
+                                       [left-child right-child]))
+                               (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
+                               bn
+                               ))
+                           belt-children
+                           ))
+            ]
+        {:belt-children belt-children
+         :range-nodes @range-nodes
+         :belt-nodes @belt-nodes
+         ;; :node-map node-map
+         ;; :node-array node-array
+         }))
+    ))
 
 (defn distinct-ranges? [M M']
   (or (= 2 (- (:height M) (:height M')))
@@ -382,6 +513,58 @@
       ))
   )
 
+(defn reset-atoms-from-cached [cached]
+  (reset! node-map (:node-map cached))
+  (reset! node-array (:node-array cached))
+  (reset! mergeable-stack (:mergeable-stack cached))
+  (reset! lastP (:lastP cached))
+  (reset! leaf-count (:leaf-count cached))
+  (reset! belt-nodes (:belt-nodes cached))
+  (reset! range-nodes (:range-nodes cached))
+  )
+
+(defn current-atom-states []
+  {
+   :node-map @node-map
+   :node-array @node-array
+   :mergeable-stack @mergeable-stack
+   :leaf-count @leaf-count
+   :lastP @lastP
+   :belt-nodes @belt-nodes
+   :range-nodes @range-nodes
+   })
+
+
+(defn play-algo [n oneshot-nesting?]
+  (do (reset-all)
+      (doall (repeatedly n #(algo oneshot-nesting?)))
+      ;; (println "-----------------")
+      ;; (clojure.pprint/pprint @node-map)
+      (current-atom-states)
+      ))
+
+(defn play-algo-manual-end [n]
+  (do (reset-all)
+      (doall (repeatedly (dec n) #(algo true)))
+      (algo false)
+      (current-atom-states)
+      ))
+
+(defn play-algo-optimized [n]
+  (do (reset-all)
+      (doall (repeatedly (dec (dec n)) #(algo false)))
+      (if (< 1 n) (algo true))
+      (if (< 0 n) (algo false))
+      (current-atom-states)
+      ))
+
+(defn play-algo-oneshot-end [n]
+  (do (reset-all)
+      (doall (repeatedly (dec n) #(algo false)))
+      (algo true)
+      (current-atom-states)
+      ))
+
 (vals (:range-nodes (play-algo 6 true)))
 ({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :parent #{0 1 2 3 4 5}, :type :range} {:left #{0 1 2 3}, :right #{4 5}, :hash #{0 1 2 3 4 5}, :parent nil, :type :range})
 (vals (:range-nodes (play-algo-manual-end 6)))
@@ -410,7 +593,7 @@
 
 (map :hash (vals (:range-nodes (play-algo 29 true))))
 (truncate-#set-display (vals (:range-nodes (play-algo 28 true))))
-({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{0..23}", :right "#{24 25}", :hash "#{24 25}", :parent "#{24..27}", :type :range} {:left "#{24 25}", :right "#{26 27}", :hash "#{24..27}", :parent "#{0..27}", :type :range})
+(comment ({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{0..23}", :right "#{24 25}", :hash "#{24 25}", :parent "#{24..27}", :type :range} {:left "#{24 25}", :right "#{26 27}", :hash "#{24..27}", :parent "#{0..27}", :type :range}))
 (truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
 (truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
 (truncate-#set-display (map :hash (vals (:range-nodes (play-algo 28 true)))))
@@ -423,17 +606,17 @@
 (toggle-debugging)
 
 (truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
-({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{0..23}", :right "#{24..27}", :hash "#{0..27}", :parent "#{0..28}", :type :range} {:left "#{0..27}", :right "#{28}", :hash "#{28}", :parent "#{0..28}", :type :range})
+(comment ({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{0..23}", :right "#{24..27}", :hash "#{0..27}", :parent "#{0..28}", :type :range} {:left "#{0..27}", :right "#{28}", :hash "#{28}", :parent "#{0..28}", :type :range}))
 (truncate-#set-display (vals (:range-nodes (play-algo-manual-end 29))))
-({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{24..27}", :right "#{28}", :hash "#{28}", :parent nil, :type :range} {:left "#{0..23}", :right "#{24..27}", :hash "#{0..27}", :parent nil, :type :range})
+(comment ({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{24..27}", :right "#{28}", :hash "#{28}", :parent nil, :type :range} {:left "#{0..23}", :right "#{24..27}", :hash "#{0..27}", :parent nil, :type :range}))
 (truncate-#set-display (vals (:range-nodes (play-algo-manual-end 29))))
 
 ;; DONE: fix n=21 discrepancy
 ;; n=21
 (truncate-#set-display (vals (:range-nodes (play-algo 21 true))))
-({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{0..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent "#{0..19}", :type :range} {:left "#{16..19}", :right "#{20}", :hash "#{20}", :parent "#{0..20}", :type :range})
+(comment ({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{0..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent "#{0..19}", :type :range} {:left "#{16..19}", :right "#{20}", :hash "#{20}", :parent "#{0..20}", :type :range}))
 (truncate-#set-display (vals (:range-nodes (play-algo-manual-end 21))))
-({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{16..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent nil, :type :range} {:left "#{16..19}", :right "#{20}", :hash "#{20}", :parent nil, :type :range})
+(comment ({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{16..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent nil, :type :range} {:left "#{16..19}", :right "#{20}", :hash "#{20}", :parent nil, :type :range}))
 
 (toggle-debugging)
 
@@ -531,16 +714,7 @@
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 9))))
 ;; ({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{8}, :type :range})
 
-
-(def global-debugging (atom false))
-(defn toggle-debugging [] (swap! global-debugging #(not %)))
-(toggle-debugging)
-(def debugging-flags (atom #{:singleton-range :merge :range-merge-replace}))
-(defn set-debugging-flags [flags]
-  (reset! debugging-flags (into #{} flags)))
-(defn debugging [flags]
-  (and @global-debugging
-       (every? #(contains? @debugging-flags %) flags)))
+(set-debugging-flags [:merge])
 
 ;; DONE: debug n=17 discrepancy. new leaf looks correct, but merge is fucked
 (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 17))))
@@ -558,27 +732,6 @@
             (nth b-reverse j))
          (range 1500)))
 
-(defn merge-rule [n]
-  (let [
-        b (storage/binary-repr-of-n (inc n))
-        j (storage/p-adic-order 2 (inc n))
-        m1 (if (< 1 j) "new leaf joins last range"
-               (get {0 "new leaf participates in merge"
-                     1 "new leaf forms a range alone"} j))
-        [bj+2 bj+1 bj] (if (< (+ j 2) (count b))
-                         (map #(Integer/parseInt (str %)) (map #(nth (reverse b) %) [(+ j 2) (+ j 1) j]))
-                         )
-        m2 (if (= [bj+1 bj] [0 1])
-             "M.M. not alone in range"
-             (if (= [bj+2 bj+1 bj] [0 1 1])
-               "M.M. alone in range"
-               (if (= [bj+2 bj+1 bj] [1 1 1])
-                 "M.M. joins prev range"
-                 )))
-        ]
-    [m1 m2]
-    ))
-
 (some? (play-algo 1222 true))
 (def algo-1222 (play-algo 1222 true))
 (def algo-1223 (play-algo 1223 true))
@@ -586,24 +739,6 @@
 (def algo-1278 (play-algo 1278 true))
 (def algo-1279 (play-algo 1279 true))
 
-
-(defn truncate-#set-display [data]
-  (clojure.walk/postwalk
-   #(if (and (contains? #{clojure.lang.PersistentHashSet
-                          clojure.lang.PersistentTreeSet} (type %))
-             (every? number? %))
-      (if (< 2 (count %))
-        (str "#{" (apply min %) ".." (apply max %) "}")
-        (str %))
-      %)
-   ;; (sort-by #(apply min (:hash %)) data)
-   data
-   )
-  )
-
-(defn display-type-filtered [data type]
-  (truncate-#set-display
-   (filter #(= type (:type %)) data)))
 
 (truncate-#set-display (filter #(some? (:right %)) (vals (:node-map (play-algo 20 true)))))
 (count (filter #(not= :internal (:type %)) (vals (:node-map (play-algo 1222 true)))))
@@ -635,27 +770,6 @@
    :right-most (map :hash right-most)}
   )
 
-(defn reset-atoms-from-cached [cached]
-  (reset! node-map (:node-map cached))
-  (reset! node-array (:node-array cached))
-  (reset! mergeable-stack (:mergeable-stack cached))
-  (reset! lastP (:lastP cached))
-  (reset! leaf-count (:leaf-count cached))
-  (reset! belt-nodes (:belt-nodes cached))
-  (reset! range-nodes (:range-nodes cached))
-  )
-
-(defn current-atom-states []
-  {
-   :node-map @node-map
-   :node-array @node-array
-   :mergeable-stack @mergeable-stack
-   :leaf-count @leaf-count
-   :lastP @lastP
-   :belt-nodes @belt-nodes
-   :range-nodes @range-nodes
-   })
-
 (defn oneshot-nesting-from-cached [cached singleton-ranges?]
   (do (reset-atoms-from-cached cached)
       ;; (oneshot-nesting)
@@ -678,80 +792,6 @@
 ;; NOTE: shifting storage left by 3 since skipping the constant offset from the beginning (always empty)
 (map #(- % 3) (sort (storage/parent-less-nodes 1222)))
 
-(defn oneshot-nesting
-  "performs a oneshot nesting of ephemeral range and belt nodes. takes flag `singleton-ranges?` to specify whether singleton peaks should also have a range node above them"
-  [singleton-ranges?]
-  (let [
-        ;; {:keys [node-map node-array]} (select-keys (play-algo @leaf-count upgrade?) [:node-map :node-array])
-        ;; node-map (atom (:node-map algo-1222))
-        ;; node-array (atom (:node-array algo-1222))
-        ;; range-nodes (atom {})
-        ;; belt-nodes (atom {})
-        original-sorted-peaks (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
-        ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
-        sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) nil nil) original-sorted-peaks) original-sorted-peaks))
-        storage-maps {:peak node-map
-                      :range range-nodes
-                      :belt belt-nodes}]
-    (reset! range-nodes {})
-    (reset! belt-nodes {})
-    (letfn [
-            ;; takes type of child to find its storage map, and then updates its parent
-            (update-parent [parent child]
-              (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent)))))
-            ]
-      ;; #dbg
-      (let [
-            belt-children (doall (map (fn [belt-range-count]
-                                        (reduce (fn [left-child right-child]
-                                                  (let [left-most (:intruder left-child)
-                                                        rn (range-node (:hash left-child) (:hash right-child)
-                                                                       (clojure.set/union (if-not (and singleton-ranges? left-most) (:hash left-child)) (:hash right-child)) nil)]
-                                                    (doall (map
-                                                            (partial update-parent rn)
-                                                            (if (and singleton-ranges? left-most) [right-child] [left-child right-child])))
-                                                    (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
-                                                    rn
-                                                    ))
-                                                ;; returns all peaks that are in the given range.
-                                                ;; for every iteration, include the last node from the prior range, to make a linked list of all range nodes.
-                                                (update (into [] (if singleton-ranges?
-                                                                   (let [[dropped remainder] (split-at (inc belt-range-count) @sorted-peaks)
-                                                                         new-leader (apply clojure.set/union (map :hash (rest dropped)))]
-                                                                     ;; NOTE: since sorted-peaks is never read again after last step, the (if (empty? remainder) ..) check is in fact superfluous, but putting it in nonetheless, in case this features as a bug later
-                                                                     (reset! sorted-peaks (if (empty? remainder) remainder (cons {:hash new-leader} remainder)))
-                                                                     dropped
-                                                                     )
-                                                                   (take belt-range-count
-                                                                         (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))
-                                                                   ))
-                                                        ;; DONE: first value shouldn't be last peak, but the actual range node's hash, i.e. the concatenation of hashes of the entire range
-                                                        ;; tags the first node as NOT being in the same range
-                                                        0 #(if singleton-ranges? (assoc % :intruder true) %)
-                                                        )))
-                                      ;; returns number of nodes in each range
-                                      (map count (core/belt-ranges @leaf-count))))
-            ;; belt-children ()
-            belts (doall
-                   (reduce (fn [left-child right-child]
-                             (let [bn (belt-node (:hash left-child) (:hash right-child)
-                                                 (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
-                               (doall (map
-                                       (partial update-parent bn)
-                                       [left-child right-child]))
-                               (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
-                               bn
-                               ))
-                           belt-children
-                           ))
-            ]
-        {:belt-children belt-children
-         :range-nodes @range-nodes
-         :belt-nodes @belt-nodes
-         ;; :node-map node-map
-         ;; :node-array node-array
-         }))
-    ))
 
 (oneshot-nesting-from-fresh 9 false)
 (def cached-oneshot-9 (oneshot-nesting-from-fresh 9 true))
@@ -840,36 +880,6 @@
                         (into #{} (:node-map algo-old-mismatch)))
 (clojure.set/difference (into #{} (:node-map algo-old-mismatch))
                         (into #{} (:node-map algo-new-mismatch)))
-
-(defn play-algo [n oneshot-nesting?]
-  (do (reset-all)
-      (doall (repeatedly n #(algo oneshot-nesting?)))
-      ;; (println "-----------------")
-      ;; (clojure.pprint/pprint @node-map)
-      (current-atom-states)
-      ))
-
-(defn play-algo-manual-end [n]
-  (do (reset-all)
-      (doall (repeatedly (dec n) #(algo true)))
-      (algo false)
-      (current-atom-states)
-      ))
-
-(defn play-algo-optimized [n]
-  (do (reset-all)
-      (doall (repeatedly (dec (dec n)) #(algo false)))
-      (if (< 1 n) (algo true))
-      (if (< 0 n) (algo false))
-      (current-atom-states)
-      ))
-
-(defn play-algo-oneshot-end [n]
-  (do (reset-all)
-      (doall (repeatedly (dec n) #(algo false)))
-      (algo true)
-      (current-atom-states)
-      ))
 
 ;; test that that tree construction is correct
 (let [n 1222
