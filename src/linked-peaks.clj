@@ -355,19 +355,16 @@
         (add-mergeable-stack (get @node-map h)))
 
       ;; prelim: set right pointer of lastP to h
-      ;; #dbg
       (if @lastP (swap! node-map #(assoc-in % [@lastP :right] h)))
       ;; prelim: create range node for newly appended node if its height difference to the last peak is 2, or the last peak can be merged with the mountain to its left
       ;; DONE: otherwise, the new node is involved in merge
       ;; #dbg ^{:break/when (not oneshot-nesting?)}
-
       (new-leaf-range oneshot-nesting? h P)
 
       ;; 3. reset lastP
       (reset! lastP h)
 
       ;; 4. merge if mergeable
-      ;; #dbg
       (peak-merge oneshot-nesting?)
 
       (swap! leaf-count inc)
@@ -405,10 +402,11 @@
    (vals (:node-map (play-algo-manual-end 11))))
 
 ;; show that, barring missing belt node impl in incremental algo, get matching result between incremental & oneshot
-;; TODO: seems that performance got worse and the following is no longer feasible
-(let [n 1229]
-  (= (map #(dissoc % :parent) (vals (:range-nodes (play-algo n true))))
-     (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end n))))))
+;; DONE: seems that performance got worse and the following is no longer feasible
+;; issue is simply that iterating from scratch every time has a performance impact of (n^2)/2 (i.e. O(n^2)). mitigated by only performing expensive oneshot at the very end (since it's always erased inbetween anyways)
+(let [n 3000]
+  (= (into #{} (map #(dissoc % :parent) (vals (:range-nodes (play-algo n false)))))
+     (into #{} (map #(dissoc % :parent) (vals (:range-nodes (play-algo-oneshot-end n)))))))
 
 (map :hash (vals (:range-nodes (play-algo 29 true))))
 (truncate-#set-display (vals (:range-nodes (play-algo 28 true))))
@@ -439,17 +437,19 @@
 
 (toggle-debugging)
 
-(def oneshot-only-algos (atom (doall (map #(play-algo % true) (range 1 101)))))
-(def oneshot-algos (atom (doall (map #(play-algo-oneshot-end %) (range 1 101)))))
-(def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 101)))))
-(def manual-only-algos (atom (doall (map #(play-algo % false) (range 1 101)))))
-(def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 101)))))
+(def algo-bound 101)
+(def oneshot-only-algos (atom (doall (map #(play-algo % true) (range 1 algo-bound)))))
+(def oneshot-algos (atom (doall (map #(play-algo-oneshot-end %) (range 1 algo-bound)))))
+(def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 algo-bound)))))
+(def manual-only-algos (atom (doall (map #(play-algo % false) (range 1 algo-bound)))))
+(def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 algo-bound)))))
+
 
 (letfn [
-        (mapulation [value]
-          (identity value))
         ;; (mapulation [value]
-        ;;   (dissoc value :parent))
+        ;;   (identity value))
+        (mapulation [value]
+          (dissoc value :parent))
         ;; (mapulation [value]
         ;;   (dissoc (dissoc value :parent) :hash))
         ;; (mapulation [value]
@@ -458,9 +458,22 @@
   (filter
    #(false? (second %))
    (map-indexed (fn [idx n] [(inc idx) (=
-                                       (into #{} (map mapulation (vals (:node-map (nth @oneshot-only-algos n)))))
-                                       (into #{} (map mapulation (vals (:node-map (nth @manual-only-algos n))))))])
+                                       (into #{} (map mapulation (vals (:belt-nodes (nth @oneshot-only-algos n)))))
+                                       (into #{} (map mapulation (vals (:belt-nodes (nth @manual-algos n))))))])
                 (range (count @manual-algos)))))
+
+(letfn [
+        (mapulation [value]
+          (identity value))
+        ;; (mapulation [value]
+        ;;   (dissoc value :parent))
+        ]
+  (filter
+   #(false? (second %))
+   (map-indexed (fn [idx n] [(inc idx) (=
+                                       (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-only-algos n)))))
+                                       (into #{} (map mapulation (vals (:range-nodes (nth @optimized-manual-algos n))))))])
+                (range (min (count @oneshot-only-algos) (count @optimized-manual-algos))))))
 
 ;; DONE: fix outliers
 (comment
