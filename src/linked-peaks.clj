@@ -4,7 +4,7 @@
 ;; generic tooling
 (def global-debugging (atom false))
 (defn toggle-debugging [] (swap! global-debugging #(not %)))
-(toggle-debugging)
+(comment (toggle-debugging))
 (def debugging-flags (atom #{:singleton-range :merge :range-merge-replace}))
 (defn set-debugging-flags [flags]
   (reset! debugging-flags (into #{} flags)))
@@ -82,7 +82,7 @@
    :parent parent
    :type :belt})
 
-(def lastP (atom nil))
+(def lastP (atom #{}))
 
 ;; (def R-count (atom 0))
 
@@ -112,13 +112,13 @@
 
 (defn reset-all []
  (do
-   (reset! node-map {nil {:height ##Inf}})
+   (reset! node-map {#{} {:height ##Inf :hash #{} :parent #{}}})
    (reset! node-array [])
    (reset! mergeable-stack [])
    (reset! leaf-count 0)
-   (reset! lastP nil)
+   (reset! lastP #{})
    (reset! belt-nodes {})
-   (reset! range-nodes {})
+   (reset! range-nodes {#{} {:hash #{}}})
    ))
 
 (defn hop-left [node & target-map]
@@ -177,11 +177,11 @@
         ;; belt-nodes (atom {})
         original-sorted-peaks (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
         ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
-        sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) nil nil) original-sorted-peaks) original-sorted-peaks))
+        sorted-peaks (atom (if singleton-ranges? (cons (peak-node #{} (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
         storage-maps {:peak node-map
                       :range range-nodes
                       :belt belt-nodes}]
-    (reset! range-nodes {})
+    (reset! range-nodes {#{} {:hash #{}}})
     (reset! belt-nodes {})
     (letfn [
             ;; takes type of child to find its storage map, and then updates its parent
@@ -246,6 +246,7 @@
       (contains? (into #{} @mergeable-stack) (:hash M))
       ;; TODO: might be able to remove the following if/once have unified rules independent of singleton-ness of new leaf
       (nil? (:hash M))
+      (= #{} (:hash M))
     ))
 
 (defn new-leaf-range [oneshot-nesting? h P]
@@ -373,9 +374,10 @@
                                                       )]
                     ;; if Q-old's grandparent is a range node, and Q-old's parent is not the left-child of Q-old's grandparent range, then it's the right-child, hence the range node to the right of Q-old's parent is in another range, so need to hop to it via path: Q-old's right's parent, and then update its left reference (without updating hash, since other range)
                     ;; #dbg
-                    (if (or (= :no-parent grandparent-type)
-                            (and (= :range grandparent-type)
-                                 (not= (:parent Q-old) (:left (get @range-nodes (:parent (get @range-nodes (:parent Q-old))))))))
+                    (if (and (:right Q-old)
+                         (or (= :no-parent grandparent-type)
+                             (and (= :range grandparent-type)
+                                  (not= (:parent Q-old) (:left (get @range-nodes (:parent (get @range-nodes (:parent Q-old)))))))))
                       (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right Q-old))) :left] rn))
                       )
                     ;; add new parent range node that couples to old parent range's left
@@ -598,8 +600,6 @@
 (truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
 (truncate-#set-display (map :hash (vals (:range-nodes (play-algo 28 true)))))
 (truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
-;; TODO: trailing #{24..27} range node - should be removed when setting new split parent
-(truncate-#set-display (map :hash (vals (:range-nodes (play-algo-manual-end 5)))))
 (let [n 1]
   (list (into #{} (truncate-#set-display (map #(dissoc % :parent)(vals (:range-nodes (play-algo-manual-end n))))))
         (into #{} (truncate-#set-display (map #(dissoc % :parent)(vals (:range-nodes (play-algo n true))))))))
@@ -748,7 +748,7 @@
 ;; test: all peak nodes are connected and can be reached from one another
 (let [nodes (:node-map algo-1222)
       peaks (filter #(not= :internal (:type %)) (vals nodes))
-      left-most (filter #(nil? (:left %)) peaks)
+      left-most (filter #(= #{} (:left %)) peaks)
       right-most (filter #(nil? (:right %)) peaks)
       chain-from-left (take-while some? (iterate #(get nodes (:right %)) (first left-most)))
       chain-from-right (take-while some? (iterate #(get nodes (:left %)) (first right-most)))
