@@ -177,11 +177,11 @@
         ;; belt-nodes (atom {})
         original-sorted-peaks (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
         ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
-        sorted-peaks (atom (if singleton-ranges? (cons (peak-node #{} (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
+        sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
         storage-maps {:peak node-map
                       :range range-nodes
                       :belt belt-nodes}]
-    (reset! range-nodes {#{} {:hash #{}}})
+    (reset! range-nodes {})
     (reset! belt-nodes {})
     (letfn [
             ;; takes type of child to find its storage map, and then updates its parent
@@ -194,7 +194,13 @@
                                         (reduce (fn [left-child right-child]
                                                   (let [left-most (:intruder left-child)
                                                         rn (range-node (:hash left-child) (:hash right-child)
-                                                                       (clojure.set/union (if-not (and singleton-ranges? left-most) (:hash left-child)) (:hash right-child)) nil)]
+                                                                       ;; NOTE: ugly hack to use (:hash right-child) first since
+                                                                       ;; (= nil (clojure.set/union nil #{}))
+                                                                       ;; but
+                                                                       ;; (= #{} (clojure.set/union #{} nil))
+                                                                       (clojure.set/union (:hash right-child) (if-not (and singleton-ranges? left-most) (:hash left-child)))
+                                                                       ;; (clojure.set/union (if-not (and singleton-ranges? left-most) (:hash left-child)) (:hash right-child))
+                                                                       nil)]
                                                     (doall (map
                                                             (partial update-parent rn)
                                                             (if (and singleton-ranges? left-most) [right-child] [left-child right-child])))
@@ -208,7 +214,9 @@
                                                                          new-leader (apply clojure.set/union (map :hash (rest dropped)))]
                                                                      ;; NOTE: since sorted-peaks is never read again after last step, the (if (empty? remainder) ..) check is in fact superfluous, but putting it in nonetheless, in case this features as a bug later
                                                                      (reset! sorted-peaks (if (empty? remainder) remainder (cons {:hash new-leader} remainder)))
-                                                                     dropped
+                                                                     (if (< 1 (count dropped))
+                                                                       dropped
+                                                                       (conj dropped {}))
                                                                      )
                                                                    (take belt-range-count
                                                                          (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))
@@ -218,7 +226,7 @@
                                                         0 #(if singleton-ranges? (assoc % :intruder true) %)
                                                         )))
                                       ;; returns number of nodes in each range
-                                      (map count (core/belt-ranges @leaf-count))))
+                                      (map count (cons [] (core/belt-ranges @leaf-count)))))
             ;; belt-children ()
             belts (doall
                    (reduce (fn [left-child right-child]
