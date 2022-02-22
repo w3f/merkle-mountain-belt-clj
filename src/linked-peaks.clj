@@ -272,7 +272,7 @@
       ;; create new root belt node with new leaf's parent range node as right child and former root node as left child
       (let [new-belt-root (clojure.set/union h @root-belt-node)]
         (swap! belt-nodes #(assoc % new-belt-root (belt-node @root-belt-node h new-belt-root nil)))
-        (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
+        (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
         (reset! root-belt-node new-belt-root)
         ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
         (swap! range-nodes #(assoc % h (range-node (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h h new-belt-root)))
