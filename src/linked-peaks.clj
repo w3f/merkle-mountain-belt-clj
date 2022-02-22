@@ -93,6 +93,9 @@
 (def node-map (atom {}))
 (def node-array (atom []))
 (def belt-nodes (atom {}))
+;; NOTE: this is a hack to actually point to the dummy range node
+;; TODO: potentially find more elegant solution since this hack may introduce bugs
+(def root-belt-node (atom #{}))
 (def range-nodes (atom {}))
 (def belt-children (atom {}))
 
@@ -118,6 +121,7 @@
    (reset! leaf-count 0)
    (reset! lastP #{})
    (reset! belt-nodes {})
+   (reset! root-belt-node #{})
    (reset! range-nodes {#{} {:hash #{}}})
    ))
 
@@ -178,6 +182,7 @@
         original-sorted-peaks (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
         ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
         sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
+        ;; sorted-peaks (atom (if singleton-ranges? (cons (peak-node #{} (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
         storage-maps {:peak node-map
                       :range range-nodes
                       :belt belt-nodes}]
@@ -228,22 +233,24 @@
                                       ;; returns number of nodes in each range
                                       (map count (cons [] (core/belt-ranges @leaf-count)))))
             ;; belt-children ()
-            belts (doall
-                   (reduce (fn [left-child right-child]
-                             (let [bn (belt-node (:hash left-child) (:hash right-child)
-                                                 (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
-                               (doall (map
-                                       (partial update-parent bn)
-                                       [left-child right-child]))
-                               (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
-                               bn
-                               ))
-                           belt-children
-                           ))
+            root-bn (doall
+                     (reduce (fn [left-child right-child]
+                               (let [bn (belt-node (:hash left-child) (:hash right-child)
+                                                   (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
+                                 (doall (map
+                                         (partial update-parent bn)
+                                         [left-child right-child]))
+                                 (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
+                                 bn
+                                 ))
+                             belt-children
+                             ))
             ]
+        (reset! root-belt-node (:hash root-bn))
         {:belt-children belt-children
          :range-nodes @range-nodes
          :belt-nodes @belt-nodes
+         :root-belt-node @root-belt-node
          ;; :node-map node-map
          ;; :node-array node-array
          }))
@@ -259,18 +266,28 @@
 
 (defn new-leaf-range [oneshot-nesting? h P]
   #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:singleton-range]))}
+  ;; DONE: if distinct ranges, we're also adding a new belt node for the new leaf
   (if (distinct-ranges? (get @node-map @lastP) P)
     (do
-      ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
-      (swap! range-nodes #(assoc % h (range-node (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h h nil)))
+      ;; create new root belt node with new leaf's parent range node as right child and former root node as left child
+      (let [new-belt-root (clojure.set/union h @root-belt-node)]
+        (swap! belt-nodes #(assoc % new-belt-root (belt-node @root-belt-node h new-belt-root nil)))
+        (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
+        (reset! root-belt-node new-belt-root)
+        ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
+        (swap! range-nodes #(assoc % h (range-node (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h h new-belt-root)))
+        )
+
       (swap! node-map #(assoc-in % [h :parent] h))
       ;; conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
       (if (>= @leaf-count 8)
         (let [last-range-node-hash (:parent (get @node-map @lastP))
               last-belt-node-hash (:parent (get @range-nodes last-range-node-hash))
               new-belt-hash (clojure.set/union (or last-belt-node-hash last-range-node-hash) h)]
-          (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
+          (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil)))))
+      )
     ;; else new leaf joins last range, i.e. get new range node above new leaf
+    ;; TODO: update parent belt node hash, likewise for its left sibling
     (let [last-range (get @range-nodes (:parent (get @node-map @lastP)))
           new-range (range-node (:hash last-range) h (clojure.set/union (:hash last-range) h) (:parent last-range))
           belt-parent (get @belt-nodes (:parent last-range))]
@@ -541,6 +558,7 @@
    :leaf-count @leaf-count
    :lastP @lastP
    :belt-nodes @belt-nodes
+   :root-belt-node @root-belt-node
    :range-nodes @range-nodes
    })
 
