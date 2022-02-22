@@ -289,16 +289,28 @@
     ;; else new leaf joins last range, i.e. get new range node above new leaf
     ;; TODO: update parent belt node hash, likewise for its left sibling
     (let [last-range (get @range-nodes (:parent (get @node-map @lastP)))
-          new-range (range-node (:hash last-range) h (clojure.set/union (:hash last-range) h) (:parent last-range))
-          belt-parent (get @belt-nodes (:parent last-range))]
+          old-belt-parent (get @belt-nodes (:parent last-range))
+          hash-new-range (clojure.set/union (:hash last-range) h)
+          new-belt-parent (clojure.set/union hash-new-range (:left old-belt-parent))
+          new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)
+          ]
       (do
         (swap! range-nodes #(assoc % (:hash new-range) new-range))
         (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
         (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
-        (swap! belt-nodes #(assoc-in % [(:parent new-range) :right] (:hash new-range)))
-        ;; recalculate belt-node hash since has new right child
-        ;; TODO: delay until last possible moment since left child may be updated too during merge
-        (swap! belt-nodes #(assoc-in % [(:parent new-range) :hash] (clojure.set/union (:left belt-parent) (:hash new-range))))
+        ;; update former range-leader's parent belt to have new range-leader as child
+        ;; TODO: following is wrong since old belt node is deleted
+        (comment (swap! belt-nodes #(assoc-in % [(:parent new-range) :right] (:hash new-range)))
+                 ;; recalculate belt-node hash since has new right child
+                 ;; TODO: delay until last possible moment since left child may be updated too during merge
+                 (swap! belt-nodes #(assoc-in % [(:parent new-range) :hash] (clojure.set/union (:left belt-parent) (:hash new-range)))))
+
+        ;; TODO: assert that old-belt-node is root belt node
+        (swap! belt-nodes #(assoc % new-belt-parent (belt-node (:left old-belt-parent) (:hash new-range) new-belt-parent (:parent old-belt-parent))))
+        (swap! belt-nodes #(dissoc % (:hash old-belt-parent)))
+        (reset! root-belt-node new-belt-parent)
+        ;; TODO: update siblings around update
+
         ))
     ))
 
