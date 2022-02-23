@@ -122,7 +122,8 @@
    (reset! lastP #{})
    (reset! belt-nodes {})
    (reset! root-belt-node #{})
-   (reset! range-nodes {#{} {:hash #{}}})
+   ;; TODO: remove range node hack here
+   (reset! range-nodes {#{} {:left nil, :right #{}, :hash #{}, :parent #{0}, :type :range}})
    ))
 
 (defn hop-left [node & target-map]
@@ -348,7 +349,7 @@
                                                                           (swap! range-nodes #(dissoc % (:hash (first parent-contenders))))
                                                                           ;; (throw (Exception. "unimplemented"))
                                                                           ))
-                                                           :belt (fn [] (throw (Exception. "unimplemented")))
+                                                           :belt (fn [] (throw (Exception. "peak can't have belt node as parent!")))
                                                            }))
                       (throw (Exception. "parent is an illegal: internal or peak"))
                       )
@@ -388,19 +389,20 @@
                                       :range
                                       (if (contains? @belt-nodes (:parent (get @range-nodes (:parent Q-old))))
                                         :belt
-                                        ;; (throw (Exception. (str "parent neither valid range nor belt node @ leaf count " @leaf-count))))
+                                        ;; (throw (Exception. (str "parent neither valid range nor belt node @ leaf count " @leaf-count)))
                                         :no-parent
                                       ))
+                        ;; TODO: check if following TODO is still a TODO?
                         ;; TODO: investigate why when adding the 9th leaf, this new parent hash is the old range nodes hash. Possibly because merge is across ranges?
                         ;; new-parent-hash SHOULD refer to the parent of the range node
                         [new-grandparent-hash child-leg] (if (= :range grandparent-type)
-                                                      ;; if parent is range node, this was its left child (since range nodes don't have other range nodes as right children)
+                                                           ;; if parent is range node, this was its left child (since range nodes don't have other range nodes as right children)
                                                            [(clojure.set/union rn (:right (get @range-nodes (:parent (get @range-nodes (:parent Q-old)))))) :right]
                                                            ;; else, parent is belt - then we must check whether left or right child
                                                            ;; TODO: this check should only be applicable to left-most belt node - all others have a belt node as their left child and a range node as their right
                                                            (if (= :belt grandparent-type)
-                                                             (let [left (:left (get @belt-nodes (:parent Q-old)))
-                                                                   right (:right (get @belt-nodes (:parent Q-old)))]
+                                                             (let [left (:left (get @belt-nodes (:parent (get @range-nodes (:parent Q-old)))))
+                                                                   right (:right (get @belt-nodes (:parent (get @range-nodes (:parent Q-old)))))]
                                                                (if (= left (:parent Q-old))
                                                                  [(clojure.set/union rn right) :left]
                                                                  (if (= right (:parent Q-old))
@@ -417,6 +419,38 @@
                                   (not= (:parent Q-old) (:left (get @range-nodes (:parent (get @range-nodes (:parent Q-old)))))))))
                       (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right Q-old))) :left] rn))
                       )
+
+                    ;; if Q-old's grandparent is a belt node, then
+                    ;; TODO: extend to cover when merge does not occur at rightmost edge of range (does that exist?) - it's just easier like this since already have necessary code above
+                    #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:belt]))}
+                    (if (and (= :belt grandparent-type)
+                             (or
+                              (apply > (map (comp count core/belt-ranges) [@leaf-count (inc @leaf-count)]))
+                              (and (apply = (map (comp count core/belt-ranges) [@leaf-count (inc @leaf-count)]))
+                                   ;; NOTE: right thinking, but issue is that mergeable pair has already been removed from stack
+                                   ;; (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
+                                   ;; NOTE: instead, check whether @lastP has its own range node :D
+                                   (= @lastP (:parent (get @node-map @lastP)))
+                                   )
+                              )
+                             )
+                      (let [
+                            old-bn (get @belt-nodes (:parent (get @range-nodes (:parent Q-old))))
+                            new-bn (belt-node
+                                    ;; if "hash" of old and new belt node are the same, then we're dealing with a range merge (maybe only for n=6), so old belt node's right child is no longer range leader, so need to use old belt node's 
+                                    (if (= :left child-leg) rn (if (not= (:hash old-bn) new-grandparent-hash) (:left old-bn) (:left (get @belt-nodes (:left old-bn)))))
+                                    (if (= :right child-leg) rn (:right old-bn))
+                                    new-grandparent-hash
+                                    (:parent old-bn))
+                            ]
+                        (swap! belt-nodes #(assoc % new-grandparent-hash new-bn))
+                        ;; TODO: this is hacky and simply reasoned from n=6: may not be generally applicable!
+                        (if (not= (:hash old-bn) new-grandparent-hash)
+                          (swap! belt-nodes #(dissoc % (:hash old-bn)))
+                          (swap! belt-nodes #(dissoc % (:left old-bn)))
+                          )
+                        ;; TODO: cover relatives of old-bn & update their references
+                        ))
                     ;; add new parent range node that couples to old parent range's left
                     ;; #dbg
                     (swap! range-nodes #(assoc % rn (range-node (:left (get @range-nodes (:parent L))) (:hash @Q) rn new-grandparent-hash)))
