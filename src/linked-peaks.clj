@@ -5,7 +5,9 @@
 (def global-debugging (atom false))
 (defn toggle-debugging [] (swap! global-debugging #(not %)))
 (comment (toggle-debugging))
-(def debugging-flags (atom #{:singleton-range :merge :range-merge-replace}))
+(defn all-debugging []
+  (reset! debugging-flags #{:singleton-range :merge :belt-merge :range-merge-replace :peak-merge}))
+(def debugging-flags (atom #{:singleton-range :merge :belt-merge :range-merge-replace}))
 (defn set-debugging-flags [flags]
   (reset! debugging-flags (into #{} flags)))
 (defn debugging [flags]
@@ -316,6 +318,7 @@
     ))
 
 (defn peak-merge [oneshot-nesting?]
+  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:peak-merge]))}
   (if (not (zero? (count @mergeable-stack)))
         (do
           (let [Q (atom (pop-mergeable-stack))
