@@ -325,7 +325,7 @@
     ))
 
 (defn peak-merge [oneshot-nesting?]
-  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:peak-merge]))}
+  ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:peak-merge]))}
   (if (not (zero? (count @mergeable-stack)))
         (do
           (let [Q (atom (pop-mergeable-stack))
@@ -381,7 +381,7 @@
                          )
                   ;; #dbg
 
-                  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:merge]))}
+                  ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:merge]))}
                   (let [
                         parent-L (get @range-nodes (:parent L))
                         ;; this is the range node that will replace their former parent range nodes
@@ -457,7 +457,16 @@
                         ;; TODO: this is hacky and simply reasoned from n=6: may not be generally applicable!
                         (if (not= (:hash old-bn) new-grandparent-hash)
                           (swap! belt-nodes #(dissoc % (:hash old-bn)))
-                          (swap! belt-nodes #(dissoc % (:left old-bn)))
+                          (do
+                            (let [left-of-old-bn (get @belt-nodes (:left old-bn))]
+                              (if (contains? @belt-nodes (:left left-of-old-bn))
+                                ;; TODO: check if parent should actually be new-bn in general
+                                (swap! belt-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
+                                (if (contains? @range-nodes (:left left-of-old-bn))
+                                  (swap! range-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
+                                  (throw (Exception. (str "old belt node's left child didn't have a left child at " @leaf-count)))
+                                  ))
+                              (swap! belt-nodes #(dissoc % (:hash left-of-old-bn)))))
                           )
                         ;; TODO: cover relatives of old-bn & update their references
                         ))
@@ -710,6 +719,13 @@
 (def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 algo-bound)))))
 
 
+;; DONE: need to update left child of former belt node that was replaced?
+;; DONE: figure out whether oneshot or manual is correct wrt. #{}'s parent for n=6
+;; -> #{0 1 2 3} disappears as a belt node, and need to update its left child to point to #{0 1 2 3 4 5} instead
+(= (:range-nodes (play-algo 6 true))
+   (:range-nodes (play-algo 6 false)))
+(toggle-debugging)
+(all-debugging)
 (letfn [
         ;; (mapulation [value]
         ;;   (identity value))
