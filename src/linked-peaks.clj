@@ -310,6 +310,13 @@
 
         ;; TODO: assert that old-belt-node is root belt node
         (swap! belt-nodes #(assoc % new-belt-parent (belt-node (:left old-belt-parent) (:hash new-range) new-belt-parent (:parent old-belt-parent))))
+        ;; update old belt node's left parent pointer to refer to new belt node
+        (if (contains? @belt-nodes (:left old-belt-parent))
+          (swap! belt-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
+          (if (contains? @range-nodes (:left old-belt-parent))
+            (swap! range-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
+            (throw (Exception. (str "old belt node's left child was invalid at leaf count " @leaf-count)))
+            ))
         (swap! belt-nodes #(dissoc % (:hash old-belt-parent)))
         (reset! root-belt-node new-belt-parent)
         ;; TODO: update siblings around update
