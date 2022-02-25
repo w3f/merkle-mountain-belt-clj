@@ -658,16 +658,6 @@
       (current-atom-states)
       ))
 
-(vals (:range-nodes (play-algo 6 true)))
-({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :parent #{0 1 2 3 4 5}, :type :range} {:left #{0 1 2 3}, :right #{4 5}, :hash #{0 1 2 3 4 5}, :parent nil, :type :range})
-(vals (:range-nodes (play-algo-manual-end 6)))
-({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :parent #{0 1 2 3 4 5}, :type :range} {:left #{0 1 2 3}, :right #{4 5}, :hash #{0 1 2 3 4 5}, :parent nil, :type :range} {:left #{0 1 2 3 4 5}})
-;; -> issue is that when M.M. joins last range, still create superfluous left reference to it
-(toggle-debugging)
-
-;; show that manual-end algo matches cached result
-(= (vals range-node-manual-9)
-   (vals (:range-nodes (play-algo-manual-end 9))))
 
 ;; show that, barring missing belt node impl in incremental algo, get matching result between cached incremental & oneshot
 (= (map #(dissoc % :parent) (vals (:range-nodes (play-algo 11 false))))
@@ -683,33 +673,6 @@
 (let [n 3000]
   (= (into #{} (map #(dissoc % :parent) (vals (:range-nodes (play-algo n false)))))
      (into #{} (map #(dissoc % :parent) (vals (:range-nodes (play-algo-oneshot-end n)))))))
-
-(map :hash (vals (:range-nodes (play-algo 29 true))))
-(truncate-#set-display (vals (:range-nodes (play-algo 28 true))))
-(comment ({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{0..23}", :right "#{24 25}", :hash "#{24 25}", :parent "#{24..27}", :type :range} {:left "#{24 25}", :right "#{26 27}", :hash "#{24..27}", :parent "#{0..27}", :type :range}))
-(truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
-(truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
-(truncate-#set-display (map :hash (vals (:range-nodes (play-algo 28 true)))))
-(truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
-(let [n 1]
-  (list (into #{} (truncate-#set-display (map #(dissoc % :parent)(vals (:range-nodes (play-algo-manual-end n))))))
-        (into #{} (truncate-#set-display (map #(dissoc % :parent)(vals (:range-nodes (play-algo n true))))))))
-(toggle-debugging)
-
-(truncate-#set-display (vals (:range-nodes (play-algo 29 true))))
-(comment ({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{0..23}", :right "#{24..27}", :hash "#{0..27}", :parent "#{0..28}", :type :range} {:left "#{0..27}", :right "#{28}", :hash "#{28}", :parent "#{0..28}", :type :range}))
-(truncate-#set-display (vals (:range-nodes (play-algo-manual-end 29))))
-(comment ({:left nil, :right "#{0..15}", :hash "#{0..15}", :parent "#{0..23}", :type :range} {:left "#{0..15}", :right "#{16..23}", :hash "#{0..23}", :parent "#{0..27}", :type :range} {:left "#{24..27}", :right "#{28}", :hash "#{28}", :parent nil, :type :range} {:left "#{0..23}", :right "#{24..27}", :hash "#{0..27}", :parent nil, :type :range}))
-(truncate-#set-display (vals (:range-nodes (play-algo-manual-end 29))))
-
-;; DONE: fix n=21 discrepancy
-;; n=21
-(truncate-#set-display (vals (:range-nodes (play-algo 21 true))))
-(comment ({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{0..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent "#{0..19}", :type :range} {:left "#{16..19}", :right "#{20}", :hash "#{20}", :parent "#{0..20}", :type :range}))
-(truncate-#set-display (vals (:range-nodes (play-algo-manual-end 21))))
-(comment ({:left nil, :right "#{0..7}", :hash "#{0..7}", :parent "#{0..15}", :type :range} {:left "#{0..7}", :right "#{8..15}", :hash "#{0..15}", :parent "#{16..19}", :type :range} {:left "#{0..15}", :right "#{16..19}", :hash "#{16..19}", :parent nil, :type :range} {:left "#{16..19}", :right "#{20}", :hash "#{20}", :parent nil, :type :range}))
-
-(toggle-debugging)
 
 (def algo-bound 101)
 (def oneshot-only-algos (atom (doall (map #(play-algo % true) (range 1 algo-bound)))))
