@@ -476,7 +476,9 @@
                     ;; update former left's parent's left child to point to rn as a parent
                     ;; NOTE: doesn't apply for left-most range node
                     ;; #dbg
-                    (if (:left (get @range-nodes (:parent L))) (swap! range-nodes #(assoc-in % [(:left (get @range-nodes (:parent L))) :parent] rn)))
+                    (if (and (not distinct-ranges)
+                             (:left (get @range-nodes (:parent L))))
+                      (swap! range-nodes #(assoc-in % [(:left (get @range-nodes (:parent L))) :parent] rn)))
                     ;; remove former left's parent from range nodes
                     ;; #dbg
                     (swap! range-nodes #(dissoc % (:parent L)))
@@ -682,11 +684,11 @@
 (def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 algo-bound)))))
 
 
-;; DONE: need to update left child of former belt node that was replaced?
-;; DONE: figure out whether oneshot or manual is correct wrt. #{}'s parent for n=6
-;; -> #{0 1 2 3} disappears as a belt node, and need to update its left child to point to #{0 1 2 3 4 5} instead
-(= (:range-nodes (play-algo 6 true))
-   (:range-nodes (play-algo 6 false)))
+;; DONE: #{0 1 2 3 4 5 6 7}'s parent was updated to #{8 9}, but should remain #{0 1 2 3 4 5 6 7} -> investigate
+;; DONE: first figure out if this should happen when new leaf is added or when merge occurs
+
+(= (:range-nodes (play-algo 10 true))
+   (:range-nodes (play-algo 10 false)))
 (toggle-debugging)
 (all-debugging)
 (letfn [
