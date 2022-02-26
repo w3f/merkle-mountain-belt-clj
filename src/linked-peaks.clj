@@ -28,9 +28,21 @@
    )
   )
 
+(comment
+  "example usage"
+  (truncate-#set-display (:belt-nodes (oneshot-nesting-from-fresh 8 true)))
+  (truncate-#set-display (:range-nodes (oneshot-nesting-from-fresh 8 true)))
+  )
+
 (defn display-type-filtered [data type]
   (truncate-#set-display
    (filter #(= type (:type %)) data)))
+
+(comment
+  "example usage"
+  (display-type-filtered (vals (:node-map (play-algo 1222 true))) :peak)
+  (display-type-filtered (vals (:node-map (play-algo 20 true))) :internal)
+)
 
 (defn merge-rule [n]
   (let [
@@ -117,6 +129,7 @@
 
 (defn reset-all []
  (do
+   ;; NOTE: dummy node is not a valid peak
    (reset! node-map {#{} {:height ##Inf :hash #{} :parent #{}}})
    (reset! node-array [])
    (reset! mergeable-stack [])
@@ -163,10 +176,6 @@
       ;; #dbg
       ;; (swap! node-map #(assoc-in % [left-most-sibling-peak :left] (last correct-sibling-of-left-most)))
       )))
-
-(comment
-  (algo true))
-
 
 (comment (:range-nodes (play-algo 5 true))
          (oneshot-nesting-from-fresh 8 false)
@@ -275,6 +284,7 @@
       ;; create new root belt node with new leaf's parent range node as right child and former root node as left child
       (let [new-belt-root (clojure.set/union h @root-belt-node)]
         (swap! belt-nodes #(assoc % new-belt-root (belt-node @root-belt-node h new-belt-root nil)))
+        ;; TODO: skipping #{} because?
         (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
         (reset! root-belt-node new-belt-root)
         ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
@@ -660,15 +670,6 @@
       (current-atom-states)
       ))
 
-
-;; show that, barring missing belt node impl in incremental algo, get matching result between cached incremental & oneshot
-(= (map #(dissoc % :parent) (vals (:range-nodes (play-algo 11 false))))
-   (map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 11)))))
-
-;; show that, barring missing belt node impl in incremental algo, get matching result between cached incremental & oneshot
-(= (vals (:node-map (play-algo 11 false)))
-   (vals (:node-map (play-algo-manual-end 11))))
-
 ;; show that, barring missing belt node impl in incremental algo, get matching result between incremental & oneshot
 ;; DONE: seems that performance got worse and the following is no longer feasible
 ;; issue is simply that iterating from scratch every time has a performance impact of (n^2)/2 (i.e. O(n^2)). mitigated by only performing expensive oneshot at the very end (since it's always erased inbetween anyways)
@@ -684,11 +685,6 @@
 (def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 algo-bound)))))
 
 
-;; DONE: #{0 1 2 3 4 5 6 7}'s parent was updated to #{8 9}, but should remain #{0 1 2 3 4 5 6 7} -> investigate
-;; DONE: first figure out if this should happen when new leaf is added or when merge occurs
-
-(= (:range-nodes (play-algo 10 true))
-   (:range-nodes (play-algo 10 false)))
 (toggle-debugging)
 (all-debugging)
 (letfn [
@@ -721,71 +717,20 @@
                                        (into #{} (map mapulation (vals (:range-nodes (nth @optimized-manual-algos n))))))])
                 (range (min (count @oneshot-only-algos) (count @optimized-manual-algos))))))
 
-;; DONE: fix outliers
-(comment
-  (map (juxt identity merge-rule) '(6 14 22 30 38 46 54 62 70 78 86 94))
-  ([6 ["new leaf participates in merge" "M.M. joins prev range"]] [14 ["new leaf participates in merge" "M.M. joins prev range"]] [22 ["new leaf participates in merge" "M.M. joins prev range"]] [30 ["new leaf participates in merge" "M.M. joins prev range"]] [38 ["new leaf participates in merge" "M.M. joins prev range"]] [46 ["new leaf participates in merge" "M.M. joins prev range"]] [54 ["new leaf participates in merge" "M.M. joins prev range"]] [62 ["new leaf participates in merge" "M.M. joins prev range"]] [70 ["new leaf participates in merge" "M.M. joins prev range"]] [78 ["new leaf participates in merge" "M.M. joins prev range"]] [86 ["new leaf participates in merge" "M.M. joins prev range"]] [94 ["new leaf participates in merge" "M.M. joins prev range"]]))
-
-(filter #(and (= "new leaf participates in merge" ((comp first second) %))
-              (= "M.M. joins prev range" ((comp second second) %))) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 100)))
-(filter #(and (= "new leaf participates in merge" ((comp first second) %))
-              ) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 100)))
-;; ERGO: all outliers are cases where M.M. also joins the previous range
-
-(comment
-  (:hash value)
-  ([1 true] [2 true] [3 true] [4 true] [5 true] [7 true] [8 true] [9 true] [10 true] [11 true] [12 true] [13 true] [15 true] [16 true] [17 true] [18 true] [19 true] [20 true] [21 true] [23 true] [24 true] [25 true] [26 true] [27 true] [28 true] [29 true] [31 true] [32 true] [33 true] [34 true] [35 true] [36 true] [37 true] [39 true] [40 true] [41 true] [42 true] [43 true] [44 true] [45 true] [47 true] [48 true] [49 true] [50 true] [51 true] [52 true] [53 true] [55 true] [56 true] [57 true] [58 true] [59 true] [60 true] [61 true] [63 true] [64 true] [65 true] [66 true] [67 true] [68 true] [69 true] [71 true] [72 true] [73 true] [74 true] [75 true] [76 true] [77 true] [79 true] [80 true] [81 true] [82 true] [83 true] [84 true] [85 true] [87 true] [88 true] [89 true] [90 true] [91 true] [92 true] [93 true] [95 true] [96 true] [97 true] [98 true] [99 true] [100 true])
-  )
-(comment
-  (dissoc value :parent)
-  ([1 true] [2 true] [3 true] [4 true] [5 true] [7 true] [8 true] [9 true] [10 true] [11 true] [12 true] [13 true] [15 true] [16 true] [17 true] [18 true] [19 true] [20 true] [21 true] [23 true] [24 true] [25 true] [26 true] [27 true] [28 true] [29 true] [31 true] [32 true] [33 true] [34 true] [35 true] [36 true] [37 true] [39 true] [40 true] [41 true] [42 true] [43 true] [44 true] [45 true] [47 true] [48 true] [49 true] [50 true] [51 true] [52 true] [53 true] [55 true] [56 true] [57 true] [58 true] [59 true] [60 true] [61 true] [63 true] [64 true] [65 true] [66 true] [67 true] [68 true] [69 true] [71 true] [72 true] [73 true] [74 true] [75 true] [76 true] [77 true] [79 true] [80 true] [81 true] [82 true] [83 true] [84 true] [85 true] [87 true] [88 true] [89 true] [90 true] [91 true] [92 true] [93 true] [95 true] [96 true] [97 true] [98 true] [99 true] [100 true])
-  )
+(letfn [
+        (mapulation [value]
+          (identity value))
+        ;; (mapulation [value]
+        ;;   (dissoc value :parent))
+        ]
+  (filter
+   #(false? (second %))
+   (map-indexed (fn [idx n] [(inc idx) (=
+                                       (into #{} (map mapulation (vals (dissoc (:range-nodes (nth @oneshot-only-algos n)) #{}))))
+                                       (into #{} (map mapulation (vals (dissoc (:range-nodes (nth @manual-only-algos n)) #{})))))])
+                (range (min (count @oneshot-only-algos) (count @optimized-manual-algos))))))
 
 (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
-(count '(1 5 9 13 17 21 25 29 33 37 41 45 49 53 57 61 65 69 73 77 81 85 89 93 97))
-(map first (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60))))
-(count '(1 5 9 13 17 21 25 29 33 37 41 45 49 53 57))
-(filter #(nil? ((comp second second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
-
-(map #(dissoc % :parent) (vals (:range-nodes (play-algo 5 true))))
-;; ({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4}, :hash #{0 1 2 3 4}, :type :range})
-(map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 5))))
-(map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 5))))
-;; ({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4}, :hash #{4}, :type :range} {})
-;; DONE: check whether #{4} peak should be in same range as #{0 1 2 3} - could also be a bug in oneshot
-(map count (core/belt-ranges 5))
-;; -> true
-;; -> TODO: why is rule saying it should form standalone range?
-
-(map #(dissoc % :parent) (vals (:range-nodes (play-algo 17 true))))
-;; (comment n=16
-;;         ({:left nil, :right #{0 1 2 3 4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8 9 10 11}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11}, :right #{12 13}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13}, :right #{14 15}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :type :range})
-;;          )
-;; (comment n=17
-;;          ({:left nil, :right #{0 1 2 3 4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8 9 10 11}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11}, :right #{12 13 14 15}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :right #{16}, :hash #{16}, :type :range}))
-
-(map :hash (vals (:range-nodes (play-algo 16 true))))
-;; (#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15})
-(map :hash (vals (:range-nodes (play-algo 17 true))))
-;; (#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16})
-(map :hash (vals (:range-nodes (play-algo-manual-end 17))))
-;; (#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16})
-;; (#{0 1 2 3 4 5 6 7} #{0 1 2 3 4 5 6 7 8 9 10 11} #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15} #{16} #{8 9 10 11 12 13 14 15})
-
-(map #(dissoc % :parent) (vals (:range-nodes (play-algo 9 true))))
-;; ({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{8}, :type :range})
-(map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 9))))
-;; ({:left nil, :right #{0 1 2 3}, :hash #{0 1 2 3}, :type :range} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{8}, :type :range})
-
-(set-debugging-flags [:merge])
-
-;; DONE: debug n=17 discrepancy. new leaf looks correct, but merge is fucked
-(map #(dissoc % :parent) (vals (:range-nodes (play-algo-manual-end 17))))
-;; ({:left nil, :right #{0 1 2 3 4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :type :range} {:left #{0 1 2 3 4 5 6 7}, :right #{8 9 10 11}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13}, :right #{14 15}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15}, :type :range} {:left #{8 9 10 11 12 13 14 15}, :right #{16}, :hash #{16}, :type :range} {:left #{0 1 2 3 4 5 6 7 8 9 10 11}, :right #{12 13 14 15}, :hash #{8 9 10 11 12 13 14 15}, :type :range})
-
-(let [left-most-sibling-peak (last (take-while #(and (some? %) (not (contains? #{:internal :peak} (:type (get @node-map (hop-parent %)))))) (iterate hop-left @lastP)))]
-  (take-while #(and (some? %) (contains? #{:internal :peak} (:type (get @node-map %)))) (iterate hop-parent (hop-left left-most-sibling-peak)))
-  )
 
 ;; test: bj always 1
 (every? #(= "1" %)
@@ -795,18 +740,11 @@
             (nth b-reverse j))
          (range 1500)))
 
-(some? (play-algo 1222 true))
-(def algo-1222 (play-algo 1222 true))
+(def algo-1222 (play-algo-oneshot-end 1222))
 (def algo-1223 (play-algo 1223 true))
 (def algo-1277 (play-algo 1277 true))
 (def algo-1278 (play-algo 1278 true))
 (def algo-1279 (play-algo 1279 true))
-
-
-(truncate-#set-display (filter #(some? (:right %)) (vals (:node-map (play-algo 20 true)))))
-(count (filter #(not= :internal (:type %)) (vals (:node-map (play-algo 1222 true)))))
-(display-type-filtered (vals (:node-map (play-algo 1222 true))) :peak)
-(display-type-filtered (vals (:node-map (play-algo 20 true))) :internal)
 
 ;; test: all peak nodes are connected and can be reached from one another
 (let [nodes (:node-map algo-1222)
@@ -855,14 +793,12 @@
 ;; NOTE: shifting storage left by 3 since skipping the constant offset from the beginning (always empty)
 (map #(- % 3) (sort (storage/parent-less-nodes 1222)))
 
-
-(oneshot-nesting-from-fresh 9 false)
+(:belt-children (oneshot-nesting-from-fresh 8 true))
+(:belt-nodes (oneshot-nesting-from-fresh 8 true))
 (def cached-oneshot-9 (oneshot-nesting-from-fresh 9 true))
 (identity @range-nodes)
 (identity @belt-nodes)
 
-(identity cached-oneshot-9)
-;; (comment {:node-map {#{6} {:left #{4 5}, :height 0, :hash #{6}, :parent #{6 7}, :type :internal}, #{0 1} {:left nil, :height 1, :hash #{0 1}, :parent #{0 1 2 3}, :type :internal}, #{6 7} {:left #{4 5}, :height 1, :hash #{6 7}, :parent #{4 5 6 7}, :type :internal}, #{4 5 6 7} {:left #{0 1 2 3}, :right #{8}, :height 2, :hash #{4 5 6 7}, :parent #{0 1 2 3 4 5 6 7}, :type :peak}, #{3} {:left #{2}, :height 0, :hash #{3}, :parent #{2 3}, :type :internal}, #{7} {:left #{6}, :height 0, :hash #{7}, :parent #{6 7}, :type :internal}, #{2} {:left #{0 1}, :height 0, :hash #{2}, :parent #{2 3}, :type :internal}, #{8} {:left #{4 5 6 7}, :right nil, :height 0, :hash #{8}, :parent #{0 1 2 3 4 5 6 7 8}, :type :peak}, #{1} {:left #{0}, :height 0, :hash #{1}, :parent #{0 1}, :type :internal}, #{5} {:left #{4}, :height 0, :hash #{5}, :parent #{4 5}, :type :internal}, #{0} {:left nil, :height 0, :hash #{0}, :parent #{0 1}, :type :internal}, #{0 1 2 3} {:left nil, :right #{4 5 6 7}, :height 2, :hash #{0 1 2 3}, :parent #{0 1 2 3 4 5 6 7}, :type :peak}, #{4 5} {:left #{0 1 2 3}, :height 1, :hash #{4 5}, :parent #{4 5 6 7}, :type :internal}, #{4} {:left #{0 1 2 3}, :height 0, :hash #{4}, :parent #{4 5}, :type :internal}, #{2 3} {:left #{0 1}, :height 1, :hash #{2 3}, :parent #{0 1 2 3}, :type :internal}}, :node-array (#{0} 0 #{1} #{0 1} #{2} 0 #{3} #{2 3} #{4} #{0 1 2 3} #{5} #{4 5} #{6} 0 #{7} #{6 7} #{8} #{4 5 6 7}), :mergeable-stack [#{4 5 6 7}], :leaf-count 9, :lastP #{8}, :belt-nodes {#{0 1 2 3 4 5 6 7 8} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{0 1 2 3 4 5 6 7 8}, :parent nil, :type :belt}}, :range-nodes {#{0 1 2 3 4 5 6 7} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :parent #{0 1 2 3 4 5 6 7 8}, :type :range}}, :belt-children ({:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :parent nil, :type :range} {:left #{4 5 6 7}, :right nil, :height 0, :hash #{8}, :parent #{0 1 2 3 4 5 6 7 8}, :type :peak})})
 (:range-nodes cached-oneshot-9)
 (comment {#{0 1 2 3 4 5 6 7} {:left #{0 1 2 3}, :right #{4 5 6 7}, :hash #{0 1 2 3 4 5 6 7}, :parent #{0 1 2 3 4 5 6 7 8}, :type :range}})
 (:belt-nodes cached-oneshot-9)
