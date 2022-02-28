@@ -129,8 +129,8 @@
 
 (defn reset-all []
  (do
-   ;; NOTE: dummy node is not a valid peak
-   (reset! node-map {#{} {:height ##Inf :hash #{} :parent #{}}})
+   ;; NOTE: need to already set parent for dummy node
+   (reset! node-map {#{} (assoc (peak-node nil nil ##Inf #{}) :parent #{})})
    (reset! node-array [])
    (reset! mergeable-stack [])
    (reset! leaf-count 0)
@@ -310,7 +310,7 @@
       )
     ;; else new leaf joins last range, i.e. get new range node above new leaf
     ;; TODO: update parent belt node hash, likewise for its left sibling
-    (let [last-range (get-parent (:parent (get @node-map @lastP)) :range)
+    (let [last-range (get-parent (get @node-map @lastP) :range)
           old-belt-parent (get @belt-nodes (:parent last-range))
           hash-new-range (clojure.set/union (:hash last-range) h)
           new-belt-parent (clojure.set/union hash-new-range (:left old-belt-parent))
@@ -376,7 +376,12 @@
         (list type (get (clojure.set/map-invert type-rank) (inc rank)))))))
 
 (comment
-  (parent-contenders :range))
+  (parent-contenders :internal)
+  (parent-contenders :peak)
+  (parent-contenders :range)
+  (parent-contenders :belt)
+  )
+
 
 ;; TODO: can simplify if use dummy belt node
 (defn child-contenders [type & child-leg]
@@ -415,6 +420,7 @@
   ;; => (:belt)
   )
 
+
 ;; TODO: refactor this since logic is somewhat clunky
 (defn get-parent
   ([child]
@@ -428,11 +434,12 @@
                          (last (parent-contenders (:type child)))
                          (first (parent-contenders (:type child)))))
     (:parent child)))
-  ([child parent-contenders]
+  ([child expected-parent]
    (let [parent (get-parent child)]
-     (if (= parent-contenders (:type parent))
+     (if (= expected-parent (:type parent))
        parent
-       (throw (Exception. (str "parent type expected: " parent-contenders "\nactual parent type: " (:type parent))))))))
+       (throw (Exception. (str "parent type expected: " expected-parent "\nactual parent type: " (:type parent))))))))
+
 
 (comment
   ;; (= n 100)
