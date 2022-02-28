@@ -297,7 +297,7 @@
         (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
         (reset! root-belt-node new-belt-root)
         ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
-        (swap! range-nodes #(assoc % h (range-node (:hash (get @range-nodes (:parent (get @node-map @lastP)))) h h new-belt-root)))
+        (swap! range-nodes #(assoc % h (range-node (:hash (get-parent (get @node-map @lastP) :range)) h h new-belt-root)))
         )
 
       (swap! node-map #(assoc-in % [h :parent] h))
@@ -396,6 +396,15 @@
        parent
        (throw (Exception. (str "parent type expected: " parent-contenders "\nactual parent type: " (:type parent))))))))
 
+(comment
+  ;; (= n 100)
+  (get-parent (get-parent (get @node-map #{60})))
+  ;; => {:left #{56 57 58 59}, :height 2, :hash #{60 61 62 63}, :parent #{56 57 58 59 60 61 62 63}, :type :internal}
+  (last (take 11 (iterate get-parent (get @node-map #{60}))))
+  ;; => {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95}, :right #{96 97 98 99}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99}, :parent nil, :type :belt}
+  (last (take 12 (iterate get-parent (get @node-map #{60}))))
+  ;; => nil
+  )
 
 (defn get-nodes
   "returns all nodes that have given hash, optionally filtered by `type-contenders`"
@@ -451,8 +460,8 @@
                 ;; TODO: jump up chain of parents. once parent is belt node, also jump to child, then to its right sibling, then to its parent (range node in other range), and update its left pointer (doesn't change hash since still in distinct ranges)
                 ;; #dbg
                 (if (and (every? #(contains? @range-nodes %) [(:parent Q-old) (:parent L)])
-                         (= (:parent Q-old) (:parent (get @range-nodes (:parent L))))
-                         (= (:parent L) (:left (get @range-nodes (:parent Q-old))))
+                         (= (:parent Q-old) (:parent (get-parent L :range)))
+                         (= (:parent L) (:left (get-parent Q-old :range)))
                          )
                   ;; #dbg
 
@@ -470,9 +479,9 @@
                         ;; DONE (fixed above): the following currently only *preserves* range splits - should check whether the two range nodes should now be in the same range
                         ;; rn (clojure.set/union (if (not= (:hash parent-L) (:right parent-L)) (:left parent-L)) (:hash @Q))
                         ;; Q-old is a peak node, so its immediate parent is certainly a range node. The only unknown is the type of the parent's parent
-                        grandparent-type (if (contains? @range-nodes (:parent (get @range-nodes (:parent Q-old))))
+                        grandparent-type (if (contains? @range-nodes (:parent (get-parent Q-old :range)))
                                       :range
-                                      (if (contains? @belt-nodes (:parent (get @range-nodes (:parent Q-old))))
+                                      (if (contains? @belt-nodes (:parent (get-parent Q-old :range)))
                                         :belt
                                         ;; (throw (Exception. (str "parent neither valid range nor belt node @ leaf count " @leaf-count)))
                                         :no-parent
@@ -482,12 +491,12 @@
                         ;; new-parent-hash SHOULD refer to the parent of the range node
                         [new-grandparent-hash child-leg] (if (= :range grandparent-type)
                                                            ;; if parent is range node, this was its left child (since range nodes don't have other range nodes as right children)
-                                                           [(clojure.set/union rn (:right (get @range-nodes (:parent (get @range-nodes (:parent Q-old)))))) :right]
+                                                           [(clojure.set/union rn (:right (get-parent (get-parent Q-old :range) :range))) :right]
                                                            ;; else, parent is belt - then we must check whether left or right child
                                                            ;; TODO: this check should only be applicable to left-most belt node - all others have a belt node as their left child and a range node as their right
                                                            (if (= :belt grandparent-type)
-                                                             (let [left (:left (get @belt-nodes (:parent (get @range-nodes (:parent Q-old)))))
-                                                                   right (:right (get @belt-nodes (:parent (get @range-nodes (:parent Q-old)))))]
+                                                             (let [left (:left (get-parent (get-parent Q-old :range) :belt))
+                                                                   right (:right (get-parent (get-parent Q-old :range) :belt))]
                                                                (if (= left (:parent Q-old))
                                                                  [(clojure.set/union rn right) :left]
                                                                  (if (= right (:parent Q-old))
@@ -501,7 +510,7 @@
                     (if (and (:right Q-old)
                          (or (= :no-parent grandparent-type)
                              (and (= :range grandparent-type)
-                                  (not= (:parent Q-old) (:left (get @range-nodes (:parent (get @range-nodes (:parent Q-old)))))))))
+                                  (not= (:parent Q-old) (:left (get-parent (get-parent Q-old :range) :range))))))
                       (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right Q-old))) :left] rn))
                       )
 
@@ -520,7 +529,7 @@
                               )
                              )
                       (let [
-                            old-bn (get @belt-nodes (:parent (get @range-nodes (:parent Q-old))))
+                            old-bn (get-parent (get-parent Q-old :range) :belt)
                             new-bn (belt-node
                                     ;; if "hash" of old and new belt node are the same, then we're dealing with a range merge (maybe only for n=6), so old belt node's right child is no longer range leader, so need to use old belt node's 
                                     (if (= :left child-leg) rn (if (not= (:hash old-bn) new-grandparent-hash) (:left old-bn) (:left (get @belt-nodes (:left old-bn)))))
@@ -543,17 +552,17 @@
                                   ))
                               (swap! belt-nodes #(dissoc % (:hash left-of-old-bn)))))
                           )
-                        ;; TODO: cover relatives of old-bn & update their references
+                        ;; DONE: cover relatives of old-bn & update their references
                         ))
                     ;; add new parent range node that couples to old parent range's left
                     ;; #dbg
-                    (swap! range-nodes #(assoc % rn (range-node (:left (get @range-nodes (:parent L))) (:hash @Q) rn new-grandparent-hash)))
+                    (swap! range-nodes #(assoc % rn (range-node (:left (get-parent L :range)) (:hash @Q) rn new-grandparent-hash)))
                     ;; update former left's parent's left child to point to rn as a parent
                     ;; NOTE: doesn't apply for left-most range node
                     ;; #dbg
                     (if (and (not distinct-ranges)
-                             (:left (get @range-nodes (:parent L))))
-                      (swap! range-nodes #(assoc-in % [(:left (get @range-nodes (:parent L))) :parent] rn)))
+                             (:left (get-parent L :range)))
+                      (swap! range-nodes #(assoc-in % [(:left (get-parent L :range)) :parent] rn)))
                     ;; remove former left's parent from range nodes
                     ;; #dbg
                     (swap! range-nodes #(dissoc % (:parent L)))
