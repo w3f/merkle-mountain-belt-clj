@@ -182,6 +182,17 @@
          (algo false)
          (oneshot-nesting true))
 
+(def storage-maps {:internal node-map
+                   :peak node-map
+                   :range range-nodes
+                   :belt belt-nodes})
+
+;; (truncate-#set-display (:belt-nodes (oneshot-nesting-from-fresh 8 true)))
+;; (truncate-#set-display (:range-nodes (oneshot-nesting-from-fresh 8 true)))
+;; (truncate-#set-display (:range-nodes (oneshot-nesting-from-fresh 8 true)))
+;; (truncate-#set-display (:range-nodes (play-algo-optimized 8)))
+;; (truncate-#set-display (:range-nodes (play-algo-oneshot-end 8)))
+
 (defn oneshot-nesting
   "performs a oneshot nesting of ephemeral range and belt nodes. takes flag `singleton-ranges?` to specify whether singleton peaks should also have a range node above them"
   [singleton-ranges?]
@@ -195,9 +206,7 @@
         ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
         sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
         ;; sorted-peaks (atom (if singleton-ranges? (cons (peak-node #{} (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
-        storage-maps {:peak node-map
-                      :range range-nodes
-                      :belt belt-nodes}]
+        ]
     (reset! range-nodes {})
     (reset! belt-nodes {})
     (letfn [
@@ -334,6 +343,48 @@
         ))
     ))
 
+(defn types
+  "returns all types that a given hash has an entry for"
+  [hash]
+  (into #{} (map :type (filter some? (map #(get @% hash) [node-map range-nodes belt-nodes])))))
+
+(defn get-node
+  "returns the node with a given hash, as long as it exists for the provided type"
+  [hash type]
+  (get @(get storage-maps type) hash))
+
+(def type-rank
+  (zipmap
+   [:internal :peak :range :belt]
+   (range)))
+
+(defn higher-type-ranks [type]
+  (filter #(< (get type-rank type) (get type-rank %)) (keys type-rank)))
+
+(comment
+  (higher-type-ranks :peak)
+  ; => (:range :belt)
+  )
+
+(defn parent-type [type]
+  (get (clojure.set/map-invert type-rank) (inc (get type-rank type))))
+
+(defn get-nodes
+  "returns all nodes that have given hash, optionally filtered by `type-contenders`"
+  ([hash type-contenders]
+   (filter some? (map #(let [entry (get @(get storage-maps %) hash)]
+                         (if (= (:type entry) %)
+                           entry))
+                      (filter #(contains? type-contenders %)
+                              (keys storage-maps))
+                      )))
+  ([hash]
+   (get-nodes hash (into #{} (keys storage-maps)))))
+
+(comment
+  (map :type (get-nodes #{}))
+  (types #{}))
+
 (defn peak-merge [oneshot-nesting?]
   ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:peak-merge]))}
   (if (not (zero? (count @mergeable-stack)))
@@ -358,7 +409,7 @@
                 ;; then
                 (let [
                       ;; check where parent lives: should only exist in one of the maps
-                      parent-contenders (filter some? (map #(get @% (:parent Q-old)) [node-map range-nodes belt-nodes]))
+                      parent-contenders (get-nodes (:parent Q-old))
                       ]
                   ;; refactor here by splitting head of contenders from tail in let binding
                   (if (= 1 (count parent-contenders))
@@ -681,6 +732,10 @@
 (def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 algo-bound)))))
 (def manual-only-algos (atom (doall (map #(play-algo % false) (range 1 algo-bound)))))
 (def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 algo-bound)))))
+
+;; while upgrading algo, test that new result matches cached
+(= @manual-algos
+   (map #(play-algo-oneshot-end %) (range 1 algo-bound)))
 
 ;; test that everything is exactly the same
 (= @oneshot-algos
