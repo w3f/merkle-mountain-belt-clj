@@ -310,7 +310,7 @@
       )
     ;; else new leaf joins last range, i.e. get new range node above new leaf
     ;; TODO: update parent belt node hash, likewise for its left sibling
-    (let [last-range (get @range-nodes (:parent (get @node-map @lastP)))
+    (let [last-range (get-parent (:parent (get @node-map @lastP)) :range)
           old-belt-parent (get @belt-nodes (:parent last-range))
           hash-new-range (clojure.set/union (:hash last-range) h)
           new-belt-parent (clojure.set/union hash-new-range (:left old-belt-parent))
@@ -370,12 +370,50 @@
 (defn parent-contenders [type]
   (let [rank (get type-rank type)]
     (if (= rank (:peak type-rank))
-      (list (get (clojure.set/map-invert type-rank) (min
-                                                     (inc rank)
-                                                     (apply max (vals type-rank)))))
+      (list (get (clojure.set/map-invert type-rank) (inc rank)))
       (if (= rank (:belt type-rank))
         (list :belt)
         (list type (get (clojure.set/map-invert type-rank) (inc rank)))))))
+
+(comment
+  (parent-contenders :range))
+
+;; TODO: can simplify if use dummy belt node
+(defn child-contenders [type & child-leg]
+  (let [rank (get type-rank type)]
+    (if (= rank (:peak type-rank))
+      (list (get (clojure.set/map-invert type-rank) (dec rank)))
+      (if (= type :internal)
+        (list :internal)
+        (if (= type :range)
+          (if (= (first child-leg) :left)
+            (list :range)
+            (if (= (first child-leg) :right)
+              (list :peak)
+              (throw (Exception. "no child-leg specified"))))
+          (if (= type :belt)
+            (if (= (first child-leg) :left)
+              (list :range :belt)
+              (if (= (first child-leg) :right)
+                (list :belt)
+                (throw (Exception. "no child-leg specified")) ))
+            (throw (Exception. "unhandled type & child-leg"))
+            ))))))
+
+(comment
+  (child-contenders :internal)
+  ;; => (:internal)
+  (child-contenders :peak)
+  ;; => (:internal)
+  (child-contenders :range :left)
+  ;; => (:range)
+  (child-contenders :range :right)
+  ;; => (:peak)
+  (child-contenders :belt :left)
+  ;; => (:range :belt)
+  (child-contenders :belt :right)
+  ;; => (:belt)
+  )
 
 ;; TODO: refactor this since logic is somewhat clunky
 (defn get-parent
