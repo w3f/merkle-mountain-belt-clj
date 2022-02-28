@@ -738,8 +738,13 @@
    (binding [*out* w]
      (pr @manual-algos))))
 
+(def manual-algos-cached
+  (with-open [r (java.io.PushbackReader. (clojure.java.io/reader "src/cached.clj"))]
+    (binding [*read-eval* false]
+      (read r))))
+
 ;; while upgrading algo, test that new result matches cached
-(= @manual-algos
+(= manual-algos-cached
    (map #(play-algo-oneshot-end %) (range 1 algo-bound)))
 
 ;; test that everything is exactly the same
