@@ -604,8 +604,6 @@
 
       (swap! leaf-count inc)
 
-      ;; 5. TODO update range nodes
-
       (if oneshot-nesting? (oneshot-nesting true))
       ;; check (difference (S-n n) (S-n (dec n)))
       ;; recalculate only those members of S-n that are in the difference set from above
@@ -683,6 +681,13 @@
 (def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 algo-bound)))))
 (def manual-only-algos (atom (doall (map #(play-algo % false) (range 1 algo-bound)))))
 (def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 algo-bound)))))
+
+;; test that everything is exactly the same
+(= @oneshot-algos
+   @oneshot-only-algos
+   @manual-algos
+   @manual-only-algos
+   @optimized-manual-algos)
 
 
 (toggle-debugging)
