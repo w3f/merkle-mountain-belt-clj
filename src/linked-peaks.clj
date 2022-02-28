@@ -367,7 +367,21 @@
   )
 
 (defn parent-type [type]
-  (get (clojure.set/map-invert type-rank) (inc (get type-rank type))))
+  (get (clojure.set/map-invert type-rank) (min
+                                           (inc (get type-rank type))
+                                           (apply max (vals type-rank)))))
+
+(defn get-parent
+  ([child]
+   (get
+    @(get storage-maps (parent-type (:type child)))
+    (:parent child)))
+  ([child parent-type]
+   (let [parent (get-parent child)]
+     (if (= parent-type (:type parent))
+       parent
+       (throw (Exception. (str "parent type expected: " parent-type "\nactual parent type: " (:type parent))))))))
+
 
 (defn get-nodes
   "returns all nodes that have given hash, optionally filtered by `type-contenders`"
@@ -407,25 +421,11 @@
               (if (= (:parent Q-old)
                      (:parent L))
                 ;; then
-                (let [
-                      ;; check where parent lives: should only exist in one of the maps
-                      parent-contenders (get-nodes (:parent Q-old))
-                      ]
-                  ;; refactor here by splitting head of contenders from tail in let binding
-                  (if (= 1 (count parent-contenders))
-                    (if (not (contains? #{:internal :peak} (:type (first parent-contenders))))
-                      (((:type (first parent-contenders)) {
-                                                           :range (fn [] (do
-                                                                          (swap! Q #(assoc % :parent (:parent (first parent-contenders))))
-                                                                          (swap! range-nodes #(dissoc % (:hash (first parent-contenders))))
-                                                                          ;; (throw (Exception. "unimplemented"))
-                                                                          ))
-                                                           :belt (fn [] (throw (Exception. "peak can't have belt node as parent!")))
-                                                           }))
-                      (throw (Exception. "parent is an illegal: internal or peak"))
-                      )
-                    (throw (Exception. "multiple parent contenders - no bueno!"))
-                    )
+                (let [;; check where parent lives: should only exist in one of the maps
+                      parent (get-parent Q-old :range)]
+                  (do
+                    (swap! Q #(assoc % :parent (:parent parent)))
+                    (swap! range-nodes #(dissoc % (:hash parent))))
                   )
                 ;; else
                 ;; DONE (should remove): (throw (Exception. (str "parents don't match @ leaf count " @leaf-count)))
@@ -444,7 +444,7 @@
 
                   ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:merge]))}
                   (let [
-                        parent-L (get @range-nodes (:parent L))
+                        parent-L (get-parent L :range)
                         ;; this is the range node that will replace their former parent range nodes
                         ;; if the range node above former left is not leftmost node, include its left in the hash (otherwise, its left is in another range)
                         ;; DONE: update the nodes referred to to be left: left, right: newly merged peak
