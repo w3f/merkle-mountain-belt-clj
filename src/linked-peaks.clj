@@ -400,7 +400,7 @@
             (if (= (first child-leg) :left)
               (list :range :belt)
               (if (= (first child-leg) :right)
-                (list :belt)
+                (list :range)
                 (throw (Exception. "no child-leg specified")) ))
             (throw (Exception. "unhandled type & child-leg"))
             ))))))
@@ -417,7 +417,7 @@
   (child-contenders :belt :left)
   ;; => (:range :belt)
   (child-contenders :belt :right)
-  ;; => (:belt)
+  ;; => (:range)
   )
 
 
