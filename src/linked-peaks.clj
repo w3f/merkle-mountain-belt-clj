@@ -421,24 +421,16 @@
   )
 
 
-;; TODO: refactor this since logic is somewhat clunky
+;; DONE: refactor this since logic is somewhat clunky
 (defn get-parent
   ([child]
-   (get
-    ;; parent may be of same type. this is the case if hash of child is unequal to parents hash and the child's typemap contains the parent's hash (dumb logic - will refactor later)
-    @(get storage-maps (if (and (not=
-                                 (:hash child)
-                                 (:parent child))
-                                (not (contains? @(get storage-maps (:type child))
-                                            (:parent child))))
-                         (last (parent-contenders (:type child)))
-                         (first (parent-contenders (:type child)))))
-    (:parent child)))
+   (let [parent-contenders-reverse (reverse (parent-contenders (:type child)))]
+     (first (filter some? (map #(get @% (:parent child)) (vals (select-keys storage-maps parent-contenders-reverse)))))))
   ([child expected-parent]
    (let [parent (get-parent child)]
      (if (= expected-parent (:type parent))
        parent
-       (throw (Exception. (str "parent type expected: " expected-parent "\nactual parent type: " (:type parent))))))))
+       (throw (Exception. (str "parent type expected: " expected-parent "\nactual parent type: " (:type parent) " " (:hash child) " " (:type child))))))))
 
 (defn get-child [parent child-leg]
   (let [child-contenders (child-contenders (:type parent) child-leg)
@@ -534,6 +526,7 @@
                   ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:merge]))}
                   (let [
                         parent-L (get-parent L :range)
+                        parent-Q-old (get-parent Q-old :range)
                         ;; this is the range node that will replace their former parent range nodes
                         ;; if the range node above former left is not leftmost node, include its left in the hash (otherwise, its left is in another range)
                         ;; DONE: update the nodes referred to to be left: left, right: newly merged peak
@@ -545,9 +538,10 @@
                         ;; DONE (fixed above): the following currently only *preserves* range splits - should check whether the two range nodes should now be in the same range
                         ;; rn (clojure.set/union (if (not= (:hash parent-L) (:right parent-L)) (:left parent-L)) (:hash @Q))
                         ;; Q-old is a peak node, so its immediate parent is certainly a range node. The only unknown is the type of the parent's parent
-                        grandparent-type (if (contains? @range-nodes (:parent (get-parent Q-old :range)))
+                        grandparent-type (if (and (not= (:parent parent-Q-old) (:hash parent-Q-old))
+                                                  (contains? @range-nodes (:parent parent-Q-old)))
                                       :range
-                                      (if (contains? @belt-nodes (:parent (get-parent Q-old :range)))
+                                      (if (contains? @belt-nodes (:parent parent-Q-old))
                                         :belt
                                         ;; (throw (Exception. (str "parent neither valid range nor belt node @ leaf count " @leaf-count)))
                                         :no-parent
