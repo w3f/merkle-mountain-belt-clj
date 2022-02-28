@@ -440,6 +440,27 @@
        parent
        (throw (Exception. (str "parent type expected: " expected-parent "\nactual parent type: " (:type parent))))))))
 
+(defn get-child [parent child-leg]
+  (let [child-contenders (child-contenders (:type parent) child-leg)
+        child-hash (get parent child-leg)
+        child-if-highest-rank (find @(get storage-maps (last child-contenders)) (get parent child-leg))
+        ]
+    (first (filter some? [(second (find @(get storage-maps (last child-contenders)) (get parent child-leg)))
+                          (second (find @(get storage-maps (first child-contenders)) (get parent child-leg)))])
+      )))
+
+(defn get-sibling [entry]
+  (let [parent (get-parent entry)]
+    (if (= (:hash entry) (:left parent))
+      (get-child parent :right)
+      (get-child parent :left)))
+  )
+
+(get-sibling (get @node-map #{60}))
+
+(=
+ (second (second @belt-nodes))
+ (get-sibling (get-sibling (second (second @belt-nodes)))))
 
 (comment
   ;; (= n 100)
