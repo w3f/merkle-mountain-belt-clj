@@ -733,6 +733,11 @@
 (def manual-only-algos (atom (doall (map #(play-algo % false) (range 1 algo-bound)))))
 (def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 algo-bound)))))
 
+(comment
+  (with-open [w (clojure.java.io/writer "src/cached.clj")]
+   (binding [*out* w]
+     (pr @manual-algos))))
+
 ;; while upgrading algo, test that new result matches cached
 (= @manual-algos
    (map #(play-algo-oneshot-end %) (range 1 algo-bound)))
