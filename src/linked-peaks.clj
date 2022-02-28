@@ -366,21 +366,35 @@
   ; => (:range :belt)
   )
 
-(defn parent-type [type]
-  (get (clojure.set/map-invert type-rank) (min
-                                           (inc (get type-rank type))
-                                           (apply max (vals type-rank)))))
 
+(defn parent-contenders [type]
+  (let [rank (get type-rank type)]
+    (if (= rank (:peak type-rank))
+      (list (get (clojure.set/map-invert type-rank) (min
+                                                     (inc rank)
+                                                     (apply max (vals type-rank)))))
+      (if (= rank (:belt type-rank))
+        (list :belt)
+        (list type (get (clojure.set/map-invert type-rank) (inc rank)))))))
+
+;; TODO: refactor this since logic is somewhat clunky
 (defn get-parent
   ([child]
    (get
-    @(get storage-maps (parent-type (:type child)))
+    ;; parent may be of same type. this is the case if hash of child is unequal to parents hash and the child's typemap contains the parent's hash (dumb logic - will refactor later)
+    @(get storage-maps (if (and (not=
+                                 (:hash child)
+                                 (:parent child))
+                                (not (contains? @(get storage-maps (:type child))
+                                            (:parent child))))
+                         (last (parent-contenders (:type child)))
+                         (first (parent-contenders (:type child)))))
     (:parent child)))
-  ([child parent-type]
+  ([child parent-contenders]
    (let [parent (get-parent child)]
-     (if (= parent-type (:type parent))
+     (if (= parent-contenders (:type parent))
        parent
-       (throw (Exception. (str "parent type expected: " parent-type "\nactual parent type: " (:type parent))))))))
+       (throw (Exception. (str "parent type expected: " parent-contenders "\nactual parent type: " (:type parent))))))))
 
 
 (defn get-nodes
