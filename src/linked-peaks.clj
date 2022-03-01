@@ -448,6 +448,15 @@
   )
 
 (get-sibling (get @node-map #{60}))
+(nth @node-array 122)
+;; leafs are all correctly stored, modulo shift by 2 (leaf-count)
+(= (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (integer? v) (not= 0 v))]) @storage/storage-array)))
+   (map #(+ 2 %) (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (not= 0 v) (= 1 (count v)))]) @node-array)))))
+
+;; nodes are all correctly stored, modulo shift by 2 (leaf-count)
+(= (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (not (integer? v))]) @storage/storage-array)))
+   (map #(+ 2 %) (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (not= 0 v) (not= 1 (count v)))]) @node-array)))))
+
 
 (=
  (second (second @belt-nodes))
@@ -826,13 +835,8 @@
       (read r))))
 
 ;; while upgrading algo, test that new result matches cached
-(= (map #(dissoc % :node-array) manual-algos-cached)
-   (map #(dissoc (play-algo-oneshot-end %) :node-array) (range 1 algo-bound)))
-;; => true
-
-;; while upgrading algo, test that new result matches cached
 (= manual-algos-cached
-   (map #(play-algo-oneshot-end %) (range 1 algo-bound)))
+   (map #(play-algo % false) (range 1 algo-bound)))
 ;; => true
 
 ;; test that everything is exactly the same
