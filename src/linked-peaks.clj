@@ -202,7 +202,7 @@
         ;; node-array (atom (:node-array algo-1222))
         ;; range-nodes (atom {})
         ;; belt-nodes (atom {})
-        original-sorted-peaks (map #(get @node-map (nth @node-array (- (first %) 3))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
+        original-sorted-peaks (map #(get @node-map (nth @node-array (inc (- (first %) 3)))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
         ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
         sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
         ;; sorted-peaks (atom (if singleton-ranges? (cons (peak-node #{} (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
@@ -365,7 +365,6 @@
   (higher-type-ranks :peak)
   ; => (:range :belt)
   )
-
 
 (defn parent-contenders [type]
   (let [rank (get type-rank type)]
@@ -672,7 +671,7 @@
             ;; (swap! node-map #(assoc-in % [(:hash L) :type] :internal))
             ;; (swap! node-map #(assoc-in % [Q-old-hash :type] :internal))
 
-            (add-internal (:hash @Q) (inc (* 2 @leaf-count)))
+            (add-internal (:hash @Q) (inc (inc (* 2 @leaf-count))))
             ;; issue is that :left of Q can be outdated since may have had subsequent merge
             (if (= (:height @Q) (:height (get @node-map (:left @Q))))
               ;; #dbg
@@ -716,7 +715,7 @@
       (swap! node-map #(assoc % h P))
       ;; (swap! node-map #(assoc % pointer P))
       ;; A[R*n+1]<-h
-      (add-internal h (* 2 @leaf-count))
+      (add-internal h (inc (* 2 @leaf-count)))
 
       ;; 2. Check mergeable
       ;; if lastP.height==0 then M.add(P)
@@ -827,8 +826,14 @@
       (read r))))
 
 ;; while upgrading algo, test that new result matches cached
+(= (map #(dissoc % :node-array) manual-algos-cached)
+   (map #(dissoc (play-algo-oneshot-end %) :node-array) (range 1 algo-bound)))
+;; => true
+
+;; while upgrading algo, test that new result matches cached
 (= manual-algos-cached
-   (map #(play-algo-oneshot-end %) (range 1 algo-bound)))
+   (map #(update (play-algo-oneshot-end %) :node-array rest) (range 1 algo-bound)))
+;; => true
 
 ;; test that everything is exactly the same
 (= @oneshot-algos
