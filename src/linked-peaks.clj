@@ -449,13 +449,32 @@
 
 (get-sibling (get @node-map #{60}))
 (nth @node-array 122)
-;; leafs are all correctly stored, modulo shift by 2 (leaf-count)
-(= (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (integer? v) (not= 0 v))]) @storage/storage-array)))
-   (map #(+ 2 %) (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (not= 0 v) (= 1 (count v)))]) @node-array)))))
+;; siblings of ephemeral nodes are also ephemeral
+(defn co-path-ephemeral
+  ([entry accumulator]
+   (if (:parent entry)
+     (co-path-ephemeral (get-parent entry) (concat accumulator [(:hash (get-sibling entry))]))
+     accumulator)
+   ;; (concat [(:hash (get-sibling entry))] (if (:parent entry) (co-path-ephemeral (get-parent entry))))
+   ))
 
-;; nodes are all correctly stored, modulo shift by 2 (leaf-count)
+(truncate-#set-display (get-parent (get-parent (get-parent (get-parent (get @node-map (:right (get @node-map #{}))))))))
+
+(co-path-ephemeral (get @node-map (:right (get @node-map #{}))) [])
+
+(defn co-path-internal
+  ([index accumulator]
+   (if (< (storage/parent-index index) (count @node-array))
+     (co-path-internal (storage/parent-index index) (concat accumulator [(nth @node-array (sibling-index index))]))
+     accumulator)))
+
+;; leafs are all correctly stored
+(= (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (integer? v) (not= 0 v))]) @storage/storage-array)))
+   (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (not= 0 v) (= 1 (count v)))]) @node-array))))
+
+;; nodes are all correctly stored
 (= (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (not (integer? v))]) @storage/storage-array)))
-   (map #(+ 2 %) (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (not= 0 v) (not= 1 (count v)))]) @node-array)))))
+   (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (not= 0 v) (not= 1 (count v)))]) @node-array))))
 
 
 (=
@@ -858,8 +877,8 @@
  @manual-algos
  @manual-only-algos
  @optimized-manual-algos
- (map (fn [n] (update (play-algo-oneshot-end n) :node-array (comp rest rest))) (range 1 algo-bound))
- (map (fn [n] (update (play-algo n false) :node-array (comp rest rest))) (range 1 algo-bound))
+ (map (fn [n] (play-algo-oneshot-end n)) (range 1 algo-bound))
+ (map (fn [n] (play-algo n false)) (range 1 algo-bound))
  )
 
 
