@@ -832,7 +832,7 @@
 
 ;; while upgrading algo, test that new result matches cached
 (= manual-algos-cached
-   (map #(update (play-algo-oneshot-end %) :node-array rest) (range 1 algo-bound)))
+   (map #(play-algo-oneshot-end %) (range 1 algo-bound)))
 ;; => true
 
 ;; test that everything is exactly the same
