@@ -453,7 +453,9 @@
 (defn co-path-ephemeral
   ([entry accumulator]
    (if (:parent entry)
-     (co-path-ephemeral (get-parent entry) (concat accumulator [(:hash (get-sibling entry))]))
+     (co-path-ephemeral (get-parent entry) (if (= (:hash entry) (:parent entry))
+                                             accumulator
+                                             (concat accumulator [(:hash (get-sibling entry))])))
      accumulator)
    ;; (concat [(:hash (get-sibling entry))] (if (:parent entry) (co-path-ephemeral (get-parent entry))))
    ))
@@ -466,7 +468,69 @@
   ([index accumulator]
    (if (< (storage/parent-index index) (count @node-array))
      (co-path-internal (storage/parent-index index) (concat accumulator [(nth @node-array (sibling-index index))]))
-     accumulator)))
+     ;; #dbg
+     ;; #dbg
+     (co-path-ephemeral (get @node-map (nth @node-array index)) (let [sibling-index (sibling-index index)]
+                                                                  (if (< sibling-index (count @node-array))
+                                                                    ;; #dbg
+                                                                    (concat accumulator [(nth @node-array sibling-index)])
+                                                                    accumulator)
+                                                                  accumulator
+                                                                  ;; (concat accumulator [(nth @node-array sibling-index)])
+                                                                  )))))
+
+;; check that co-path is correct: ensure that we have no intersection of any of the "hashes" in the co-path
+(map
+  (fn [leaf-number]
+    (let [co-path (co-path-internal (storage/leaf-location leaf-number) [])]
+      (=
+       (reduce (fn [acc v] (+ acc (count v))) 0 co-path)
+       (count (into #{} (apply concat co-path))))))
+  (range 1 @leaf-count))
+
+(defn membership-proof [leaf state]
+  (reset-atoms-from-cached! state)
+  (let [leaf-index (storage/leaf-location leaf)]
+    {:leaf (nth @node-array leaf-index) :co-path (co-path-internal leaf-index [])}))
+
+(defn verify-membership [membership-proof root-belt-node]
+  (= (reduce (fn [acc v] (if (= #{} (clojure.set/intersection acc v))
+                        (clojure.set/union acc v)
+                        ;; TODO: replace exception with returning eqvlt of result
+                        (throw (Exception. "invalid membership proof"))))
+           (:leaf membership-proof)
+           (:co-path membership-proof))
+     root-belt-node)
+  )
+
+;; verify that membership proof for all leafs are correct
+(let [state (current-atom-states)]
+  (empty?
+   (filter
+    #(not (verify-membership
+           (membership-proof % state)
+           (:root-belt-node state)))
+    (range 1 101)))
+  )
+
+;; verify that membership proof for incorrect state root fails
+(let [state (current-atom-states)]
+  (not
+   (verify-membership
+    (membership-proof 59 state)
+    (clojure.set/union (:root-belt-node state) #{100})))
+  )
+
+
+(comment
+  ((fn [leaf-number]
+    (let [co-path (co-path-internal (storage/leaf-location leaf-number) [])]
+      [(reduce (fn [acc v] (+ acc (count v))) 0 co-path)
+       (count (into #{} (apply concat co-path)))]))
+  65))
+
+(comment
+  (co-path-internal (storage/leaf-location 65) []))
 
 ;; leafs are all correctly stored
 (= (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (integer? v) (not= 0 v))]) @storage/storage-array)))
@@ -477,9 +541,9 @@
    (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (not= 0 v) (not= 1 (count v)))]) @node-array))))
 
 
-(=
- (second (second @belt-nodes))
- (get-sibling (get-sibling (second (second @belt-nodes)))))
+(defn sibling-index [n-index]
+  (first (filter #(not= n-index %) (storage/children (storage/parent-index n-index)))))
+
 
 (comment
   ;; (= n 100)
@@ -776,13 +840,14 @@
       ))
   )
 
-(defn reset-atoms-from-cached [cached]
+(defn reset-atoms-from-cached! [cached]
   (reset! node-map (:node-map cached))
   (reset! node-array (:node-array cached))
   (reset! mergeable-stack (:mergeable-stack cached))
-  (reset! lastP (:lastP cached))
   (reset! leaf-count (:leaf-count cached))
+  (reset! lastP (:lastP cached))
   (reset! belt-nodes (:belt-nodes cached))
+  (reset! root-belt-node (:root-belt-node cached))
   (reset! range-nodes (:range-nodes cached))
   )
 
