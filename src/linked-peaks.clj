@@ -5,9 +5,9 @@
 (def global-debugging (atom false))
 (defn toggle-debugging [] (swap! global-debugging #(not %)))
 (comment (toggle-debugging))
+(def debugging-flags (atom #{:singleton-range :merge :belt-merge :range-merge-replace}))
 (defn all-debugging []
   (reset! debugging-flags #{:singleton-range :merge :belt-merge :range-merge-replace :peak-merge}))
-(def debugging-flags (atom #{:singleton-range :merge :belt-merge :range-merge-replace}))
 (defn set-debugging-flags [flags]
   (reset! debugging-flags (into #{} flags)))
 (defn debugging [flags]
@@ -178,7 +178,7 @@
       )))
 
 (comment (:range-nodes (play-algo 5 true))
-         (oneshot-nesting-from-fresh 8 false)
+         (oneshot-nesting-from-fresh 8 true)
          (algo false)
          (oneshot-nesting true))
 
@@ -295,6 +295,7 @@
         (swap! belt-nodes #(assoc % new-belt-root (belt-node @root-belt-node h new-belt-root nil)))
         ;; TODO: skipping #{} because?
         (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
+        ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
         (reset! root-belt-node new-belt-root)
         ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
         (swap! range-nodes #(assoc % h (range-node (:hash (get-parent (get @node-map @lastP) :range)) h h new-belt-root)))
@@ -419,7 +420,6 @@
   ;; => (:range)
   )
 
-
 ;; DONE: refactor this since logic is somewhat clunky
 (defn get-parent
   ([child]
@@ -447,8 +447,9 @@
       (get-child parent :left)))
   )
 
-(get-sibling (get @node-map #{60}))
-(nth @node-array 122)
+(comment
+  (get-sibling (get @node-map #{60})))
+
 ;; siblings of ephemeral nodes are also ephemeral
 (defn co-path-ephemeral
   ([entry accumulator]
@@ -460,7 +461,8 @@
    ;; (concat [(:hash (get-sibling entry))] (if (:parent entry) (co-path-ephemeral (get-parent entry))))
    ))
 
-(truncate-#set-display (get-parent (get-parent (get-parent (get-parent (get @node-map (:right (get @node-map #{}))))))))
+(comment
+  (truncate-#set-display (get-parent (get-parent (get-parent (get-parent (get @node-map (:right (get @node-map #{})))))))))
 
 (co-path-ephemeral (get @node-map (:right (get @node-map #{}))) [])
 
@@ -614,7 +616,7 @@
                          )
                   ;; #dbg
 
-                  ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:merge]))}
+                  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:merge]))}
                   (let [
                         parent-L (get-parent L :range)
                         parent-Q-old (get-parent Q-old :range)
@@ -897,9 +899,21 @@
 ;; show that, barring missing belt node impl in incremental algo, get matching result between incremental & oneshot
 ;; DONE: seems that performance got worse and the following is no longer feasible
 ;; issue is simply that iterating from scratch every time has a performance impact of (n^2)/2 (i.e. O(n^2)). mitigated by only performing expensive oneshot at the very end (since it's always erased inbetween anyways)
-(let [n 3000]
-  (= (into #{} (map #(dissoc % :parent) (vals (:range-nodes (play-algo n false)))))
-     (into #{} (map #(dissoc % :parent) (vals (:range-nodes (play-algo-oneshot-end n)))))))
+(comment
+  (let [n 1337]
+   [(clojure.set/difference
+     (into #{} (vals (:range-nodes (play-algo-oneshot-end n))))
+     (into #{} (vals (:range-nodes (play-algo n false)))))
+    (clojure.set/difference
+     (into #{} (vals (:range-nodes (play-algo n false))))
+     (into #{} (vals (:range-nodes (play-algo-oneshot-end n)))))]))
+
+(comment
+  (let [n 1337]
+   (= (into #{} (play-algo n false))
+      (into #{} (play-algo-oneshot-end n))))
+  ;; => true
+  )
 
 (def algo-bound 101)
 (def oneshot-only-algos (atom (doall (map #(play-algo % true) (range 1 algo-bound)))))
@@ -922,7 +936,6 @@
 (= manual-algos-cached
    (map #(play-algo % false) (range 1 algo-bound)))
 ;; => true
-
 
 (= manual-algos-cached
    (map #(update % :node-array (comp rest rest))) (map #(play-algo % false) (range 1 algo-bound)))
@@ -950,10 +963,10 @@
 (toggle-debugging)
 (all-debugging)
 (letfn [
-        ;; (mapulation [value]
-        ;;   (identity value))
         (mapulation [value]
-          (dissoc value :parent))
+          (identity value))
+        ;; (mapulation [value]
+        ;;   (dissoc value :parent))
         ;; (mapulation [value]
         ;;   (dissoc (dissoc value :parent) :hash))
         ;; (mapulation [value]
@@ -976,7 +989,7 @@
    #(false? (second %))
    (map-indexed (fn [idx n] [(inc idx) (=
                                        (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-only-algos n)))))
-                                       (into #{} (map mapulation (vals (:range-nodes (nth @optimized-manual-algos n))))))])
+                                       (into #{} (map mapulation (vals (:range-nodes (nth @manual-only-algos n))))))])
                 (range (min (count @oneshot-only-algos) (count @optimized-manual-algos))))))
 
 (letfn [
@@ -1003,21 +1016,22 @@
          (range 1500)))
 
 (def algo-1222 (play-algo-oneshot-end 1222))
-(def algo-1223 (play-algo 1223 true))
-(def algo-1277 (play-algo 1277 true))
-(def algo-1278 (play-algo 1278 true))
-(def algo-1279 (play-algo 1279 true))
+(def algo-1223 (play-algo-oneshot-end 1223))
+(def algo-1277 (play-algo-oneshot-end 1277))
+(def algo-1278 (play-algo-oneshot-end 1278))
+(def algo-1279 (play-algo-oneshot-end 1279))
 
 ;; test: all peak nodes are connected and can be reached from one another
 (let [nodes (:node-map algo-1222)
-      peaks (filter #(not= :internal (:type %)) (vals nodes))
+      peaks (filter #(= :peak (:type %)) (vals nodes))
       left-most (filter #(= #{} (:left %)) peaks)
       right-most (filter #(nil? (:right %)) peaks)
       chain-from-left (take-while some? (iterate #(get nodes (:right %)) (first left-most)))
-      chain-from-right (take-while some? (iterate #(get nodes (:left %)) (first right-most)))
+      ;; TODO: might change dummy "peak" to be an actual peak - then don't need the silly condition over here
+      chain-from-right (take-while #(and (some? %) (not= #{} (:hash %))) (iterate #(get nodes (:left %)) (first right-most)))
       ]
   {:only-peaks-and-all-peaks
-   (and
+   [
     ;; check that only one node lacks a :left or a :right
     (every? #(= 1 (count %)) [left-most right-most])
     (not= left-most right-most)
@@ -1026,15 +1040,19 @@
     (every? #(= :peak (:type %)) chain-from-left)
     (every? #(= :peak (:type %)) chain-from-right)
 
+    (count chain-from-left)
+    (count chain-from-right)
+
     ;; check that every chain contains all peaks
     (every? #(= (count peaks) (count %)) [chain-from-left chain-from-right])
-    )
+    ]
    :left-most (map :hash left-most)
-   :right-most (map :hash right-most)}
+   :right-most (map :hash right-most)
+   }
   )
 
 (defn oneshot-nesting-from-cached [cached singleton-ranges?]
-  (do (reset-atoms-from-cached cached)
+  (do (reset-atoms-from-cached! cached)
       ;; (oneshot-nesting)
       (merge (current-atom-states) (oneshot-nesting singleton-ranges?))))
 
