@@ -1,6 +1,7 @@
 (ns storage
   (:require [core]
-            [primitives.core]))
+            [primitives.core]
+            [primitives.storage]))
 
 (defonce storage-array (atom '[]))
 (defonce parent-less-nodes-atom (atom #{}))
@@ -16,35 +17,18 @@
 (defn peak-location [n]
   (+ (* 2 n) 2))
 
-(defn highest-exponent-st-dividing [p n]
-  ;; TODO: improve this algorithm - it's inefficient as fuck!
-  (last
-   (filter #(= 0.0
-               (mod (Math/abs n) (Math/pow p %)))
-           (range 0 (Math/abs n)))))
-
-(let [log (/ (Math/log 2048) (Math/log 2))] (= 0.0 (- log (int log))))
-
-(defn p-adic-order [p n]
-  (if (= 0 n)
-    ##Inf
-    (highest-exponent-st-dividing p n)
-    ))
-
 (comment
   (aget (bytes (byte-array (byte 4))) 1)
   (bit-and 1 1))
 
-
 (defn left-child [parent]
-  (- parent (* 3 (int (Math/pow 2 (- (p-adic-order 2 parent) 1))))))
+  (- parent (* 3 (int (Math/pow 2 (- (primitives.storage/p-adic-order 2 parent) 1))))))
 
 (defn right-child [parent]
-  (- parent (int (Math/pow 2 (- (p-adic-order 2 parent) 1)))))
+  (- parent (int (Math/pow 2 (- (primitives.storage/p-adic-order 2 parent) 1)))))
 
 (defn children [parent]
   ((juxt left-child right-child) parent))
-
 
 (defn add-internal [item index]
   (let [array-len (count @storage-array)
@@ -60,7 +44,7 @@
     (add-internal leaf (leaf-location @leaf-count))
     (swap! parent-less-nodes-atom #(conj % (leaf-location @leaf-count)))
     (if
-        (not= (+ @leaf-count 1) (int (Math/pow 2 (p-adic-order 2 (+ @leaf-count 1)))))
+        (not= (+ @leaf-count 1) (int (Math/pow 2 (primitives.storage/p-adic-order 2 (+ @leaf-count 1)))))
       (do
         (add-internal (str "p-" (swap! node-count inc)) (peak-location @leaf-count))
         (swap! parent-less-nodes-atom #(conj % (peak-location @leaf-count)))
@@ -128,10 +112,10 @@
   (filter #(string? (:id %)) (node-maps @storage-array)))
 
 (defn parent-index [child-index]
-  (+ child-index (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))
+  (+ child-index (mod child-index (int (Math/pow 2 (+ (primitives.storage/p-adic-order 2 child-index) 2))))))
 
 (comment
-  (map (fn [child-index] (- (+ (mod child-index (int (Math/pow 2 (+ (p-adic-order 2 child-index) 2))))))) (range 1 1000)))
+  (map (fn [child-index] (- (+ (mod child-index (int (Math/pow 2 (+ (primitives.storage/p-adic-order 2 child-index) 2))))))) (range 1 1000)))
 
 (map node-name @parent-less-nodes-cache)
 (identity @parent-less-nodes-cache)
@@ -213,8 +197,6 @@
 (map-indexed #(identity [(inc %1) (- (apply max %2) (apply min %2))]) (take 100 @peaks-accumulator))
 (comment (apply min (map (comp last butlast primitives.core/S-n) (range 3 1E4))))
 
-(map #(p-adic-order 2 %) (range 1 100))
-
 (defonce storage-array-5000 (atom @storage-array))
 (defonce parent-less-nodes-atom-5000 (atom @parent-less-nodes-atom))
 (count @storage-array-5000)
@@ -241,7 +223,7 @@
 
 ;; [0 0 0 1 0 2 x 3 0 4 x 5 x 6 x 7 0 8 x 9 x]
 
-(map #(p-adic-order % 3) (range 1 500))
+(map #(primitives.storage/p-adic-order % 3) (range 1 500))
 
 ;; this is the L2R bagging from https://hackmd.io/4k2wjlWfTVqgW0Mp4bLSSQ?view
 (defn range-node-edges
@@ -287,7 +269,7 @@
 
 (apply max (map #(double (- (parent-index %) %)) (range 1 1000 2)))
 (apply max (map #(double (/ (parent-index %) %)) (range 1 1000 2)))
-(map #(p-adic-order 2 %) (range 1 1000 2))
+(map #(primitives.storage/p-adic-order 2 %) (range 1 1000 2))
 ;; (map #(/ % parent-index) (range 1 500 2))
 
 (defn path [index]

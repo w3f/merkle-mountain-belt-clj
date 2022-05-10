@@ -1,5 +1,6 @@
 (ns linked-peaks
-  (:require [primitives.core]))
+  (:require [primitives.core]
+            [primitives.storage]))
 
 ;; generic tooling
 (def global-debugging (atom false))
@@ -46,8 +47,8 @@
 
 (defn merge-rule [n]
   (let [
-        b (storage/binary-repr-of-n (inc n))
-        j (storage/p-adic-order 2 (inc n))
+        b (primitives.core/binary-repr-of-n (inc n))
+        j (primitives.storage/p-adic-order 2 (inc n))
         m1 (if (< 1 j) "new leaf joins last range"
                (get {0 "new leaf participates in merge"
                      1 "new leaf forms a range alone"} j))
@@ -1012,7 +1013,7 @@
 (every? #(= "1" %)
         (map
          #(let [b-reverse (map str (reverse (storage/binary-repr-of-n (inc %))))
-                j (storage/p-adic-order 2 (inc %))]
+                j (primitives.storage/p-adic-order 2 (inc %))]
             (nth b-reverse j))
          (range 1500)))
 
