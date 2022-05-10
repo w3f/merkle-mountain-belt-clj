@@ -3,7 +3,9 @@
             [tangle.core :as tangle]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as sgen]
-            [clojure.spec.test.alpha :as stest]))
+            [clojure.spec.test.alpha :as stest]
+            [primitives]
+            ))
 
 (defonce index (atom -1))
 (defonce leaf-index (atom -1))
@@ -335,38 +337,6 @@
 
 ;; (mmb-append-leaf (mmb-from-indexcount 3) (leaf 3))
 
-
-(defn binary-repr-of-n [n]
-  (Integer/toBinaryString n))
-
-(defn bits-of-n [n]
-  (map (comp #(Integer. %) str) (binary-repr-of-n n)))
-
-(defn bits-of-inc-n [n]
-  (bits-of-n (inc n)))
-
-(aget (bytes (byte-array (byte 4))) 1)
-(bit-and 1 1)
-
-(defn S-n [n]
-  (let [bits (bits-of-inc-n n)
-        reversed-bits (reverse bits)]
-    (reverse (map
-              #(+ % (nth reversed-bits %))
-              (range (dec (count bits)))))))
-
-(last (S-n 1222))
-
-;; 1222 (9 8 8 7 5 4 3 3 2 1)
-(S-n 19)
-(S-n 1222)
-(S-n 1223)
-
-(S-n 3)
-;; hack: value of leaf == height of represented peak
-(node (leaf 1) (leaf 0) 0)
-(S-n 3)
-
 (defn belt-right-most-operators [tree]
   (let [sequence-length (belt-depth-right-most tree)]
     {::right-most-child
@@ -390,7 +360,7 @@
 
 
 (let [leaf-count 3
-      S-n (S-n leaf-count)
+      S-n (primitives/S-n leaf-count)
       right-most-depth (last S-n)
       ;; example-tree (node (node (leaf 0) (leaf 1) 0) (leaf 2) 1)
       example-tree (mmr-from-leafcount 3)]
@@ -432,55 +402,10 @@
 
 (second (mmr-from-leafcount 3))
 
-;; fresh attempt (16.11.2021)
-;; reproduce the bagging structure by always recalculating from scratch. this is the first step in iteration towards moving towards a cached model
 
-(S-n 3)
-(rest (bits-of-inc-n 3))
 
 ;; (reduce)
 
-(defn create-new-range? [[n-2 n-1] n]
-  (or (and (= 1 n-1) (= 0 n))
-      (and (= 0 n-2) (= 1 n-1))))
-
-(let [running-range [[]]
-      ;; running-range [[0 0 1] [1] [0 0 1]]
-      ;; running-range [[0 0 1] [1] [0 0 1] [0 0]]
-      flattened-running-range (flatten running-range)
-      new-bit 0]
-  (if (create-new-range? (drop (- (count flattened-running-range) 2) flattened-running-range) new-bit)
-    ;; if true, create new range
-    (conj (into [] running-range) [new-bit])
-    ;; else, append to last current range
-    (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)])))
-
-;; DONE: add handling of bitlength = 2
-(defn append-to-belt-range [running-range new-bit]
-  (let [flattened-running-range (flatten running-range)
-        preceding-bits (drop (- (count flattened-running-range) 2) flattened-running-range)
-        preceding-bits-length (count preceding-bits)
-        preceding-bits-padded (if (< preceding-bits-length 2)
-                                (concat (repeat (- 2 preceding-bits-length) nil) preceding-bits)
-                                preceding-bits)]
-    (if (create-new-range? preceding-bits-padded new-bit)
-      ;; if true, create new range
-      (conj (into [] running-range) [new-bit])
-      ;; else, append to last current range
-      (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)]))))
-
-(append-to-belt-range [[0 0 1] [1] [0 0 1]] 0)
-
-(bits-of-inc-n 10)
-(defn belt-ranges [n]
-  ;; NOTE: the values are in fact irrelevant - it's really just the lengths of these lists that matter.
-  (reduce append-to-belt-range [[]] (rest (bits-of-n (inc n)))))
-
-;; compare S-n-1 & S-n: see at what position difference results
-;; compare belt-ranges n-1 & belt-ranges n: see at what position difference results
-
-;; NOTE result: S-n & belt-ranges always have same flattened length
-(every? #(apply = (map count %)) (map (juxt S-n (comp flatten belt-ranges)) (range 0 300)))
 
 (defn deep-walk
   "replace `value`s in nested `data` structure by (`f` `value`)"
@@ -519,14 +444,14 @@
           (map conj
                (map (fn [index] (belt-ranges-index-routes index m)) (range ((comp count flatten belt-ranges) m)))
                ;; (flatten (belt-ranges m))
-               (S-n m)
+               (primitives/S-n m)
                ))
         ]
   (comment
     (println "-------------------"
              (println
-              (map (fn [n] (filter #(discrepancy-at-index % [(S-n n) (S-n (inc n))])
-                                  (range ((comp count S-n inc) n))))
+              (map (fn [n] (filter #(discrepancy-at-index % [(primitives/S-n n) (primitives/S-n (inc n))])
+                                  (range ((comp count primitives/S-n inc) n))))
                    (range 30)))
              (println
               (map (fn [n] (filter #(discrepancy-at-index % (map belt-ranges-routes [n (inc n)]))
@@ -534,8 +459,8 @@
                    (range 30)))))
   (let [maxn 1000]
     (=
-     (pmap (fn [n] (filter #(discrepancy-at-index % [(S-n n) (S-n (inc n))])
-                          (range ((comp count S-n inc) n))))
+     (pmap (fn [n] (filter #(discrepancy-at-index % [(primitives/S-n n) (primitives/S-n (inc n))])
+                          (range ((comp count primitives/S-n inc) n))))
            (range maxn))
      (pmap (fn [n] (filter #(discrepancy-at-index % (map belt-ranges-routes [n (inc n)]))
                           (range ((comp count flatten belt-ranges inc) n))))

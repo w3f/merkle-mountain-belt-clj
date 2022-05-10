@@ -1,5 +1,5 @@
 (ns linked-peaks
-  (:require [core]))
+  (:require [primitives]))
 
 ;; generic tooling
 (def global-debugging (atom false))
@@ -96,6 +96,7 @@
    :parent parent
    :type :belt})
 
+;; state containers
 (def lastP (atom #{}))
 
 ;; (def R-count (atom 0))
@@ -252,7 +253,7 @@
                                                         0 #(if singleton-ranges? (assoc % :intruder true) %)
                                                         )))
                                       ;; returns number of nodes in each range
-                                      (map count (cons [] (core/belt-ranges @leaf-count)))))
+                                      (map count (cons [] (primitivesbelt-ranges @leaf-count)))))
             ;; belt-children ()
             root-bn (doall
                      (reduce (fn [left-child right-child]
@@ -672,8 +673,8 @@
                     #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:belt]))}
                     (if (and (= :belt grandparent-type)
                              (or
-                              (apply > (map (comp count core/belt-ranges) [@leaf-count (inc @leaf-count)]))
-                              (and (apply = (map (comp count core/belt-ranges) [@leaf-count (inc @leaf-count)]))
+                              (apply > (map (comp count primitivesbelt-ranges) [@leaf-count (inc @leaf-count)]))
+                              (and (apply = (map (comp count primitivesbelt-ranges) [@leaf-count (inc @leaf-count)]))
                                    ;; NOTE: right thinking, but issue is that mergeable pair has already been removed from stack
                                    ;; (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
                                    ;; NOTE: instead, check whether @lastP has its own range node :D
@@ -1146,7 +1147,7 @@
                           )
                          ;; group the peaks by hashset length
                          (nth (sort (group-by count (keys @node-map))) n)))))
-        (range (count (core/S-n @leaf-count))))
+        (range (count (primitivesS-n @leaf-count))))
 
 (def algo-new-mismatch (play-algo (inc (last-algo-match)) true))
 (def algo-old-mismatch (play-algo (inc (last-algo-match)) false))
