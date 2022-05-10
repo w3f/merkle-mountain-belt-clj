@@ -9,12 +9,33 @@
 (defn bits-of-inc-n [n]
   (bits-of-n (inc n)))
 
-(defn S-n [n]
+(defn binary-repr-of-n [n]
+  (Integer/toBinaryString n))
+
+;; test for n=1221
+(comment
+  (S-n 1221)
+  (binary-repr-of-n 1222))
+
+(defn S-n-deprecated
+  "list of mountain heights for leaf-count `n`"
+  [n]
   (let [bits (bits-of-inc-n n)
         reversed-bits (reverse bits)]
     (reverse (map
               #(+ % (nth reversed-bits %))
               (range (dec (count bits)))))))
+
+(defn S-n
+  "list of mountain heights for leaf-count `n`"
+  [n]
+  (let [bits (map (comp #(Integer. %) str) (binary-repr-of-n (inc n)))
+        reversed-bits (reverse bits)]
+    (reverse (map
+              #(+ % (nth reversed-bits %))
+              (range (dec (count bits)))))))
+
+(every? #(= (S-n %) (S-n-deprecated %)) (range 20000))
 
 (last (S-n 1222))
 

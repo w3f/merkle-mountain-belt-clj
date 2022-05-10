@@ -1,5 +1,5 @@
 (ns linked-peaks
-  (:require [primitives.core/.core]))
+  (:require [primitives.core]))
 
 ;; generic tooling
 (def global-debugging (atom false))
@@ -1167,8 +1167,8 @@
       parent-less (filter #(= nil (:parent (val %))) (:node-map nodes))]
   (every? true?
           [
-           (= (storage/S-n n) (reverse (sort (map (comp :height val) parent-less))))
-           (= (storage/S-n n) (reverse (map (comp :height #(get @node-map %)) (take-while some? (iterate hop-left (:lastP nodes))))))
+           (= (primitives.core/S-n n) (reverse (sort (map (comp :height val) parent-less))))
+           (= (primitives.core/S-n n) (reverse (map (comp :height #(get @node-map %)) (take-while some? (iterate hop-left (:lastP nodes))))))
            (every? nil? (map #(:parent (get @node-map %)) (take-while #(some? (get @node-map %)) (iterate hop-left @lastP))))
            ]
           ))

@@ -1,5 +1,6 @@
 (ns storage
-  (:require [core]))
+  (:require [core]
+            [primitives.core]))
 
 (defonce storage-array (atom '[]))
 (defonce parent-less-nodes-atom (atom #{}))
@@ -30,27 +31,10 @@
     (highest-exponent-st-dividing p n)
     ))
 
-(defn binary-repr-of-n [n]
-  (Integer/toBinaryString n))
-
 (comment
   (aget (bytes (byte-array (byte 4))) 1)
   (bit-and 1 1))
 
-;; test for n=1221
-(comment
-  (S-n 1221)
-  (binary-repr-of-n 1222))
-
-
-(defn S-n
-  "list of mountain heights for leaf-count `n`"
-  [n]
-  (let [bits (map (comp #(Integer. %) str) (binary-repr-of-n (inc n)))
-        reversed-bits (reverse bits)]
-    (reverse (map
-              #(+ % (nth reversed-bits %))
-              (range (dec (count bits)))))))
 
 (defn left-child [parent]
   (- parent (* 3 (int (Math/pow 2 (- (p-adic-order 2 parent) 1))))))
@@ -95,7 +79,7 @@
   )
 
 (comment
-  (= (S-n @leaf-count)
+  (= (primitives.core/S-n @leaf-count)
     (reverse (sort (map node-height-literal @parent-less-nodes-cache)))))
 
 (map (juxt identity node-height-literal) @parent-less-nodes-cache)
@@ -198,7 +182,7 @@
                     (conj %1 index)
                     )
                  []
-                 (S-n n))
+                 (primitives.core/S-n n))
     ))
 
 (defn parent-less-nodes
@@ -227,7 +211,7 @@
 (nth @peaks-accumulator (dec 4))
 (first @peaks-accumulator)
 (map-indexed #(identity [(inc %1) (- (apply max %2) (apply min %2))]) (take 100 @peaks-accumulator))
-(comment (apply min (map (comp last butlast S-n) (range 3 1E4))))
+(comment (apply min (map (comp last butlast primitives.core/S-n) (range 3 1E4))))
 
 (map #(p-adic-order 2 %) (range 1 100))
 
@@ -342,7 +326,7 @@
      current-bagging
      (bag-left-to-right [current-bagging (first remainder)] (rest remainder)))))
 
-;; (bag-left-to-right (map #(core/leaf %) (S-n 7)))
+;; (bag-left-to-right (map #(core/leaf %) (primitives.core/S-n 7)))
 
 (defn range-node-map
   ([nodes]
@@ -380,7 +364,7 @@
 (nth (range-node-edges [1 2 3 4 5]) 1)
 
 (nth (range-node-edges @parent-less-nodes-cache) 1)
-;; (S-n 19)
+;; (primitives.core/S-n 19)
 
 (defn range-node-map-unfold [range-node-map])
 
@@ -427,7 +411,7 @@
               ;; [index (/ index adic)]
               )
            [[] (+ 3 (* 2 n))]
-           ;; (reverse (S-n 1222))
+           ;; (reverse (primitives.core/S-n 1222))
            (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))
            ))
    (into [] (reverse (sort (into [] (nth @peaks-accumulator (dec n)))))) )
@@ -462,7 +446,7 @@
                                 (conj %1 index)
                                 )
                              []
-                             (S-n n)))
+                             (primitives.core/S-n n)))
                )
              (sort (into [] (nth @peaks-accumulator (dec n))))
              ))
@@ -512,7 +496,7 @@
                )
          ))
 
-(S-n 1222)
+(primitives.core/S-n 1222)
 (comment
   (reverse (sort (map #(highest-exponent-st-dividing 2 %) (nth @peaks-accumulator (dec 1222))))))
 (comment
@@ -524,18 +508,16 @@
 
 (highest-exponent-st-dividing 2 10000)
 
-(S-n 1222)
+(primitives.core/S-n 1222)
 
 (defn s-m-of-n [m n]
-  (nth (reverse (S-n n)) m))
+  (nth (reverse (primitives.core/S-n n)) m))
 
-(S-n 4)
-(S-n 1222)
-(S-n 1232)
-(S-n 3)
+(primitives.core/S-n 4)
+(primitives.core/S-n 1222)
+(primitives.core/S-n 1232)
+(primitives.core/S-n 3)
 (s-m-of-n 7 1222)
-
-(binary-repr-of-n 1222)
 
 ;; (let [reversed-bits (map (comp #(Integer/parseUnsignedInt %) str) (reverse (binary-repr-of-n 1222)))]
 ;;   (map #(+ %1 %2) reversed-bits (range (count reversed-bits))))
@@ -579,7 +561,7 @@
 ;; defn append-leaf
 ;; TODO: in progress
 (comment
-  (if (= 0 (last (S-n @leaf-count)))
+  (if (= 0 (last (primitives.core/S-n @leaf-count)))
    ;; if 0, create new parent of right-most parent-less node - parent-less node becomes left child and new leaf becomes right child. Then merge right-most parents with equal height.
    "append and merge"
    ;; if 1, create new parent of (singleton) right-most parent-less node. Then stop.
