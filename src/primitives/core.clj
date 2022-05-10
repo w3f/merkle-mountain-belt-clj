@@ -1,4 +1,4 @@
-(ns primitives)
+(ns primitives.core)
 
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
@@ -25,9 +25,8 @@
 
 (S-n 3)
 ;; hack: value of leaf == height of represented peak
-(node (leaf 1) (leaf 0) 0)
+(comment (node (leaf 1) (leaf 0) 0))
 (S-n 3)
-
 
 ;; fresh attempt (16.11.2021)
 ;; reproduce the bagging structure by always recalculating from scratch. this is the first step in iteration towards moving towards a cached model
