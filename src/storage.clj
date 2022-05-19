@@ -1,15 +1,12 @@
 (ns storage
   (:require [core]
             [primitives.core]
-            [primitives.storage]))
+            [primitives.storage :refer [left-child right-child]]))
 
 (defonce storage-array (atom '[]))
 (defonce parent-less-nodes-atom (atom #{}))
 (defonce parent-less-nodes-cache (atom #{}))
 (defonce peaks-accumulator (atom []))
-
-(defonce leaf-count (atom 0))
-(defonce node-count (atom 0))
 
 (defn leaf-location [n]
   (+ (* 2 n) 1))
@@ -21,11 +18,7 @@
   (aget (bytes (byte-array (byte 4))) 1)
   (bit-and 1 1))
 
-(defn left-child [parent]
-  (- parent (* 3 (int (Math/pow 2 (- (primitives.storage/p-adic-order 2 parent) 1))))))
 
-(defn right-child [parent]
-  (- parent (int (Math/pow 2 (- (primitives.storage/p-adic-order 2 parent) 1)))))
 
 (defn children [parent]
   ((juxt left-child right-child) parent))
@@ -51,15 +44,6 @@
         (swap! parent-less-nodes-atom #(apply disj % (children (peak-location @leaf-count)))))
       )
     (swap! peaks-accumulator #(conj % @parent-less-nodes-atom)))
-  )
-
-(defn node-height-literal
-  "takes the node index `n` and returns the node's height"
-  [n]
-  (let [child-iterator (iterate left-child n)]
-    (count (take-while #(not= (nth child-iterator %)
-                        (nth child-iterator (inc %)))
-                 (range 3000))))
   )
 
 (comment
@@ -111,9 +95,6 @@
 (defn parents []
   (filter #(string? (:id %)) (node-maps @storage-array)))
 
-(defn parent-index [child-index]
-  (+ child-index (mod child-index (int (Math/pow 2 (+ (primitives.storage/p-adic-order 2 child-index) 2))))))
-
 (comment
   (map (fn [child-index] (- (+ (mod child-index (int (Math/pow 2 (+ (primitives.storage/p-adic-order 2 child-index) 2))))))) (range 1 1000)))
 
@@ -140,60 +121,31 @@
    )
   )
 
-;; defined using `peak-positions-final`
-(defn parent-less-nodes-internal
-  "get peaks for current leaf-count or `n`"
-  [n]
-  (let [array-size (+ 2 (* 2 n))]
-    (reduce #(let [adic (int (Math/pow 2 %2))
-                        prepreindex (- array-size (mod array-size adic))
-                        ;; TODO: refactor since this only supports two collisions
-                        preindex (if (let [log (/ (Math/log prepreindex) (Math/log 2))]
-                                       (or
-                                        (= 0.0 (- log (int log)))
-                                        (some (fn [existing-index] (= existing-index prepreindex)) (reverse %1))
-                                        ))
-                                   (- prepreindex adic)
-                                   prepreindex)
-                        index (if (let [log (/ (Math/log preindex) (Math/log 2))]
-                                    (or
-                                     (= 0.0 (- log (int log)))
-                                     (some (fn [existing-index] (= existing-index preindex)) (reverse %1))
-                                     ))
-                                (- preindex adic)
-                                preindex)
-                        ]
-                    (conj %1 index)
-                    )
-                 []
-                 (primitives.core/S-n n))
-    ))
-
-(defn parent-less-nodes
-  "get peaks for current leaf-count or `n`"
-  ([] (parent-less-nodes @leaf-count))
-  ([n]
-   (into #{} (parent-less-nodes-internal n))))
-
 (clojure.set/difference @parent-less-nodes-cache @parent-less-nodes-atom)
 
-(do
-  (reset! storage-array '[])
-  (reset! leaf-count 0)
-  (reset! node-count 0)
-  (reset! peaks-accumulator [])
-  (reset! parent-less-nodes-atom #{})
-  (println "------")
-  (doall (map #(add-leaf %) (range 1 1223)))
-  ;; (doall (map #(add-leaf %) (range 1 1224)))
-  (reset! parent-less-nodes-cache (parent-less-nodes))
-  ;; (println (range (count @storage-array)))
-  ;; (println @storage-array)
-  (let [print-len 50] (apply str (map #(str %1 ": " %2 " |") (range print-len) (take print-len @storage-array))))
-  )
+(defn run [n]
+  (do
+   (reset! storage-array '[])
+   (reset! leaf-count 0)
+   (reset! node-count 0)
+   (reset! peaks-accumulator [])
+   (reset! parent-less-nodes-atom #{})
+   (println "------")
+   (doall (map #(add-leaf %) (range 1 n)))
+   ;; (doall (map #(add-leaf %) (range 1 1223)))
+   ;; (doall (map #(add-leaf %) (range 1 1224)))
+   (reset! parent-less-nodes-cache (parent-less-nodes))
+   ;; (println (range (count @storage-array)))
+   ;; (println @storage-array)
+   (let [print-len 50] (apply str (map #(str %1 ": " %2 " |") (range print-len) (take print-len @storage-array))))
+   ))
 
-(nth @peaks-accumulator (dec 4))
-(first @peaks-accumulator)
+(comment
+  (run 1223))
+
+(comment
+  (nth @peaks-accumulator (dec 4))
+  (first @peaks-accumulator))
 (map-indexed #(identity [(inc %1) (- (apply max %2) (apply min %2))]) (take 100 @peaks-accumulator))
 (comment (apply min (map (comp last butlast primitives.core/S-n) (range 3 1E4))))
 
@@ -325,10 +277,6 @@
      ))
   )
 
-;; hacky calculation of parent: if number, take position in (max (position-parent-less-nodes))
-(defn position-parentless-nodes [node]
-  (first (filter #(= node (nth (into [] (parent-less-nodes)) %)) (range (count (parent-less-nodes))))))
-
 (defn left-to-right-parent [node]
   (if (number? node)
     (str "range-node-" (max 0 (- (position-parentless-nodes node) 1)))
@@ -360,12 +308,6 @@
 ;; -> true
 
 (comment (map (juxt identity node-height-literal) @parent-less-nodes-cache))
-
-(defn parent-less-nodes-sorted-height
-  "sorts nodes by height (inverse), with tie-breaker being the node index"
-  [nodes]
-  (sort #(compare (nth %2 1) (nth %1 1))
-        (map (juxt identity node-height-literal) (sort nodes))))
 
 (comment (map first (parent-less-nodes-sorted-height @parent-less-nodes-cache)))
 (comment ([1536 9] [1792 8] [2304 8] [2432 7] [2400 5] [2416 4] [2424 3] [2440 3] [2444 2] [2446 1]))

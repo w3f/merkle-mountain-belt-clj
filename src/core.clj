@@ -474,7 +474,7 @@
 (comment
   (belt-ranges @storage/leaf-count))
 
-((juxt S-n belt-ranges) 4)
+((juxt primitives/S-n belt-ranges) 4)
 
 (comment
   (storage/range-node-edges (first (belt-ranges 1222)) 3))

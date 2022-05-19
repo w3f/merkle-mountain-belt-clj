@@ -204,7 +204,7 @@
         ;; node-array (atom (:node-array algo-1222))
         ;; range-nodes (atom {})
         ;; belt-nodes (atom {})
-        original-sorted-peaks (map #(get @node-map (nth @node-array (first %))) (storage/parent-less-nodes-sorted-height (storage/parent-less-nodes @leaf-count)))
+        original-sorted-peaks (map #(get @node-map (nth @node-array (first %))) (primitives.storage/parent-less-nodes-sorted-height (primitives.storage/parent-less-nodes @leaf-count)))
         ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
         sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
         ;; sorted-peaks (atom (if singleton-ranges? (cons (peak-node #{} (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
@@ -287,76 +287,12 @@
       (= #{} (:hash M))
     ))
 
-(defn new-leaf-range [oneshot-nesting? h P]
-  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:singleton-range]))}
-  ;; DONE: if distinct ranges, we're also adding a new belt node for the new leaf
-  (if (distinct-ranges? (get @node-map @lastP) P)
-    (do
-      ;; create new root belt node with new leaf's parent range node as right child and former root node as left child
-      (let [new-belt-root (clojure.set/union h @root-belt-node)]
-        (swap! belt-nodes #(assoc % new-belt-root (belt-node @root-belt-node h new-belt-root nil)))
-        ;; TODO: skipping #{} because?
-        (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
-        ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
-        (reset! root-belt-node new-belt-root)
-        ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
-        (swap! range-nodes #(assoc % h (range-node (:hash (get-parent (get @node-map @lastP) :range)) h h new-belt-root)))
-        )
 
-      (swap! node-map #(assoc-in % [h :parent] h))
-      ;; conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
-      (if (>= @leaf-count 8)
-        (let [last-range-node-hash (:parent (get @node-map @lastP))
-              last-belt-node-hash (:parent (get @range-nodes last-range-node-hash))
-              new-belt-hash (clojure.set/union (or last-belt-node-hash last-range-node-hash) h)]
-          (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil)))))
-      )
-    ;; else new leaf joins last range, i.e. get new range node above new leaf
-    ;; TODO: update parent belt node hash, likewise for its left sibling
-    (let [last-range (get-parent (get @node-map @lastP) :range)
-          old-belt-parent (get @belt-nodes (:parent last-range))
-          hash-new-range (clojure.set/union (:hash last-range) h)
-          new-belt-parent (clojure.set/union hash-new-range (:left old-belt-parent))
-          new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)
-          ]
-      (do
-        (swap! range-nodes #(assoc % (:hash new-range) new-range))
-        (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
-        (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
-        ;; update former range-leader's parent belt to have new range-leader as child
-        ;; TODO: following is wrong since old belt node is deleted
-        (comment (swap! belt-nodes #(assoc-in % [(:parent new-range) :right] (:hash new-range)))
-                 ;; recalculate belt-node hash since has new right child
-                 ;; TODO: delay until last possible moment since left child may be updated too during merge
-                 (swap! belt-nodes #(assoc-in % [(:parent new-range) :hash] (clojure.set/union (:left belt-parent) (:hash new-range)))))
 
-        ;; TODO: assert that old-belt-node is root belt node
-        (swap! belt-nodes #(assoc % new-belt-parent (belt-node (:left old-belt-parent) (:hash new-range) new-belt-parent (:parent old-belt-parent))))
-        ;; update old belt node's left parent pointer to refer to new belt node
-        (if (contains? @belt-nodes (:left old-belt-parent))
-          (swap! belt-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
-          (if (contains? @range-nodes (:left old-belt-parent))
-            (swap! range-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
-            (throw (Exception. (str "old belt node's left child was invalid at leaf count " @leaf-count)))
-            ))
-        (swap! belt-nodes #(dissoc % (:hash old-belt-parent)))
-        (reset! root-belt-node new-belt-parent)
-        ;; TODO: update siblings around update
 
-        ))
-    ))
-
-(defn types
-  "returns all types that a given hash has an entry for"
-  [hash]
-  (into #{} (map :type (filter some? (map #(get @% hash) [node-map range-nodes belt-nodes])))))
-
-(defn get-node
-  "returns the node with a given hash, as long as it exists for the provided type"
-  [hash type]
-  (get @(get storage-maps type) hash))
 
 (def type-rank
+  "used for classifying possible parent/child types"
   (zipmap
    [:internal :peak :range :belt]
    (range)))
@@ -452,6 +388,76 @@
 (comment
   (get-sibling (get @node-map #{60})))
 
+
+(defn new-leaf-range [oneshot-nesting? h P]
+  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:singleton-range]))}
+  ;; DONE: if distinct ranges, we're also adding a new belt node for the new leaf
+  (if (distinct-ranges? (get @node-map @lastP) P)
+    (do
+      ;; create new root belt node with new leaf's parent range node as right child and former root node as left child
+      (let [new-belt-root (clojure.set/union h @root-belt-node)]
+        (swap! belt-nodes #(assoc % new-belt-root (belt-node @root-belt-node h new-belt-root nil)))
+        ;; TODO: skipping #{} because?
+        (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
+        ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
+        (reset! root-belt-node new-belt-root)
+        ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
+        (swap! range-nodes #(assoc % h (range-node (:hash (get-parent (get @node-map @lastP) :range)) h h new-belt-root)))
+        )
+
+      (swap! node-map #(assoc-in % [h :parent] h))
+      ;; conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
+      (if (>= @leaf-count 8)
+        (let [last-range-node-hash (:parent (get @node-map @lastP))
+              last-belt-node-hash (:parent (get @range-nodes last-range-node-hash))
+              new-belt-hash (clojure.set/union (or last-belt-node-hash last-range-node-hash) h)]
+          (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil)))))
+      )
+    ;; else new leaf joins last range, i.e. get new range node above new leaf
+    ;; TODO: update parent belt node hash, likewise for its left sibling
+    (let [last-range (get-parent (get @node-map @lastP) :range)
+          old-belt-parent (get @belt-nodes (:parent last-range))
+          hash-new-range (clojure.set/union (:hash last-range) h)
+          new-belt-parent (clojure.set/union hash-new-range (:left old-belt-parent))
+          new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)
+          ]
+      (do
+        (swap! range-nodes #(assoc % (:hash new-range) new-range))
+        (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
+        (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
+        ;; update former range-leader's parent belt to have new range-leader as child
+        ;; TODO: following is wrong since old belt node is deleted
+        (comment (swap! belt-nodes #(assoc-in % [(:parent new-range) :right] (:hash new-range)))
+                 ;; recalculate belt-node hash since has new right child
+                 ;; TODO: delay until last possible moment since left child may be updated too during merge
+                 (swap! belt-nodes #(assoc-in % [(:parent new-range) :hash] (clojure.set/union (:left belt-parent) (:hash new-range)))))
+
+        ;; TODO: assert that old-belt-node is root belt node
+        (swap! belt-nodes #(assoc % new-belt-parent (belt-node (:left old-belt-parent) (:hash new-range) new-belt-parent (:parent old-belt-parent))))
+        ;; update old belt node's left parent pointer to refer to new belt node
+        (if (contains? @belt-nodes (:left old-belt-parent))
+          (swap! belt-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
+          (if (contains? @range-nodes (:left old-belt-parent))
+            (swap! range-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
+            (throw (Exception. (str "old belt node's left child was invalid at leaf count " @leaf-count)))
+            ))
+        (swap! belt-nodes #(dissoc % (:hash old-belt-parent)))
+        (reset! root-belt-node new-belt-parent)
+        ;; TODO: update siblings around update
+
+        ))
+    ))
+
+(defn types
+  "returns all types that a given hash has an entry for"
+  [hash]
+  (into #{} (map :type (filter some? (map #(get @% hash) [node-map range-nodes belt-nodes])))))
+
+(defn get-node
+  "returns the node with a given hash, as long as it exists for the provided type"
+  [hash type]
+  (get @(get storage-maps type) hash))
+
 ;; siblings of ephemeral nodes are also ephemeral
 (defn co-path-ephemeral
   ([entry accumulator]
@@ -467,6 +473,9 @@
   (truncate-#set-display (get-parent (get-parent (get-parent (get-parent (get @node-map (:right (get @node-map #{})))))))))
 
 (co-path-ephemeral (get @node-map (:right (get @node-map #{}))) [])
+
+(defn sibling-index [n-index]
+  (first (filter #(not= n-index %) (storage/children (primitives.storage/parent-index n-index)))))
 
 (defn co-path-internal
   ([index accumulator]
@@ -528,10 +537,54 @@
 
 (comment
   ((fn [leaf-number]
-    (let [co-path (co-path-internal (storage/leaf-location leaf-number) [])]
-      [(reduce (fn [acc v] (+ acc (count v))) 0 co-path)
-       (count (into #{} (apply concat co-path)))]))
-  65))
+     (let [co-path (co-path-internal (storage/leaf-location leaf-number) [])]
+       [(reduce (fn [acc v] (+ acc (count v))) 0 co-path)
+        (count (into #{} (apply concat co-path)))]))
+   65))
+
+(defn edges-to-root
+  ([ephemeral-node]
+   (edges-to-root ephemeral-node []))
+  ([ephemeral-node accumulator]
+   (let [parent (get-parent ephemeral-node)]
+     (if parent
+       ;; (edges-to-root parent (concat accumulator [[(select-keys ephemeral-node [:hash :type :height]) (select-keys parent [:hash :type])]]))
+       (edges-to-root parent (concat accumulator [[(str (:type ephemeral-node) ": " (truncate-#set-display (:hash ephemeral-node)))
+                                                   (str (:type parent) ": " (truncate-#set-display (:hash parent)))]]))
+       accumulator))))
+
+(get-parent (get @belt-nodes @root-belt-node))
+
+;; TODO: construct list of edges
+(defn graph [n]
+  (do
+    (play-algo n false)
+    (let [peaks (select-keys
+                @node-map
+                (filter (fn [k] (= :peak (:type (get @node-map k)))) (keys @node-map)))
+         edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
+         nodes (into #{} (apply concat edges))]
+     ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))
+     [
+      ;; nodes
+      nodes
+      ;; edges
+      edges
+      ;; options
+      {
+       :graph {
+               :rankdir :BT
+               :label (str "n=" @leaf-count)
+               ;; :layout :neato
+               }
+       :node {:shape :oval}
+       :node->id (fn [n] (:id n))
+       :node->descriptor (fn [n] (when (map? n) n))
+       }
+      ]
+     )))
+
+
 
 (comment
   (co-path-internal (storage/leaf-location 65) []))
@@ -545,8 +598,6 @@
    (map first (filter (fn [[i v]] v) (map-indexed (fn [i v] [i (and (not= 0 v) (not= 1 (count v)))]) @node-array))))
 
 
-(defn sibling-index [n-index]
-  (first (filter #(not= n-index %) (storage/children (storage/parent-index n-index)))))
 
 
 (comment
@@ -844,6 +895,7 @@
       ))
   )
 
+;; TODO: maybe create new ns for the storage atoms
 (defn reset-atoms-from-cached! [cached]
   (reset! node-map (:node-map cached))
   (reset! node-array (:node-array cached))
@@ -1068,6 +1120,8 @@
   (= fresh-1222 cached-1222)
   )
 
+(def oneshot-1222 (oneshot-nesting-from-cached algo-1222))
+(def oneshot-1223 (oneshot-nesting-from-cached algo-1223))
 (filter #(= :peak (:type (get (:node-map algo-1222) (nth (:node-array algo-1222) %))))
         (range (count (:node-array algo-1222))))
 (comment (list 1533 1789 2301 2397 2413 2421 2429 2437 2441 2443))
@@ -1087,6 +1141,8 @@
 (comment {#{0 1 2 3 4 5 6 7 8} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{0 1 2 3 4 5 6 7 8}, :parent nil, :type :belt}})
 
 (:belt-children (oneshot-nesting-from-fresh 9 true))
+(defonce result-1222-cached (oneshot-nesting-from-fresh 1222))
+(defonce result-1223-cached (oneshot-nesting-from-fresh 1223))
 (=
  (map #(if (instance? clojure.lang.Atom %) @% %) (vals result-1222-cached))
  (map #(if (instance? clojure.lang.Atom %) @% %) (vals (oneshot-nesting-from-fresh 1222))))
