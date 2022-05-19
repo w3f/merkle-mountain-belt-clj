@@ -469,6 +469,39 @@
   ;; NOTE ergo: locations of changes in in belt-range splitting are only a subset of the locations of changes in S-n
   )
 
+(letfn [(discrepancy-at-index [index seqs]
+          (apply not= (map #(nth % index nil) seqs)))
+        (belt-ranges-index-routes [index n]
+          (find-index-route index (convert-nested-to-indices (belt-ranges n)))
+          )
+        ;; (belt-ranges-routes [])
+        (belt-ranges-routes [m]
+          ;; #dbg
+          (map conj
+               (map (fn [index] (belt-ranges-index-routes index m)) (range ((comp count flatten belt-ranges) m)))
+               ;; (flatten (belt-ranges m))
+               (primitives/S-n m)
+               ))
+        ]
+  (let [n 1278]
+    [
+     ;; returns the index at which first discrepancy is detected
+     ((fn [n] (first (filter #(discrepancy-at-index % [(primitives/S-n n) (primitives/S-n (inc n))])
+                            (range ((comp count primitives/S-n inc) n)))))
+      n)
+     ;; returns the belt ranges
+     (comment
+       ((fn [m]
+          (map conj
+               (map (fn [index] (belt-ranges-index-routes index m)) (range ((comp count flatten belt-ranges) m)))
+               ;; (flatten (belt-ranges m))
+               (primitives/S-n m)
+               ))
+        n))
+     (belt-ranges-routes n)
+     ])
+  )
+
 
 ;; map indices to belt-ranges
 (comment
