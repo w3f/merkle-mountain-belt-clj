@@ -1,27 +1,22 @@
 (ns storage
   (:require [core]
             [primitives.core]
-            [primitives.storage :refer [left-child right-child]]))
+            [primitives.storage :refer [left-child right-child storage-array]]))
 
-(defonce storage-array (atom '[]))
 (defonce parent-less-nodes-atom (atom #{}))
 (defonce parent-less-nodes-cache (atom #{}))
 (defonce peaks-accumulator (atom []))
-
-(defn leaf-location [n]
-  (+ (* 2 n) 1))
-
-(defn peak-location [n]
-  (+ (* 2 n) 2))
 
 (comment
   (aget (bytes (byte-array (byte 4))) 1)
   (bit-and 1 1))
 
+;; (children 20)
 
+(binary-repr-of-n 14)
 
-(defn children [parent]
-  ((juxt left-child right-child) parent))
+;; (defn is-left-child [node]
+;;   (if (node)))
 
 (defn add-internal [item index]
   (let [array-len (count @storage-array)

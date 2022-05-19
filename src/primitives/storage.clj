@@ -1,5 +1,13 @@
 (ns primitives.storage)
 
+(defonce storage-array (atom '[]))
+
+(defn leaf-location [n]
+  (+ (* 2 n) 1))
+
+(defn peak-location [n]
+  (+ (* 2 n) 2))
+
 (defn highest-exponent-st-dividing [p n]
   ;; TODO: improve this algorithm - it's inefficient as fuck!
   (last
@@ -23,6 +31,9 @@
 
 (defn right-child [parent]
   (- parent (int (Math/pow 2 (- (p-adic-order 2 parent) 1)))))
+
+(defn children [parent]
+  ((juxt left-child right-child) parent))
 
 (defn childedness [node]
   (get {3 :left
