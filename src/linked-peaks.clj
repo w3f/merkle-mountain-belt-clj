@@ -3,6 +3,8 @@
             [primitives.storage]
             [state :refer :all]))
 
+(println "start:" (new java.util.Date))
+
 (def run-tests (atom false))
 (defn toggle-tests [] (swap! run-tests #(not %)))
 
@@ -920,12 +922,14 @@
   ;; => true
   )
 
+(println "pre-algos:" (new java.util.Date))
 (def algo-bound 101)
 (def oneshot-only-algos (atom (doall (map #(play-algo % true) (range 1 algo-bound)))))
 (def oneshot-algos (atom (doall (map #(play-algo-oneshot-end %) (range 1 algo-bound)))))
 (def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 algo-bound)))))
 (def manual-only-algos (atom (doall (map #(play-algo % false) (range 1 algo-bound)))))
 (def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 algo-bound)))))
+(println "post-algos:" (new java.util.Date))
 
 (comment
   (with-open [w (clojure.java.io/writer "src/cached.clj")]
@@ -972,15 +976,16 @@
 
 (doall (map #(play-algo-manual-end %) (range 1 3)))
 
-(toggle-debugging)
-(all-debugging)
+(comment
+  (toggle-debugging)
+  (all-debugging)
 
-(play-algo 1 false)
-(reset! debugging-flags #{:singleton-range})
-(reset! debugging-flags #{:merge})
-(reset! debugging-flags #{:peak-merge})
-(reset! debugging-flags #{:belt})
-(debugging [#{:singleton-range}])
+  (play-algo 1 false)
+  (reset! debugging-flags #{:singleton-range})
+  (reset! debugging-flags #{:merge})
+  (reset! debugging-flags #{:peak-merge})
+  (reset! debugging-flags #{:belt})
+  (debugging [#{:singleton-range}]))
 
 (letfn [
         (mapulation [value]
@@ -1035,11 +1040,13 @@
             (nth b-reverse j))
          (range 1500)))
 
+(println "pre-big-algos:" (new java.util.Date))
 (def algo-1222 (play-algo-oneshot-end 1222))
 (def algo-1223 (play-algo-oneshot-end 1223))
 (def algo-1277 (play-algo-oneshot-end 1277))
 (def algo-1278 (play-algo-oneshot-end 1278))
 (def algo-1279 (play-algo-oneshot-end 1279))
+(println "post-big-algos:" (new java.util.Date))
 
 ;; test: all peak nodes are connected and can be reached from one another
 (if @run-tests
@@ -1135,71 +1142,77 @@
   ;;      (map #(- % 3) (primitives.storage/parent-less-nodes n)))
   )
 
-(defonce result-1222-cached (oneshot-nesting-from-fresh 1222 true))
-(defonce result-1223-cached (oneshot-nesting-from-fresh 1223 true))
-(=
- (map #(if (instance? clojure.lang.Atom %) @% %) (vals result-1222-cached))
- (map #(if (instance? clojure.lang.Atom %) @% %) (vals (oneshot-nesting-from-fresh 1222))))
+(if @run-tests
+  (do (def result-1222-cached (oneshot-nesting-from-fresh 1222 true))
+      (def result-1223-cached (oneshot-nesting-from-fresh 1223 true))))
+(if @run-tests
+  (=
+   (map #(if (instance? clojure.lang.Atom %) @% %) (vals result-1222-cached))
+   (map #(if (instance? clojure.lang.Atom %) @% %) (vals (oneshot-nesting-from-fresh 1222 true))))
+  ;; => true
+  )
 
-(:type (first (:belt-children result-1222-cached)))
-(get (:node-map result-1222-cached) (:left (first (:belt-children result-1222-cached))))
-; => nil - TODO correct?
-(get (:node-map algo-1222) (:left (first (:belt-children result-1222-cached))))
-(get (:node-map result-1222-cached) (:hash (first (:belt-children result-1222-cached))))
+(if @run-tests
+  (do
+    (:type (first (:belt-children result-1222-cached)))
+    (get (:node-map result-1222-cached) (:left (first (:belt-children result-1222-cached))))
+                                        ; => nil - TODO correct?
+    (get (:node-map algo-1222) (:left (first (:belt-children result-1222-cached))))
+    (get (:node-map result-1222-cached) (:hash (first (:belt-children result-1222-cached))))
 
-(nth (map :parent (:node-map result-1222-cached)) 3)
-(map some? (map (fn [val] (get (:range-nodes result-1222-cached) val))
-                (map :hash (filter (fn [entry] (= :range (:type entry)))
-                                   (map #(select-keys % [:type :hash]) (:belt-children result-1222-cached))))))
-;; -> can find all range nodes in collector
+    (nth (map :parent (:node-map result-1222-cached)) 3)
+    (map some? (map (fn [val] (get (:range-nodes result-1222-cached) val))
+                    (map :hash (filter (fn [entry] (= :range (:type entry)))
+                                       (map #(select-keys % [:type :hash]) (:belt-children result-1222-cached))))))
+    ;; -> can find all range nodes in collector
 
-(map some? (map (fn [val] (get (:node-map result-1222-cached) val))
-                (map :hash (filter (fn [entry] (= :range (:type entry)))
-                                   ;; (map #(select-keys % [:type :hash]) (:belt-children result-1222) )))))
-                                   (:belt-children result-1222-cached)))))
-;; -> can find first range node in collector
+    (map some? (map (fn [val] (get (:node-map result-1222-cached) val))
+                    (map :hash (filter (fn [entry] (= :range (:type entry)))
+                                       ;; (map #(select-keys % [:type :hash]) (:belt-children result-1222) )))))
+                                       (:belt-children result-1222-cached)))))
+    ;; -> can find first range node in collector
 
-(map some? (map (fn [val] (:parent (get (:range-nodes result-1222-cached) val)))
-                (map :hash (filter (fn [entry] (= :range (:type entry)))
-                                   (map #(select-keys % [:type :hash]) (:belt-children result-1222-cached))))))
-;; ERGO -> the two last belt children don't have a daddy set, i.e. we're not updating this with final belt node? TODO: Investigate!!!
-;; update: TODO is this true?
+    (map some? (map (fn [val] (:parent (get (:range-nodes result-1222-cached) val)))
+                    (map :hash (filter (fn [entry] (= :range (:type entry)))
+                                       (map #(select-keys % [:type :hash]) (:belt-children result-1222-cached))))))
+    ;; ERGO -> the two last belt children don't have a daddy set, i.e. we're not updating this with final belt node? TODO: Investigate!!!
+    ;; update: TODO is this true?
 
-(count (:range-nodes result-1222-cached))
-(count (:belt-nodes result-1222-cached))
-;; ERGO -> it adds new range nodes, and the old ones don't attain parents!
+    (count (:range-nodes result-1222-cached))
+    (count (:belt-nodes result-1222-cached))
+    ;; ERGO -> it adds new range nodes, and the old ones don't attain parents!
 
-(map some? (map (fn [val] (:parent (get (:range-nodes result-1222-cached) val)))
-                (map :hash (filter (fn [entry] (= :range (:type entry)))
-                                   (map #(select-keys % [:type :hash]) (:range-nodes result-1222-cached))))))
-;; ERGO -> the two last belt children don't have a daddy set, i.e. we're not updating this with final belt node? TODO: Investigate!!!
-;; update: TODO is this true?
+    (map some? (map (fn [val] (:parent (get (:range-nodes result-1222-cached) val)))
+                    (map :hash (filter (fn [entry] (= :range (:type entry)))
+                                       (map #(select-keys % [:type :hash]) (:range-nodes result-1222-cached))))))
+    ;; ERGO -> the two last belt children don't have a daddy set, i.e. we're not updating this with final belt node? TODO: Investigate!!!
+    ;; update: TODO is this true?
 
-(map some? (map (fn [val] (get @(:node-map result-1222-cached) val))
-      (map :hash (filter (fn [entry] (= :peak (:type entry))) (map #(select-keys % [:type :hash]) (:belt-children result-1222-cached) )))))
-;; -> peaks have parents set
+    (map some? (map (fn [val] (get @(:node-map result-1222-cached) val))
+                    (map :hash (filter (fn [entry] (= :peak (:type entry))) (map #(select-keys % [:type :hash]) (:belt-children result-1222-cached) )))))
+    ;; -> peaks have parents set
 
-(map :type (:belt-children result-1222-cached))
+    (map :type (:belt-children result-1222-cached))
 
-(nth (:node-array result-1222-cached) 3)
+    (nth (:node-array result-1222-cached) 3)
 
-(map :type (filter #(nil? (:parent %)) (vals (:range-nodes result-1222-cached))))
-;; (filter (fn [pos] (= (nth @(:node-array result-1222-cached) pos)
-;;                     ;; (:left (first (filter #(nil? (:parent %)) (vals @(:range-nodes result-1222-cached)))))
-;;                     (:left (first (filter #(nil? (:parent %)) (vals @(:range-nodes result-1222-cached)))))
-;;                     )) (range (count @(:node-array result-1222-cached))))
+    (map :type (filter #(nil? (:parent %)) (vals (:range-nodes result-1222-cached))))
+    ;; (filter (fn [pos] (= (nth @(:node-array result-1222-cached) pos)
+    ;;                     ;; (:left (first (filter #(nil? (:parent %)) (vals @(:range-nodes result-1222-cached)))))
+    ;;                     (:left (first (filter #(nil? (:parent %)) (vals @(:range-nodes result-1222-cached)))))
+    ;;                     )) (range (count @(:node-array result-1222-cached))))
 
-(first (filter #(nil? (:parent %)) (vals (:range-nodes result-1222-cached))))
-(filter false? (map some? (map :parent (vals (:node-map result-1222-cached)))))
+    (first (filter #(nil? (:parent %)) (vals (:range-nodes result-1222-cached))))
+    (filter false? (map some? (map :parent (vals (:node-map result-1222-cached)))))
 
-(count (:range-nodes result-1222-cached))
-(count (:belt-nodes result-1222-cached))
-(get (:range-nodes result-1222-cached)
-     (:hash (first (:belt-children result-1222-cached))))
+    (count (:range-nodes result-1222-cached))
+    (count (:belt-nodes result-1222-cached))
+    (get (:range-nodes result-1222-cached)
+         (:hash (first (:belt-children result-1222-cached))))
 
-(map #(get (:node-map algo-1222)
-           (nth (:node-array algo-1222) %))
-     (map #(- % 3) (primitives.storage/parent-less-nodes 1222)))
+    (map #(get (:node-map algo-1222)
+               (nth (:node-array algo-1222) %))
+         (map #(- % 3) (primitives.storage/parent-less-nodes 1222)))))
 
 (defn last-algo-match
   "plays algo while the upgrade and old algo still match"
@@ -1260,17 +1273,18 @@
                           (nth (sort (group-by count (keys @node-map))) n)))))
          (range (count (primitives.core/S-n @leaf-count)))))
 
-(def algo-new-mismatch (play-algo (inc (last-algo-match)) true))
-(def algo-old-mismatch (play-algo (inc (last-algo-match)) false))
+(if @run-tests (do
+                 (def algo-new-mismatch (play-algo (inc (last-algo-match)) true))
+                 (def algo-old-mismatch (play-algo (inc (last-algo-match)) false))
 
-(:mergeable-stack algo-new-mismatch)
-(:mergeable-stack algo-old-mismatch)
-(:lastP algo-new-mismatch)
-(:lastP algo-old-mismatch)
-(clojure.set/difference (into #{} (:node-map algo-new-mismatch))
-                        (into #{} (:node-map algo-old-mismatch)))
-(clojure.set/difference (into #{} (:node-map algo-old-mismatch))
-                        (into #{} (:node-map algo-new-mismatch)))
+                 (:mergeable-stack algo-new-mismatch)
+                 (:mergeable-stack algo-old-mismatch)
+                 (:lastP algo-new-mismatch)
+                 (:lastP algo-old-mismatch)
+                 (clojure.set/difference (into #{} (:node-map algo-new-mismatch))
+                                         (into #{} (:node-map algo-old-mismatch)))
+                 (clojure.set/difference (into #{} (:node-map algo-old-mismatch))
+                                         (into #{} (:node-map algo-new-mismatch)))))
 
 ;; test that that tree construction is correct
 (if @run-tests
@@ -1372,3 +1386,5 @@
 (comment
   (map :type (get-nodes #{}))
   (types #{}))
+
+(println "end:" (new java.util.Date))
