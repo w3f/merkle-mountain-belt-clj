@@ -1,4 +1,7 @@
-(ns primitives.core)
+(ns primitives.core
+  (:require [clojure.spec.alpha :as s]
+            [clojure.spec.test.alpha :as stest]
+            ))
 
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
@@ -94,3 +97,25 @@
 
 ;; NOTE result: primitives/S-n & belt-ranges always have same flattened length
 (every? #(apply = (map count %)) (map (juxt S-n (comp flatten belt-ranges)) (range 0 300)))
+
+(defn children [node]
+  (into [] (filter some?
+                   ((juxt :core/left :core/right) node))))
+
+(defn has-children? [node]
+  (not-empty (children node)))
+
+(s/fdef children
+  :args (s/cat :node :core/node)
+  ;; :ret (s/tuple ::parent (s/coll-of ::child))
+  :ret (s/? (s/cat :left :core/left :right :core/right))
+  :fn #(if (has-children? (second (:node (:args %))))
+         (= 2 (count (:ret %)))
+         ;; (do
+         ;;   (if (not= 0 (count (:ret %))) (println %))
+         ;;  true)
+         (= 0 (count (:ret %)))))
+
+(stest/instrument `children)
+(stest/check `children)
+

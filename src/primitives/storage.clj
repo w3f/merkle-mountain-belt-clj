@@ -1,6 +1,51 @@
 (ns primitives.storage)
 
 (defonce storage-array (atom '[]))
+(defonce parent-less-nodes-atom (atom #{}))
+(defonce parent-less-nodes-cache (atom #{}))
+
+(defn node-name [index]
+  (nth @storage-array index))
+
+(defn node-name-maps [storage]
+  (map (fn [index] {:index index :id (if (string? (nth storage index))
+                                       (node-name (nth storage index))
+                                       (nth storage index))}) (range (count storage))))
+(defn node-maps
+  ;; creates maps with `:id` as the storage entry and `:index` as the index with the collection
+  [storage]
+  (map (fn [index] {:index index
+                   :id (nth storage index)
+                   ;; :pos (str index "," (node-height-literal index) "!")
+                   }) (range (count storage))))
+
+(defn node-maps-updated
+  ;; creates maps with `:id` as the storage entry and `:index` as the index with the collection
+  [storage]
+  (map (fn [index] (let [pos (:pos (nth storage index))]
+                    (if pos {:index index
+                             :id (:id (nth storage index))
+                             :pos (str index "," (:pos (nth storage index)) "!")
+                             ;; :pos (str index "," (node-height-literal index) "!")
+                             }
+                        {:index index
+                         :id (:id (nth storage index))
+                         ;; :pos (str index "," (node-height-literal index) "!")
+                         }
+                        )
+                    )) (range (count storage))))
+
+(comment
+  (storage/node-maps (into [] (flatten (primitives.core/belted-edges)))))
+(comment
+  (storage/node-maps (into [] (flatten (primitives.core/belted-nodes)))))
+
+(comment
+  (map (fn [child-index] (- (+ (mod child-index (int (Math/pow 2 (+ (primitives.storage/p-adic-order 2 child-index) 2))))))) (range 1 1000)))
+
+(map node-name @parent-less-nodes-cache)
+(identity @parent-less-nodes-cache)
+
 
 (defn leaf-location [n]
   (+ (* 2 n) 1))
@@ -99,3 +144,72 @@
   [nodes]
   (sort #(compare (nth %2 1) (nth %1 1))
         (map (juxt identity node-height-literal) (sort nodes))))
+
+;; this is the L2R bagging from https://hackmd.io/4k2wjlWfTVqgW0Mp4bLSSQ?view
+(defn range-node-edges
+  "creates a list of the edges between `nodes`, optionally starting names from `starting-index` in lieu of 0"
+  (
+   [nodes]
+   (let [initial-range-node {:type "range-node" :index 0}]
+     (if (> 2 (count nodes))
+       (range-node-edges [] [] 0 [])
+       (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) 0 [initial-range-node]))))
+
+  (
+   [nodes starting-index]
+   (let [initial-range-node {:type "range-node" :index starting-index}]
+     (if (> 2 (count nodes))
+       (range-node-edges [] [] starting-index [])
+       (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) starting-index [initial-range-node])))
+   ;; (let [initial-range-node (str "range-node-" starting-index)]
+   ;;   (if (> 2 (count nodes))
+   ;;     (range-node-edges [] nodes starting-index [initial-range-node])
+   ;;     (range-node-edges [[(first nodes) initial-range-node] [(second nodes) initial-range-node]] (drop 2 nodes) starting-index [initial-range-node])))
+   )
+
+  (
+   ;; internal function - only accessed via recursion
+   [acc remainder depth range-nodes]
+   (if (empty? remainder)
+     (list acc range-nodes depth)
+     ;; (list acc range-nodes)
+     (let
+         [new-depth (inc depth)
+          range-node {:type "range-node" :index new-depth}]
+       (range-node-edges (concat acc (map (fn [child] [child range-node])
+                                          [(last (last acc)) (first remainder)]))
+                         (rest remainder)
+                         (inc depth)
+                         (conj range-nodes range-node)))
+     ))
+  )
+
+(defn range-node-edges-reduced [nodes]
+  (drop-last (range-node-edges nodes)))
+
+(defn name-index [name]
+  (first (filter
+          #(= name (nth @storage-array %))
+          (range (count @storage-array))))
+  )
+
+(defn path [index]
+  (if (contains? (parent-less-nodes) index)
+    (concat [(nth @storage-array index)] (last (range-node-edges-reduced (parent-less-nodes))))
+    (concat [(nth @storage-array index)] (path (parent-index index)))
+    ))
+
+(defn co-path [index]
+  (if (contains? (parent-less-nodes) index)
+    (map #(nth @storage-array %)
+         (filter #(and (not= index %) (< % (count @storage-array))) (parent-less-nodes)))
+    (concat
+     [(nth @storage-array (first (filter #(not= index %) (children (parent-index index)))))]
+     (co-path (parent-index index)))
+    ))
+
+(defn non-zero-entries []
+  (filter #(not= 0 (:id %)) (node-maps @storage-array)))
+
+(defn parents []
+  (filter #(string? (:id %)) (node-maps @storage-array)))
