@@ -879,6 +879,24 @@
       (state/current-atom-states)
       ))
 
+(defn play-algo-retain-sequence
+  "play algorithm up to `n`, retaining sequence of intermediate states"
+  [n oneshot-nesting?]
+  (do (reset-all)
+      (doall (repeatedly n #(do (algo oneshot-nesting) (state/current-atom-states))))))
+
+;; verify that play-algo & play-algo-retain-sequence match
+(if run-tests
+  (let [n 50
+       retain-sequence-oneshot (play-algo-retain-sequence n true)
+       retain-sequence-no-oneshot (play-algo-retain-sequence n false)]
+   (every? #(and
+             (= (play-algo (inc %) true)
+                (nth retain-sequence-oneshot %))
+             (= (play-algo (inc %) false)
+                (nth retain-sequence-no-oneshot %)))
+           (range n))))
+
 (defn play-algo-manual-end [n]
   (do (reset-all)
       (doall (repeatedly (dec n) #(algo true)))
@@ -1216,22 +1234,25 @@
 
 (defn last-algo-match
   "plays algo while the upgrade and old algo still match"
-  []
-  (last (take-while
-         #(let [
-                non-upgrade (play-algo % false)
-                upgrade (play-algo % true)
-                ]
-            (= non-upgrade upgrade))
-         (range 300))))
+  [upper-bound]
+  (inc (first (last (filter #(= true (second %))
+                        (map-indexed (fn [index [oneshot full]] [index (= oneshot full)])
+                                     (map list
+                                          (play-algo-retain-sequence upper-bound false)
+                                          (play-algo-retain-sequence upper-bound true))
+                                     ))))))
+((last-algo-match 1000))
 
 (if @run-tests
-  (last-algo-match))
+  (last-algo-match 1000)
+  ;; => 999
+  )
 
 (defn first-algo-mismatch
   "plays algo until first mismatch and returns the differences"
   []
-  (let [first-mismatch (inc (last-algo-match))]
+  (let [upper-bound 1000
+        first-mismatch (inc (last-algo-match upper-bound))]
     (println "-----------------")
     (clojure.pprint/pprint
      {:first-mismatch first-mismatch
