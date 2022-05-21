@@ -106,22 +106,22 @@
  viz/view-image
  )
 
-(->
- (linked-peaks/graph 100)
- tangle-dot
- (tangle/dot->image "png")
- javax.imageio.ImageIO/read
- viz/view-image
- )
+(let [n 300]
+  (->>
+   (linked-peaks/graph n)
+   tangle-dot
+   (tangle/dot->svg)
+   (spit (str "ephemeral-nodes-" n ".svg"))
+   ))
 
 (defn tangle-direct-view [graph]
   (viz/view-image (tangle-direct graph)))
 
 (defn tangle-direct-save [graph location]
-  (viz/save-image (tangle-direct graph) location))
+  (spit (str location ".svg") ((comp tangle/dot->svg tangle-dot) graph)))
 
 (tangle-direct-view (graph "p-1"))
-(tangle-direct-save (graph "p-1") "jim")
+(tangle-direct-save (graph "p-1") "p-1")
 (second (graph "p-1"))
 
 (concat
