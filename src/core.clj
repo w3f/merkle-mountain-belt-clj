@@ -3,7 +3,12 @@
             [tangle.core :as tangle]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as sgen]
-            [clojure.spec.test.alpha :as stest]))
+            [clojure.spec.test.alpha :as stest]
+            [primitives.core :refer [children has-children? belt-ranges]]
+            [primitives.storage]
+            ))
+
+(println "start:" (new java.util.Date))
 
 (defonce index (atom -1))
 (defonce leaf-index (atom -1))
@@ -31,8 +36,8 @@
 (s/explain ::node {::left {::value 5 ::index 1} ::right {::value 5 ::index 1} ::hash 1 ::value 5 ::index 1})
 (s/valid? ::node {::value 1 ::index 1})
 
-(s/def ::storage-map (s/map-of ::hash ::leaf))
 (defonce storage (atom {}))
+(s/def ::storage-map (s/map-of ::hash ::leaf))
 (s/valid? ::storage-map @storage)
 
 (defonce root (atom nil))
@@ -41,35 +46,9 @@
   :ret ::storage-map)
 (defn reset-storage! [] (reset! storage {}))
 
-(defn children [node]
-  (into [] (filter some?
-                   ((juxt ::left ::right) node))))
-
-(defn has-children? [node]
-  (not-empty (children node)))
-
-(s/fdef children
-  :args (s/cat :node ::node)
-  ;; :ret (s/tuple ::parent (s/coll-of ::child))
-  :ret (s/? (s/cat :left ::left :right ::right))
-  :fn #(if (has-children? (second (:node (:args %))))
-         (= 2 (count (:ret %)))
-         ;; (do
-         ;;   (if (not= 0 (count (:ret %))) (println %))
-         ;;  true)
-         (= 0 (count (:ret %)))))
-
-(stest/instrument `children)
-(stest/check `children)
-
 ;; test
 (let [parent (sgen/generate (s/gen ::parent))]
   [parent (children parent)])
-
-(defn hash-node [node]
-  (if (has-children? node)
-    (hash (str (::left node) (::right node)))
-    (hash (::value node))))
 
 (defn take-index []
   (swap! index inc))
@@ -107,6 +86,11 @@
     (+ 1
        (apply max (map mmr-depth (children node))))
     1))
+
+(defn hash-node [node]
+  (if (has-children? node)
+    (hash (str (::left node) (::right node)))
+    (hash (::value node))))
 
 (defn storage-add! [node]
   (swap! storage assoc-in [(hash-node node)] node))
@@ -301,9 +285,9 @@
 (mmr-graph example-belt)
 
 (defn belt-depth [node]
-  (if (core/has-children? node)
+  (if (has-children? node)
     (+ 1
-       (apply max (map belt-depth (core/children node))))
+       (apply max (map belt-depth (children node))))
     0))
 
 (let [example-belt
@@ -311,7 +295,7 @@
   (belt-depth example-belt))
 
 (defn belt-depth-right-most [node]
-  (if (core/has-children? node)
+  (if (has-children? node)
     (+ 1
        (belt-depth-right-most (:core/right node)))
     0))
@@ -334,38 +318,6 @@
     (node (::left old-node) (mmb-append-leaf (::right old-node) new-leaf) (take-index))))
 
 ;; (mmb-append-leaf (mmb-from-indexcount 3) (leaf 3))
-
-
-(defn binary-repr-of-n [n]
-  (Integer/toBinaryString n))
-
-(defn bits-of-n [n]
-  (map (comp #(Integer. %) str) (binary-repr-of-n n)))
-
-(defn bits-of-inc-n [n]
-  (bits-of-n (inc n)))
-
-(aget (bytes (byte-array (byte 4))) 1)
-(bit-and 1 1)
-
-(defn S-n [n]
-  (let [bits (bits-of-inc-n n)
-        reversed-bits (reverse bits)]
-    (reverse (map
-              #(+ % (nth reversed-bits %))
-              (range (dec (count bits)))))))
-
-(last (S-n 1222))
-
-;; 1222 (9 8 8 7 5 4 3 3 2 1)
-(S-n 19)
-(S-n 1222)
-(S-n 1223)
-
-(S-n 3)
-;; hack: value of leaf == height of represented peak
-(node (leaf 1) (leaf 0) 0)
-(S-n 3)
 
 (defn belt-right-most-operators [tree]
   (let [sequence-length (belt-depth-right-most tree)]
@@ -390,7 +342,7 @@
 
 
 (let [leaf-count 3
-      S-n (S-n leaf-count)
+      S-n (primitives.core/S-n leaf-count)
       right-most-depth (last S-n)
       ;; example-tree (node (node (leaf 0) (leaf 1) 0) (leaf 2) 1)
       example-tree (mmr-from-leafcount 3)]
@@ -432,55 +384,18 @@
 
 (second (mmr-from-leafcount 3))
 
-;; fresh attempt (16.11.2021)
-;; reproduce the bagging structure by always recalculating from scratch. this is the first step in iteration towards moving towards a cached model
+(map
+ (fn [n] (filter
+         (fn [index] (apply not= (map #(nth % index nil) ((juxt primitives.core/S-n (comp primitives.core/S-n inc)) n))))
+         (range ((comp count primitives.core/S-n inc) n))))
+ (range 30))
 
-(S-n 3)
-(rest (bits-of-inc-n 3))
+(comment
+  ((fn [index n]
+    (find-index-route index (convert-nested-to-indices (belt-ranges n)))
+    ) 0 2))
 
-;; (reduce)
-
-(defn create-new-range? [[n-2 n-1] n]
-  (or (and (= 1 n-1) (= 0 n))
-      (and (= 0 n-2) (= 1 n-1))))
-
-(let [running-range [[]]
-      ;; running-range [[0 0 1] [1] [0 0 1]]
-      ;; running-range [[0 0 1] [1] [0 0 1] [0 0]]
-      flattened-running-range (flatten running-range)
-      new-bit 0]
-  (if (create-new-range? (drop (- (count flattened-running-range) 2) flattened-running-range) new-bit)
-    ;; if true, create new range
-    (conj (into [] running-range) [new-bit])
-    ;; else, append to last current range
-    (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)])))
-
-;; DONE: add handling of bitlength = 2
-(defn append-to-belt-range [running-range new-bit]
-  (let [flattened-running-range (flatten running-range)
-        preceding-bits (drop (- (count flattened-running-range) 2) flattened-running-range)
-        preceding-bits-length (count preceding-bits)
-        preceding-bits-padded (if (< preceding-bits-length 2)
-                                (concat (repeat (- 2 preceding-bits-length) nil) preceding-bits)
-                                preceding-bits)]
-    (if (create-new-range? preceding-bits-padded new-bit)
-      ;; if true, create new range
-      (conj (into [] running-range) [new-bit])
-      ;; else, append to last current range
-      (concat (drop-last running-range) [(conj (into [] (last running-range)) new-bit)]))))
-
-(append-to-belt-range [[0 0 1] [1] [0 0 1]] 0)
-
-(bits-of-inc-n 10)
-(defn belt-ranges [n]
-  ;; NOTE: the values are in fact irrelevant - it's really just the lengths of these lists that matter.
-  (reduce append-to-belt-range [[]] (rest (bits-of-n (inc n)))))
-
-;; compare S-n-1 & S-n: see at what position difference results
-;; compare belt-ranges n-1 & belt-ranges n: see at what position difference results
-
-;; NOTE result: S-n & belt-ranges always have same flattened length
-(every? #(apply = (map count %)) (map (juxt S-n (comp flatten belt-ranges)) (range 0 300)))
+(conj '(1 2) 3)
 
 (defn deep-walk
   "replace `value`s in nested `data` structure by (`f` `value`)"
@@ -519,14 +434,14 @@
           (map conj
                (map (fn [index] (belt-ranges-index-routes index m)) (range ((comp count flatten belt-ranges) m)))
                ;; (flatten (belt-ranges m))
-               (S-n m)
+               (primitives.core/S-n m)
                ))
         ]
   (comment
     (println "-------------------"
              (println
-              (map (fn [n] (filter #(discrepancy-at-index % [(S-n n) (S-n (inc n))])
-                                  (range ((comp count S-n inc) n))))
+              (map (fn [n] (filter #(discrepancy-at-index % [(primitives.core/S-n n) (primitives.core/S-n (inc n))])
+                                  (range ((comp count primitives.core/S-n inc) n))))
                    (range 30)))
              (println
               (map (fn [n] (filter #(discrepancy-at-index % (map belt-ranges-routes [n (inc n)]))
@@ -534,8 +449,8 @@
                    (range 30)))))
   (let [maxn 1000]
     (=
-     (pmap (fn [n] (filter #(discrepancy-at-index % [(S-n n) (S-n (inc n))])
-                          (range ((comp count S-n inc) n))))
+     (pmap (fn [n] (filter #(discrepancy-at-index % [(primitives.core/S-n n) (primitives.core/S-n (inc n))])
+                          (range ((comp count primitives.core/S-n inc) n))))
            (range maxn))
      (pmap (fn [n] (filter #(discrepancy-at-index % (map belt-ranges-routes [n (inc n)]))
                           (range ((comp count flatten belt-ranges inc) n))))
@@ -544,18 +459,97 @@
   ;; NOTE ergo: locations of changes in in belt-range splitting are only a subset of the locations of changes in S-n
   )
 
+(letfn [(discrepancy-at-index [index seqs]
+          (apply not= (map #(nth % index nil) seqs)))
+        (belt-ranges-index-routes [index n]
+          (find-index-route index (convert-nested-to-indices (belt-ranges n)))
+          )
+        ;; (belt-ranges-routes [])
+        (belt-ranges-routes [m]
+          ;; #dbg
+          (map conj
+               (map (fn [index] (belt-ranges-index-routes index m)) (range ((comp count flatten belt-ranges) m)))
+               ;; (flatten (belt-ranges m))
+               (primitives.core/S-n m)
+               ))
+        ]
+  (let [n 1278]
+    [
+     ;; returns the index at which first discrepancy is detected
+     ((fn [n] (first (filter #(discrepancy-at-index % [(primitives.core/S-n n) (primitives.core/S-n (inc n))])
+                            (range ((comp count primitives.core/S-n inc) n)))))
+      n)
+     ;; returns the belt ranges
+     (comment
+       ((fn [m]
+          (map conj
+               (map (fn [index] (belt-ranges-index-routes index m)) (range ((comp count flatten belt-ranges) m)))
+               ;; (flatten (belt-ranges m))
+               (primitives.core/S-n m)
+               ))
+        n))
+     (belt-ranges-routes n)
+     ])
+  )
+
+(map convert-nested-to-indices [(belt-ranges 50) (belt-ranges 51)])
+
+(map
+ (fn [belt-range] (map
+                  #(find-index-route % (convert-nested-to-indices belt-range))
+                  (range (count (flatten belt-range)))))
+ [(belt-ranges 2) (belt-ranges 3)])
+
+(belt-ranges 50)
+(belt-ranges 51)
+
+(letfn
+    [(discrepancy-at-index [seqs]
+       (let [max-index (apply max (map count seqs))]
+         (filter (fn [index] (apply not= (map #(nth % index nil) seqs))) (range max-index))))]
+
+  (let [
+        a (let [n 27]
+            (map conj
+                 (map (fn [index] (find-index-route index (convert-nested-to-indices (belt-ranges n)))) (range (count (flatten (belt-ranges n)))))
+                 (flatten (belt-ranges n))))
+        b (let [n 28]
+            (map conj
+                 (map (fn [index] (find-index-route index (convert-nested-to-indices (belt-ranges n)))) (range (count (flatten (belt-ranges n)))))
+                 (flatten (belt-ranges n))))
+        ]
+    (discrepancy-at-index [a b])
+    ))
+
+(let [n 27]
+  (map (fn [index ] (find-index-route index (convert-nested-to-indices (belt-ranges n)))) (range (count (flatten (belt-ranges n))))))
+(map conj
+     (let [n 28]
+       (map (fn [index ] (find-index-route index (convert-nested-to-indices (belt-ranges n)))) (range (count (flatten (belt-ranges n))))))
+     (flatten (belt-ranges 28)))
+
+(map conj [[1 2 3] [5 6 7]] [4 8])
+;; (find-index-route 0 [1 0 0])
+
+;; (letfn [(mismatch-in-primitives.core/S-n-at-index [index n]
+;;           (apply not= (map #(nth % index nil) ((juxt primitives.core/S-n (comp primitives.core/S-n inc)) n))))]
+;;   (map
+;;    (fn [n] (filter
+;;            #(mismatch-in-primitives.core/S-n-at-index % n)
+;;            (range ((comp count primitives.core/S-n inc) n))))
+;;    (range 30)))
 
 ;; map indices to belt-ranges
 (comment
-  (belt-ranges @storage/leaf-count))
+  (belt-ranges @primitives.storage/leaf-count))
 
-((juxt S-n belt-ranges) 4)
+((juxt primitives.core/S-n belt-ranges) 4)
 
 (comment
-  (storage/range-node-edges (first (belt-ranges 1222)) 3))
-;; (storage/bag-left-to-right (into [] (map storage/bag-left-to-right (belt-ranges 1222))))
+  (primitives.storage/range-node-edges (first (belt-ranges 1222)) 3))
+;; (primitives.storage/bag-left-to-right (into [] (map storage/bag-left-to-right (belt-ranges 1222))))
 
-(defonce parent-less-nodes-remainder (atom storage/parent-less-nodes-cache))
+(defonce parent-less-nodes-remainder (atom @primitives.storage/parent-less-nodes-cache))
 (defn take-parent-less-node []
   (let [first-parent-less (first @parent-less-nodes-remainder)]
     (swap! parent-less-nodes-remainder rest)
@@ -566,7 +560,7 @@
 ;; (def belt-node-index (atom 0))
 
 (defn ordering-peaks []
-  (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
+  (map first (primitives.storage/parent-less-nodes-sorted-height @primitives.storage/parent-less-nodes-cache)))
 
 (defn position-in-peak-ordering [peak-index]
   (let [ordering-peaks (ordering-peaks)] (first (filter #(= peak-index (nth ordering-peaks %)) (-> ordering-peaks count range)))))
@@ -575,10 +569,10 @@
   "takes ranges and produces lists of the edges that represent these ranges together with belt nodes"
   [ranges]
   (do
-    (reset! parent-less-nodes-remainder (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
+    (reset! parent-less-nodes-remainder (map first (primitives.storage/parent-less-nodes-sorted-height @primitives.storage/parent-less-nodes-cache)))
     (reduce (fn
               [[range-collector starting-index belt-node-index] new-range]
-              (let [[new-edges range-nodes last-index] (storage/range-node-edges new-range starting-index)]
+              (let [[new-edges range-nodes last-index] (primitives.storage/range-node-edges new-range starting-index)]
                 [;; updated range collector
                  (concat
                   ;; take current collection of ranges
@@ -626,16 +620,17 @@
 (first (range-aggregator (belt-ranges 1222)))
 
 (comment
-  (identity storage/parent-less-nodes-cache))
+  (identity primitives.storage/parent-less-nodes-cache))
 
-(bits-of-n 4)
+(primitives.core/bits-of-n 4)
 
 (identity @parent-less-nodes-remainder)
+;; TODO: fix broken walk
 (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges 1222))
 (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges 1222))))
 
 (comment
-  (storage/node-name 1536))
+  (primitives.storage/node-name 1536))
 
 ;; TODO: this is maybe not the right place to do this - perhaps only once creating graph?
 (defn parse-typed-name [node]
@@ -646,28 +641,28 @@
   "map indices of peaks of an mmb to their node-names"
   []
   (do
-    (reset! parent-less-nodes-remainder (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
+    (reset! parent-less-nodes-remainder (map first (primitives.storage/parent-less-nodes-sorted-height @primitives.storage/parent-less-nodes-cache)))
     (map (fn [[child parent]]
            [(if (int? child)
-              (storage/node-name child)
+              (primitives.storage/node-name child)
               ;; (#(str (first %) ": " (second %)) ((juxt identity storage/node-name storage/node-height-literal) child))
              ;; child
               (parse-typed-name child))
             (parse-typed-name parent)])
-         (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges @storage/leaf-count)))))))
+         (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges @primitives.storage/leaf-count)))))))
 
 (defn belted-nodes
   "map indices of peaks of an mmb to their node-names"
   []
   (do
-    (reset! parent-less-nodes-remainder (map first (storage/parent-less-nodes-sorted-height @storage/parent-less-nodes-cache)))
+    (reset! parent-less-nodes-remainder (map first (primitives.storage/parent-less-nodes-sorted-height @primitives.storage/parent-less-nodes-cache)))
     (map (fn [[child parent]]
            [(if (= "peak-node" (:type child))
-              {:node-height (storage/node-height-literal (:index child))
+              {:node-height (primitives.storage/node-height-literal (:index child))
                :id (str (:type child) "-" (:index child))
                ;; :id (#(str (first %) ": " (second %)) ((juxt storage/node-name storage/node-height-literal) (:index child)))
                :index (:index child)
-               ;; :pos (str child "," (storage/node-height-literal child))}
+               ;; :pos (str child "," (primitives.storage/node-height-literal child))}
               ;; :pos (str child "," 0)}
                :pos 0}
               ;; child
@@ -677,7 +672,7 @@
             {:id (str (:type parent) "-" (:index parent))
              :index (:index parent)
              :pos (if (= "range-node" (:type parent)) 1 2)}])
-         (first (range-aggregator (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node))) (belt-ranges @storage/leaf-count)))))))
+         (first (range-aggregator (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node))) (belt-ranges @primitives.storage/leaf-count)))))))
 
 ;; (belted-nodes)
 
@@ -713,7 +708,7 @@
 (def test-nodes (let [nodes (group-by :type
                        (map #(merge % {
                                        :id (if (= "peak-node" (:type %))
-                                             (storage/node-name (:index %))
+                                             (primitives.storage/node-name (:index %))
                                              (str (:type %) "-" (:index %)))
                                        :posy (get {"peak-node" 0,
                                                   "range-node" 1,
@@ -722,7 +717,7 @@
                             (into #{} (flatten
                                        (first (range-aggregator
                                                (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node)))
-                                                          (belt-ranges @storage/leaf-count))))))))]
+                                                          (belt-ranges @primitives.storage/leaf-count))))))))]
    [
     (sort-by :index (fn [x y] (compare
                               (position-in-peak-ordering x)
@@ -754,7 +749,7 @@
   (let [nodes (group-by :type
                        (map #(merge % {
                                        :id (if (= "peak-node" (:type %))
-                                             (storage/node-name (:index %))
+                                             (primitives.storage/node-name (:index %))
                                              (str (:type %) "-" (:index %)))
                                        :posy (get {"peak-node" 0,
                                                   "range-node" 1,
@@ -763,7 +758,7 @@
                             (into #{} (flatten
                                        (first (range-aggregator
                                                (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node)))
-                                                          (belt-ranges @storage/leaf-count))))))))]
+                                                          (belt-ranges @primitives.storage/leaf-count))))))))]
     (concat
      (update-position (sort-by :index (fn [x y] (compare
                                                 (position-in-peak-ordering x)
@@ -782,7 +777,7 @@
 
 (re-matches #"range-node.*" "range-node-0")
 
-(storage/node-maps (into [] (flatten (core/belted-edges))))
+(comment (primitives.storage/node-maps (into [] (flatten (belted-edges)))))
 (group-by :type (into [] (into #{} (flatten (belted-nodes)))))
 
 (first (range-aggregator (belt-ranges 4)))
@@ -809,4 +804,8 @@
 
 ;; (defn ranges)
 (comment
-  (storage/range-node-edges '[1] 1))
+  (primitives.storage/range-node-edges '[1] 1))
+
+(+ 4 4)
+
+(println "end:" (new java.util.Date))
