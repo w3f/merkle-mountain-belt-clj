@@ -805,7 +805,10 @@
                         (contains? @range-nodes left's-parent)
 )
                  (add-mergeable-stack @Q)
-                 (throw (Exception. (str ":left should always be updated whenever we have a merge - can't have a non-ephemeral parent! leaf count " @leaf-count)))
+                 (throw (Exception.
+                         (str ":left should always be updated whenever we have a merge "
+                              "- can't have a non-ephemeral parent! leaf count "
+                              @leaf-count)))
                  ))
               )
 
@@ -847,7 +850,9 @@
 
       ;; prelim: set right pointer of lastP to h
       (if @lastP (swap! node-map #(assoc-in % [@lastP :right] h)))
-      ;; prelim: create range node for newly appended node if its height difference to the last peak is 2, or the last peak can be merged with the mountain to its left
+      ;; prelim: create range node for newly appended node if its height difference
+      ;; to the last peak is 2, or the last peak can be merged with the mountain to
+      ;; its left
       ;; DONE: otherwise, the new node is involved in merge
       ;; #dbg ^{:break/when (not oneshot-nesting?)}
       (new-leaf-range oneshot-nesting? h P)
@@ -919,9 +924,12 @@
       (state/current-atom-states)
       ))
 
-;; show that, barring missing belt node impl in incremental algo, get matching result between incremental & oneshot
+;; show that, barring missing belt node impl in incremental algo, get matching
+;; result between incremental & oneshot
 ;; DONE: seems that performance got worse and the following is no longer feasible
-;; issue is simply that iterating from scratch every time has a performance impact of (n^2)/2 (i.e. O(n^2)). mitigated by only performing expensive oneshot at the very end (since it's always erased inbetween anyways)
+;; issue is simply that iterating from scratch every time has a performance impact
+;; of (n^2)/2 (i.e. O(n^2)). mitigated by only performing expensive oneshot at the
+;; very end (since it's always erased inbetween anyways)
 (if @run-tests
   (let [n 1337]
    [(clojure.set/difference
@@ -1315,7 +1323,8 @@
     (every? true?
             [
              (= (primitives.core/S-n n) (reverse (sort (map (comp :height val) parent-less))))
-             (= (primitives.core/S-n n) (reverse (map (comp :height #(get @node-map %)) (take-while some? (iterate hop-left (:lastP nodes))))))
+             (= (primitives.core/S-n n) (reverse (map (comp :height #(get @node-map %))
+                                                      (take-while some? (iterate hop-left (:lastP nodes))))))
              (every? nil? (map #(:parent (get @node-map %)) (take-while #(some? (get @node-map %)) (iterate hop-left @lastP))))
              ]
             )))
