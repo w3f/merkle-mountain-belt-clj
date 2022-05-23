@@ -113,6 +113,7 @@
    (tangle/dot->svg)
    (spit (str "ephemeral-nodes-" n ".svg"))
    ))
+(tangle-direct-view (linked-peaks/graph 110 true))
 
 (defn tangle-direct-view [graph]
   (viz/view-image (tangle-direct graph)))

@@ -924,6 +924,23 @@
       (state/current-atom-states)
       ))
 
+(defn play-algo-debug-last-step [n]
+  (do
+    (let [global-debugging-state @global-debugging
+          debugging-flags-state @debugging-flags]
+      (reset! global-debugging false)
+      (play-algo-optimized (dec n))
+      (reset! global-debugging true)
+      (all-debugging)
+      (algo false)
+      (reset! global-debugging global-debugging-state)
+      (set-debugging-flags debugging-flags-state))
+      ))
+
+(comment
+  ;; TODO: debug range parenting break from n=110 => n=111
+  (play-algo-debug-last-step 111))
+
 ;; show that, barring missing belt node impl in incremental algo, get matching
 ;; result between incremental & oneshot
 ;; DONE: seems that performance got worse and the following is no longer feasible
@@ -1330,9 +1347,9 @@
             )))
 
 ;; TODO: construct list of edges
-(defn graph [n]
+(defn graph [n oneshot?]
   (do
-    (play-algo n false)
+    (play-algo n oneshot?)
     (let [peaks (select-keys
                 @node-map
                 (filter (fn [k] (= :peak (:type (get @node-map k)))) (keys @node-map)))
