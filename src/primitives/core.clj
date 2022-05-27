@@ -15,11 +15,6 @@
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
 
-;; test for n=1221
-(comment
-  (S-n 1221)
-  (binary-repr-of-n 1222))
-
 (defn S-n-deprecated
   "list of mountain heights for leaf-count `n`"
   [n]
@@ -38,6 +33,12 @@
               #(+ % (nth reversed-bits %))
               (range (dec (count bits)))))))
 
+;; test for n=1221
+(comment
+  (S-n 1221)
+  (binary-repr-of-n 1222))
+
+
 (every? #(= (S-n %) (S-n-deprecated %)) (range 20000))
 
 (last (S-n 1222))
@@ -46,11 +47,6 @@
 (S-n 19)
 (S-n 1222)
 (S-n 1223)
-
-(S-n 3)
-;; hack: value of leaf == height of represented peak
-(comment (node (leaf 1) (leaf 0) 0))
-(S-n 3)
 
 ;; fresh attempt (16.11.2021)
 ;; reproduce the bagging structure by always recalculating from scratch. this is the first step in iteration towards moving towards a cached model

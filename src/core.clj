@@ -3,8 +3,8 @@
             [tangle.core :as tangle]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as sgen]
-            [clojure.spec.test.alpha :as stest]
-            [primitives.core :refer [children has-children? belt-ranges]]
+            ;; [clojure.spec.test.alpha :as stest]
+            [primitives.core :refer [children has-children? belt-ranges S-n]]
             [primitives.storage]
             ))
 
@@ -61,9 +61,9 @@
     string
     (str "(" string ")")))
 
-(defn retrieve-by-value [])
-(defn tree-from-storage-map [node]
-  ())
+;; (defn retrieve-by-value [])
+;; (defn tree-from-storage-map [node]
+;;   ())
 
 (defn node [left right index]
   {::left left
@@ -80,6 +80,10 @@
 (defn leaf [index & value]
   {::value (if value value (if join-labeling (swap! leaf-index inc) index))
    ::index index})
+
+;; hack: value of leaf == height of represented peak
+(comment (node (leaf 1) (leaf 0) 0))
+(S-n 3)
 
 (defn mmr-depth [node]
   (if (has-children? node)
@@ -384,19 +388,6 @@
 
 (second (mmr-from-leafcount 3))
 
-(map
- (fn [n] (filter
-         (fn [index] (apply not= (map #(nth % index nil) ((juxt primitives.core/S-n (comp primitives.core/S-n inc)) n))))
-         (range ((comp count primitives.core/S-n inc) n))))
- (range 30))
-
-(comment
-  ((fn [index n]
-    (find-index-route index (convert-nested-to-indices (belt-ranges n)))
-    ) 0 2))
-
-(conj '(1 2) 3)
-
 (defn deep-walk
   "replace `value`s in nested `data` structure by (`f` `value`)"
   [f data]
@@ -491,6 +482,16 @@
      (belt-ranges-routes n)
      ])
   )
+
+(map
+ (fn [n] (filter
+          (fn [index] (apply not= (map #(nth % index nil) ((juxt primitives.core/S-n (comp primitives.core/S-n inc)) n))))
+          (range ((comp count primitives.core/S-n inc) n))))
+ (range 30))
+
+(comment
+  ((fn [index n]
+     (find-index-route index (convert-nested-to-indices (belt-ranges n)))) 0 2))
 
 (map convert-nested-to-indices [(belt-ranges 50) (belt-ranges 51)])
 
@@ -614,8 +615,10 @@
             ranges)))
 
 (comment
+  #_{:clj-kondo/ignore [:invalid-arity]}
   ([0 0 1] [1] [0 0 0 1] [1 1]))
 (comment
+  #_{:clj-kondo/ignore [:invalid-arity]}
   ([0 "range-node-0"] [0 "range-node-0"] ["range-node-0" "range-node-1"] [1 "range-node-1"] [1 "belt-node"] [0 "range-node-2"] [0 "range-node-2"] ["range-node-2" "range-node-3"] [0 "range-node-3"] ["range-node-3" "range-node-4"] [1 "range-node-4"] [1 "range-node-5"] [1 "range-node-5"]))
 (first (range-aggregator (belt-ranges 1222)))
 
@@ -699,9 +702,6 @@
 
 (right-most-child-edge "range-node-0")
 
-(comment
-  (map merge-positions (map #(update % :posx (fn [old] (* 2 old))) test-nodes-decorated)))
-
 ;;TODO: rip apart `update-position` - rather save posx & posy separately and merge thereafter
 ;; (defn update-position [])
 
@@ -745,6 +745,10 @@
     ;; range-nodes
     ))
 
+(comment
+  (map merge-positions (map #(update % :posx (fn [old] (* 2 old))) test-nodes-decorated)))
+
+
 (defn graph-nodes []
   (let [nodes (group-by :type
                        (map #(merge % {
@@ -783,6 +787,7 @@
 (first (range-aggregator (belt-ranges 4)))
 
 (comment
+  #_{:clj-kondo/ignore [:invalid-arity]}
   ([0 "range-node-0"]
    [0 "range-node-0"]
    ["range-node-0" "range-node-1"]
