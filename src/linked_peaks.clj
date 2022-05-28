@@ -978,12 +978,12 @@
 (println "post-algos:" (new java.util.Date))
 
 (comment
-  (with-open [w (clojure.java.io/writer "src/cached.clj")]
+  (with-open [w (clojure.java.io/writer "src/cached.edn")]
    (binding [*out* w]
      (pr @manual-algos))))
 
 (def manual-algos-cached
-  (with-open [r (java.io.PushbackReader. (clojure.java.io/reader "src/cached.clj"))]
+  (with-open [r (java.io.PushbackReader. (clojure.java.io/reader "src/cached.edn"))]
     (binding [*read-eval* false]
       (read r))))
 
