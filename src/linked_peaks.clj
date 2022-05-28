@@ -973,11 +973,13 @@
 
 (println "pre-algos:" (new java.util.Date))
 (def algo-bound 110)
-(def oneshot-only-algos (atom (doall (map #(play-algo % true) (range 1 algo-bound)))))
-(def oneshot-algos (atom (doall (map #(play-algo-oneshot-end %) (range 1 algo-bound)))))
+(def oneshot-only-algos (atom (doall (play-algo-retain-sequence (dec algo-bound) true))))
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(def oneshot-algos (atom (map #(play-algo-oneshot-end %) (range 1 algo-bound))))
 (def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 algo-bound)))))
-(def manual-only-algos (atom (doall (map #(play-algo % false) (range 1 algo-bound)))))
-(def optimized-manual-algos (atom (doall (map #(play-algo-optimized %) (range 1 algo-bound)))))
+(def manual-only-algos (atom (doall (play-algo-retain-sequence (dec algo-bound) false))))
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(def optimized-manual-algos (atom (map #(play-algo-optimized %) (range 1 algo-bound))))
 (println "post-algos:" (new java.util.Date))
 
 (comment
@@ -1004,11 +1006,11 @@
 
 ;; test that everything is exactly the same
 (=
- @oneshot-algos
+ ;; @oneshot-algos
  @oneshot-only-algos
  @manual-algos
  @manual-only-algos
- @optimized-manual-algos
+ ;; @optimized-manual-algos
  (map (fn [n] (play-algo-oneshot-end n)) (range 1 algo-bound))
  (map (fn [n] (play-algo n false)) (range 1 algo-bound))
  )
@@ -1054,7 +1056,7 @@
    (map-indexed (fn [idx n] [(inc idx) (=
                                         (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-only-algos n)))))
                                         (into #{} (map mapulation (vals (:range-nodes (nth @manual-only-algos n))))))])
-                (range (min (count @oneshot-only-algos) (count @optimized-manual-algos))))))
+                (range (min (count @oneshot-only-algos) (count @manual-only-algos))))))
 
 (letfn [
         (mapulation [value]
@@ -1067,7 +1069,7 @@
    (map-indexed (fn [idx n] [(inc idx) (=
                                         (into #{} (map mapulation (vals (dissoc (:range-nodes (nth @oneshot-only-algos n)) #{}))))
                                         (into #{} (map mapulation (vals (dissoc (:range-nodes (nth @manual-only-algos n)) #{})))))])
-                (range (min (count @oneshot-only-algos) (count @optimized-manual-algos))))))
+                (range (min (count @oneshot-only-algos) (count @manual-only-algos))))))
 
 (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
 
