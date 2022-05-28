@@ -108,18 +108,21 @@
  viz/view-image
  )
 
-(let [n 300]
+;; TODO: fix trident
+(let [n 3]
   (->>
    (linked-peaks/graph n false)
    tangle-dot
    (tangle/dot->svg)
-   (spit (str "ephemeral-nodes-" n ".svg"))
-   ))
+   (spit (str "ephemeral-nodes-" n ".svg"))))
 
 (defn tangle-direct-view [graph]
   (viz/view-image (tangle-direct graph)))
 
-(tangle-direct-view (linked-peaks/graph 20 false))
+;; TODO: fix trident
+(tangle-direct-view (linked-peaks/graph 3 false))
+;; TODO: fix trident
+(tangle-direct-view (linked-peaks/graph 111 false))
 
 (defn tangle-direct-save [graph location]
   (spit (str location ".svg") ((comp tangle/dot->svg tangle-dot) graph)))
