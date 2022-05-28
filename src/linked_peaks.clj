@@ -402,8 +402,8 @@
 ;; DONE: refactor this since logic is somewhat clunky
 (defn get-parent
   ([child]
-   (let [parent-contenders-reverse (reverse (parent-contenders (:type child)))]
-     (first (filter some? (map #(get @% (:parent child)) (vals (select-keys storage-maps parent-contenders-reverse)))))))
+   (let [parent-type-contenders (parent-contenders (:type child))]
+     (first (filter #(and % (not= child %)) (map #(get @% (:parent child)) (vals (select-keys storage-maps parent-type-contenders)))))))
   ([child expected-parent]
    (let [parent (get-parent child)]
      (if (= expected-parent (:type parent))
@@ -984,7 +984,8 @@
    (verify-belt-node-parenting)
    (verify-range-node-parenting)))
 
-;; NEXT: debug this: should be empty
+(some? (play-algo 111 false))
+;; DONE: debug this: should be empty
 (filter (fn [[k v]] (not (and
                           (= k (if (and
                                    ;; first, verify that left leaf is not nil
@@ -1000,7 +1001,7 @@
                                  (clojure.set/union (:right v) (:left v))))
                           (= #{} (clojure.set/intersection (if (nil? (:left v)) #{} (:left v)) (:right v))))))
         (:range-nodes (current-atom-states)))
-  ;; => ([#{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63}, :right #{64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95}, :parent #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95}, :type :range}])
+  ;; => ()
 
 (comment
   ;; TODO: debug range parenting break from n=110 => n=111
