@@ -677,7 +677,10 @@
              :pos (if (= "range-node" (:type parent)) 1 2)}])
          (first (range-aggregator (deep-walk (fn [_] ((fn [node] {:type "peak-node" :index node}) (take-parent-less-node))) (belt-ranges @primitives.storage/leaf-count)))))))
 
-;; (belted-nodes)
+(comment
+  (primitives.storage/node-maps (into [] (flatten (belted-edges)))))
+(comment
+  (primitives.storage/node-maps (into [] (flatten (belted-nodes)))))
 
 (defn update-position
   "takes an index ordered list of maps describing a point and updates the pos to use the index order as the x component of the position"

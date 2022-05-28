@@ -16,7 +16,7 @@
 ;; TODO: potentially find more elegant solution since this hack may introduce bugs
 (def root-belt-node (atom #{}))
 (def range-nodes (atom {}))
-(def belt-children (atom {}))
+;; (def belt-children (atom {}))
 
 (def pointers (atom #{}))
 

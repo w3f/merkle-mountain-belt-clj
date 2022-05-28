@@ -12,9 +12,6 @@
 (defn bits-of-inc-n [n]
   (bits-of-n (inc n)))
 
-(defn binary-repr-of-n [n]
-  (Integer/toBinaryString n))
-
 (defn S-n-deprecated
   "list of mountain heights for leaf-count `n`"
   [n]
@@ -114,4 +111,3 @@
 
 (stest/instrument `children)
 (stest/check `children)
-

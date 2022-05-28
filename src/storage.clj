@@ -1,6 +1,6 @@
 (ns storage
   (:require [primitives.core]
-            [primitives.storage :refer [left-child right-child storage-array leaf-location peak-location children node-height-literal parent-index parent-less-nodes position-parentless-nodes highest-exponent-st-dividing parent-less-nodes-atom parent-less-nodes-cache node-name range-node-edges-reduced range-node-edges ]]
+            [primitives.storage :refer [left-child right-child storage-array leaf-location peak-location children node-height-literal parent-index parent-less-nodes position-parentless-nodes highest-exponent-st-dividing parent-less-nodes-atom parent-less-nodes-cache node-name range-node-edges-reduced range-node-edges parent-less-nodes-sorted-height]]
             ))
 
 (defonce peaks-accumulator (atom []))
@@ -192,7 +192,8 @@
 (comment (map (juxt identity node-height-literal) @parent-less-nodes-cache))
 
 (comment (map first (parent-less-nodes-sorted-height @parent-less-nodes-cache)))
-(comment ([1536 9] [1792 8] [2304 8] [2432 7] [2400 5] [2416 4] [2424 3] [2440 3] [2444 2] [2446 1]))
+(comment #_{:clj-kondo/ignore [:invalid-arity]}
+         ([1536 9] [1792 8] [2304 8] [2432 7] [2400 5] [2416 4] [2424 3] [2440 3] [2444 2] [2446 1]))
 
 ;; DONE: intermediate algo (still requires reordering of image wrt. peak order in storage array)
 (defn peak-positions-intermediate
@@ -328,7 +329,7 @@
 ;; (let [reversed-bits (map (comp #(Integer/parseUnsignedInt %) str) (reverse (binary-repr-of-n 1222)))]
 ;;   (map #(+ %1 %2) reversed-bits (range (count reversed-bits))))
 
-(map (reverse (map (comp #(Integer. %) str) (into [] "123"))))
+(reverse (map (comp #(Integer. %) str) (into [] "123")))
 
 ;; verify that the number of peaks == (dec binary length of primitives.storage/leaf-count)
 (= (dec (count (primitives.core/binary-repr-of-n @primitives.storage/leaf-count)))

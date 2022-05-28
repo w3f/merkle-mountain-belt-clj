@@ -1,4 +1,6 @@
-(ns primitives.storage)
+(ns primitives.storage 
+  (:require
+   primitives.core))
 
 (defonce storage-array (atom '[]))
 (defonce parent-less-nodes-atom (atom #{}))
@@ -34,11 +36,6 @@
                          }
                         )
                     )) (range (count storage))))
-
-(comment
-  (storage/node-maps (into [] (flatten (primitives.core/belted-edges)))))
-(comment
-  (storage/node-maps (into [] (flatten (primitives.core/belted-nodes)))))
 
 (comment
   (map (fn [child-index] (- (+ (mod child-index (int (Math/pow 2 (+ (primitives.storage/p-adic-order 2 child-index) 2))))))) (range 1 1000)))
@@ -211,5 +208,5 @@
 (defn non-zero-entries []
   (filter #(not= 0 (:id %)) (node-maps @storage-array)))
 
-(defn parents []
+(defn parent-ids []
   (filter #(string? (:id %)) (node-maps @storage-array)))
