@@ -972,7 +972,7 @@
   )
 
 (println "pre-algos:" (new java.util.Date))
-(def algo-bound 110)
+(def algo-bound 111)
 (def oneshot-only-algos (atom (doall (play-algo-retain-sequence (dec algo-bound) true))))
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def oneshot-algos (atom (map #(play-algo-oneshot-end %) (range 1 algo-bound))))
@@ -985,7 +985,7 @@
 (comment
   (with-open [w (clojure.java.io/writer "src/cached.edn")]
    (binding [*out* w]
-     (pr @manual-algos))))
+     (pr @manual-only-algos))))
 
 (def manual-algos-cached
   (with-open [r (java.io.PushbackReader. (clojure.java.io/reader "src/cached.edn"))]
