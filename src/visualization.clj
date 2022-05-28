@@ -223,8 +223,8 @@
 
 (primitives.storage/node-maps-updated (into [] (into #{} (flatten (core/belted-nodes)))))
 
-(primitives.storage/node-maps (do (filter #(int? %) (flatten (core/belted-edges)))))
-(map (juxt identity primitives.storage/node-name) (do (filter #(int? %) (flatten (core/belted-edges)))))
+(primitives.storage/node-maps (filter #(int? %) (flatten (core/belted-edges))))
+(map (juxt identity primitives.storage/node-name) (filter #(int? %) (flatten (core/belted-edges))))
 (primitives.storage/node-name-maps (flatten (core/belted-edges)))
 
 (count (core/belted-edges))

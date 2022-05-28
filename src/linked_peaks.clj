@@ -1000,17 +1000,7 @@
 
 (map
  (fn [n] (= (nth manual-algos-cached (dec n))
-            (update (play-algo n false) :node-array (comp rest rest)))) (range 1 (inc (count manual-algos-cached))))
-
-(map
- (fn [n] (= (nth manual-algos-cached (dec n))
-            (update (play-algo-oneshot-end n) :node-array (comp rest rest)))) (range 1 algo-bound))
-
-(:node-array (nth manual-algos-cached 1))
-(:node-array (play-algo-oneshot-end 2))
-(:node-array (update (play-algo-oneshot-end 2) :node-array (comp rest rest)))
-
-(get-parent (get @range-nodes #{0 1}))
+            (play-algo n false))) (range 1 (inc (count manual-algos-cached))))
 
 ;; test that everything is exactly the same
 (=
@@ -1062,8 +1052,8 @@
   (filter
    #(false? (second %))
    (map-indexed (fn [idx n] [(inc idx) (=
-                                       (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-only-algos n)))))
-                                       (into #{} (map mapulation (vals (:range-nodes (nth @manual-only-algos n))))))])
+                                        (into #{} (map mapulation (vals (:range-nodes (nth @oneshot-only-algos n)))))
+                                        (into #{} (map mapulation (vals (:range-nodes (nth @manual-only-algos n))))))])
                 (range (min (count @oneshot-only-algos) (count @optimized-manual-algos))))))
 
 (letfn [
@@ -1075,8 +1065,8 @@
   (filter
    #(false? (second %))
    (map-indexed (fn [idx n] [(inc idx) (=
-                                       (into #{} (map mapulation (vals (dissoc (:range-nodes (nth @oneshot-only-algos n)) #{}))))
-                                       (into #{} (map mapulation (vals (dissoc (:range-nodes (nth @manual-only-algos n)) #{})))))])
+                                        (into #{} (map mapulation (vals (dissoc (:range-nodes (nth @oneshot-only-algos n)) #{}))))
+                                        (into #{} (map mapulation (vals (dissoc (:range-nodes (nth @manual-only-algos n)) #{})))))])
                 (range (min (count @oneshot-only-algos) (count @optimized-manual-algos))))))
 
 (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
@@ -1287,7 +1277,7 @@
     (clojure.pprint/pprint
      {:first-mismatch first-mismatch
       :old (play-algo first-mismatch false)
-      :new (play-algo first-mismatch true) })))
+      :new (play-algo first-mismatch true)})))
 
 (do
   ;; (play-algo 10 false)
