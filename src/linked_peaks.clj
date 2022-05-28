@@ -19,7 +19,7 @@
 (def global-debugging (atom false))
 (defn toggle-debugging [] (swap! global-debugging #(not %)))
 (comment (toggle-debugging))
-(def debugging-flags (atom #{:singleton-range :merge :belt-merge :range-merge-replace}))
+(def debugging-flags (atom #{:singleton-range :merge :belt-merge :range-merge-replace :range-phantom}))
 (defn all-debugging []
   (reset! debugging-flags #{:singleton-range :merge :belt-merge :range-merge-replace :peak-merge}))
 (defn set-debugging-flags [flags]
@@ -446,6 +446,7 @@
         ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
          (reset! root-belt-node new-belt-root)
         ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
+         #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
           (swap! range-nodes #(assoc % h (range-node (:hash (get-parent (get @node-map @lastP) :range)) h h new-belt-root))))
 
        (swap! node-map #(assoc-in % [h :parent] h))
@@ -463,8 +464,10 @@
            hash-new-range (clojure.set/union (:hash last-range) h)
            new-belt-parent (clojure.set/union hash-new-range (:left old-belt-parent))
            new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)]
+       #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
         (swap! range-nodes #(assoc % (:hash new-range) new-range))
        (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
+       #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
         (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
         ;; update former range-leader's parent belt to have new range-leader as child
         ;; TODO: following is wrong since old belt node is deleted
@@ -479,6 +482,7 @@
        (if (contains? @belt-nodes (:left old-belt-parent))
          (swap! belt-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
          (if (contains? @range-nodes (:left old-belt-parent))
+           #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
             (swap! range-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
            (throw (Exception. (str "old belt node's left child was invalid at leaf count " @leaf-count)))))
        (swap! belt-nodes #(dissoc % (:hash old-belt-parent)))
@@ -639,6 +643,7 @@
           (let [;; check where parent lives: should only exist in one of the maps
                 parent (get-parent Q-old :range)]
             (swap! Q #(assoc % :parent (:parent parent)))
+            #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
              (swap! range-nodes #(dissoc % (:hash parent))))
                 ;; else
                 ;; DONE (should remove): (throw (Exception. (str "parents don't match @ leaf count " @leaf-count)))
@@ -654,7 +659,7 @@
                    (= (:parent L) (:left (get-parent Q-old :range))))
                   ;; #dbg
 
-            #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:merge]))}
+            ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:merge]))}
             (let [parent-L (get-parent L :range)
                   parent-Q-old (get-parent Q-old :range)
                         ;; this is the range node that will replace their former parent range nodes
@@ -699,6 +704,7 @@
                        (or (= :no-parent grandparent-type)
                            (and (= :range grandparent-type)
                                 (not= (:parent Q-old) (:left (get-parent (get-parent Q-old :range) :range))))))
+                #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
                  (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right Q-old))) :left] rn)))
 
               ;; if Q-old's grandparent is a belt node, then
@@ -730,6 +736,8 @@
                                 ;; TODO: check if parent should actually be new-bn in general
                           (swap! belt-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
                           (if (contains? @range-nodes (:left left-of-old-bn))
+                          ;; (if (and (not (contains? #{1 2 5} @leaf-count)) (contains? @range-nodes (:left left-of-old-bn)))
+                            #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
                              (swap! range-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
                             ;; (throw (Exception. (str "old belt node's left child didn't have a left child at " @leaf-count)))
                             ))
@@ -738,6 +746,7 @@
                   ))
                     ;; add new parent range node that couples to old parent range's left
                     ;; #dbg
+              #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
                (swap! range-nodes #(assoc % rn (range-node (:left (get-parent L :range)) (:hash @Q) rn new-grandparent-hash)))
                     ;; update former left's parent's left child to point to rn as a parent
                     ;; NOTE: doesn't apply for left-most range node
@@ -745,9 +754,11 @@
               #_{:clj-kondo/ignore [:missing-else-branch]}
               (if (and (not distinct-ranges)
                        (:left (get-parent L :range)))
+                #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
                  (swap! range-nodes #(assoc-in % [(:left (get-parent L :range)) :parent] rn)))
                     ;; remove former left's parent from range nodes
                     ;; #dbg
+              #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
                (swap! range-nodes #(dissoc % (:parent L)))
 
                     ;; TODO: integrate this neater!
@@ -755,10 +766,12 @@
               (if (and (not distinct-ranges) (contains? @range-nodes (:hash @Q)) (not= 4 @leaf-count))
                  ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-merge-replace]))}
                 (let [former-range (get @range-nodes (:hash @Q))]
+                  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
                    (swap! range-nodes #(dissoc % (:hash @Q)))
                   (swap! Q #(assoc % :parent rn))
                         ;; if merged peak is not rightmost peak, also update the reference to it from its left neighbour
                   #_{:clj-kondo/ignore [:missing-else-branch]}
+                  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
                    (if (:right @Q) (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right @Q))) :left] (:parent @Q))))
                         ;; UNTRUE: if former range's parent is a range node, then former range was a left child
                         ;; (if (contains? @range-nodes (:parent former-range))
@@ -941,6 +954,53 @@
       (reset! global-debugging global-debugging-state)
       (set-debugging-flags debugging-flags-state))
       ))
+
+(defn play-algo-debug-all-steps [n]
+  (do
+    (let [global-debugging-state @global-debugging
+          debugging-flags-state @debugging-flags]
+      (reset! global-debugging true)
+      (all-debugging)
+      (play-algo n false)
+      (reset! global-debugging global-debugging-state)
+      (set-debugging-flags debugging-flags-state))))
+
+(defn verify-range-node-parenting
+  "verifies parenting relationships of all range nodes"
+  []
+  false)
+
+(defn verify-belt-node-parenting
+  "verifies parenting relationships of all range nodes"
+  []
+  (every? (fn [[k v]] (and
+                       (= k (clojure.set/union (:left v) (:right v)))
+                       (= #{} (clojure.set/intersection (:left v) (:right v)))))
+          (:belt-nodes (current-atom-states))))
+
+(defn verify-parenting
+  "verifies that all parent hashes are calculated correctly" []
+  (and
+   (verify-belt-node-parenting)
+   (verify-range-node-parenting)))
+
+;; NEXT: debug this: should be empty
+(filter (fn [[k v]] (not (and
+                          (= k (if (and
+                                   ;; first, verify that left leaf is not nil
+                                    (not (nil? (:left v)))
+                                   ;; then, verify that left & right "children" are even in the same range
+                                   ;; (or (= #{} (:left v)) (distinct-ranges? (get-child v :left) (get-child v :right))))
+                                   ;; TODO: nail down condition under which we should skip left child from hash calc
+                                    (or (and (= :peak (:type (get-child v :left))) (distinct-ranges? (get-child v :left) (get-child v :right)))
+                                        (and (= :range (:type (get-child v :left))) (not= v (get-parent (get-child v :left))))))
+                                ;; if in distinct ranges, then left child does not get included in parent range node's "hash"
+                                 (:right v)
+                                ;; else, "hash" both
+                                 (clojure.set/union (:right v) (:left v))))
+                          (= #{} (clojure.set/intersection (if (nil? (:left v)) #{} (:left v)) (:right v))))))
+        (:range-nodes (current-atom-states)))
+  ;; => ([#{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95} {:left #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63}, :right #{64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95}, :hash #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95}, :parent #{0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95}, :type :range}])
 
 (comment
   ;; TODO: debug range parenting break from n=110 => n=111
