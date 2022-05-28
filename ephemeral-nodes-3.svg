@@ -27,16 +27,16 @@
 <title>\:peak\: #\{\}&#45;&#45;\:range\: #\{\}</title>
 <path fill="none" stroke="black" d="M50.7,-59.3C50.7,-70.15 50.7,-84.08 50.7,-94.9"/>
 </g>
-<!-- \:range\: #\{0..2\} -->
+<!-- \:belt\: #\{\} -->
 <g id="node3" class="node">
-<title>\:range\: #\{0..2\}</title>
-<ellipse fill="none" stroke="black" cx="183.7" cy="-185" rx="64.19" ry="18"/>
-<text text-anchor="middle" x="183.7" y="-181.3" font-family="Times,serif" font-size="14.00">:range: #{0..2}</text>
+<title>\:belt\: #\{\}</title>
+<ellipse fill="none" stroke="black" cx="53.7" cy="-185" rx="44.39" ry="18"/>
+<text text-anchor="middle" x="53.7" y="-181.3" font-family="Times,serif" font-size="14.00">:belt: #{}</text>
 </g>
-<!-- \:range\: #\{\}&#45;&#45;\:range\: #\{0..2\} -->
+<!-- \:range\: #\{\}&#45;&#45;\:belt\: #\{\} -->
 <g id="edge2" class="edge">
-<title>\:range\: #\{\}&#45;&#45;\:range\: #\{0..2\}</title>
-<path fill="none" stroke="black" d="M77.93,-128.33C100.27,-140.09 131.83,-156.7 154.65,-168.71"/>
+<title>\:range\: #\{\}&#45;&#45;\:belt\: #\{\}</title>
+<path fill="none" stroke="black" d="M51.44,-131.3C51.9,-142.15 52.5,-156.08 52.96,-166.9"/>
 </g>
 <!-- \:belt\: #\{0..2\} -->
 <g id="node4" class="node">
@@ -44,20 +44,10 @@
 <ellipse fill="none" stroke="black" cx="183.7" cy="-257" rx="57.69" ry="18"/>
 <text text-anchor="middle" x="183.7" y="-253.3" font-family="Times,serif" font-size="14.00">:belt: #{0..2}</text>
 </g>
-<!-- \:range\: #\{0..2\}&#45;&#45;\:belt\: #\{0..2\} -->
+<!-- \:belt\: #\{\}&#45;&#45;\:belt\: #\{0..2\} -->
 <g id="edge3" class="edge">
-<title>\:range\: #\{0..2\}&#45;&#45;\:belt\: #\{0..2\}</title>
-<path fill="none" stroke="black" d="M171.94,-202.95C169.6,-213.95 169.61,-228.24 171.97,-239.21"/>
-</g>
-<!-- \:range\: #\{0..2\}&#45;&#45;\:belt\: #\{0..2\} -->
-<g id="edge6" class="edge">
-<title>\:range\: #\{0..2\}&#45;&#45;\:belt\: #\{0..2\}</title>
-<path fill="none" stroke="black" d="M183.7,-203.3C183.7,-214.15 183.7,-228.08 183.7,-238.9"/>
-</g>
-<!-- \:range\: #\{0..2\}&#45;&#45;\:belt\: #\{0..2\} -->
-<g id="edge8" class="edge">
-<title>\:range\: #\{0..2\}&#45;&#45;\:belt\: #\{0..2\}</title>
-<path fill="none" stroke="black" d="M195.45,-202.95C197.79,-213.95 197.78,-228.24 195.42,-239.21"/>
+<title>\:belt\: #\{\}&#45;&#45;\:belt\: #\{0..2\}</title>
+<path fill="none" stroke="black" d="M79.38,-199.83C101.43,-211.7 133.15,-228.78 155.81,-240.99"/>
 </g>
 <!-- \:peak\: #\{0..1\} -->
 <g id="node5" class="node">
@@ -76,13 +66,29 @@
 <title>\:peak\: #\{0..1\}&#45;&#45;\:range\: #\{0..1\}</title>
 <path fill="none" stroke="black" d="M183.7,-59.3C183.7,-70.15 183.7,-84.08 183.7,-94.9"/>
 </g>
+<!-- \:range\: #\{0..2\} -->
+<g id="node7" class="node">
+<title>\:range\: #\{0..2\}</title>
+<ellipse fill="none" stroke="black" cx="183.7" cy="-185" rx="64.19" ry="18"/>
+<text text-anchor="middle" x="183.7" y="-181.3" font-family="Times,serif" font-size="14.00">:range: #{0..2}</text>
+</g>
 <!-- \:range\: #\{0..1\}&#45;&#45;\:range\: #\{0..2\} -->
 <g id="edge5" class="edge">
 <title>\:range\: #\{0..1\}&#45;&#45;\:range\: #\{0..2\}</title>
 <path fill="none" stroke="black" d="M183.7,-131.3C183.7,-142.15 183.7,-156.08 183.7,-166.9"/>
 </g>
+<!-- \:range\: #\{0..2\}&#45;&#45;\:belt\: #\{0..2\} -->
+<g id="edge6" class="edge">
+<title>\:range\: #\{0..2\}&#45;&#45;\:belt\: #\{0..2\}</title>
+<path fill="none" stroke="black" d="M177.82,-202.95C176.67,-213.79 176.66,-227.82 177.78,-238.72"/>
+</g>
+<!-- \:range\: #\{0..2\}&#45;&#45;\:belt\: #\{0..2\} -->
+<g id="edge8" class="edge">
+<title>\:range\: #\{0..2\}&#45;&#45;\:belt\: #\{0..2\}</title>
+<path fill="none" stroke="black" d="M189.57,-202.95C190.72,-213.79 190.74,-227.82 189.61,-238.72"/>
+</g>
 <!-- \:peak\: #\{2\} -->
-<g id="node7" class="node">
+<g id="node8" class="node">
 <title>\:peak\: #\{2\}</title>
 <ellipse fill="none" stroke="black" cx="317.7" cy="-113" rx="51.99" ry="18"/>
 <text text-anchor="middle" x="317.7" y="-109.3" font-family="Times,serif" font-size="14.00">:peak: #{2}</text>

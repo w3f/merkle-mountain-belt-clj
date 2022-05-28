@@ -133,10 +133,10 @@
    (reset! mergeable-stack [])
    (reset! leaf-count 0)
    (reset! lastP #{})
-   (reset! belt-nodes {})
+   (reset! belt-nodes {#{} (belt-node nil #{} #{} #{0})})
    (reset! root-belt-node #{})
    ;; TODO: remove range node hack here
-   (reset! range-nodes {#{} {:left nil, :right #{}, :hash #{}, :parent #{0}, :type :range}})
+   (reset! range-nodes {#{} {:left nil, :right #{}, :hash #{}, :parent #{}, :type :range}})
 )
 
 (defn hop-left [node & target-map]
@@ -947,9 +947,9 @@
     (let [global-debugging-state @global-debugging
           debugging-flags-state @debugging-flags]
       (reset! global-debugging false)
-      (play-algo-optimized (dec n))
+      (play-algo (dec n) false)
       (reset! global-debugging true)
-      (all-debugging)
+      ;; (all-debugging)
       (algo false)
       (reset! global-debugging global-debugging-state)
       (set-debugging-flags debugging-flags-state))

@@ -6,6 +6,7 @@
    [primitives.storage]
    [rhizome.viz :as viz]
    [storage]
+   [state]
    [tangle.core :as tangle])
   )
 
@@ -108,7 +109,7 @@
  viz/view-image
  )
 
-;; TODO: fix trident
+;; DONE: fix trident
 (let [n 3]
   (->>
    (linked-peaks/graph n false)
@@ -119,10 +120,17 @@
 (defn tangle-direct-view [graph]
   (viz/view-image (tangle-direct graph)))
 
-;; TODO: fix trident
+;; DONE: fix trident
 (tangle-direct-view (linked-peaks/graph 3 false))
-;; TODO: fix trident
+;; DONE: fix trident
 (tangle-direct-view (linked-peaks/graph 111 false))
+
+(linked-peaks/debugging-flags)
+(linked-peaks/toggle-debugging)
+(linked-peaks/set-debugging-flags [:range-phantom])
+(linked-peaks/play-algo-debug-last-step 6)
+(@state/belt-nodes)
+(@state/range-nodes)
 
 (defn tangle-direct-save [graph location]
   (spit (str location ".svg") ((comp tangle/dot->svg tangle-dot) graph)))
