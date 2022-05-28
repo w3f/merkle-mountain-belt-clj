@@ -128,16 +128,15 @@
 
 (defn reset-all []
  ;; NOTE: need to already set parent for phantom node, range, and belt
-   (reset! node-map {#{} (assoc (peak-node nil nil ##Inf #{}) :parent #{})})
-   (reset! node-array [])
-   (reset! mergeable-stack [])
-   (reset! leaf-count 0)
-   (reset! lastP #{})
-   (reset! belt-nodes {#{} (belt-node nil #{} #{} #{0})})
-   (reset! root-belt-node #{})
+  (reset! node-map {#{} (assoc (peak-node nil nil ##Inf #{}) :parent #{})})
+  (reset! node-array [])
+  (reset! mergeable-stack [])
+  (reset! leaf-count 0)
+  (reset! lastP #{})
+  (reset! belt-nodes {#{} (belt-node nil #{} #{} #{0})})
+  (reset! root-belt-node #{})
    ;; TODO: remove range node hack here
-   (reset! range-nodes {#{} {:left nil, :right #{}, :hash #{}, :parent #{}, :type :range}})
-)
+  (reset! range-nodes {#{} (range-node nil #{} #{} #{})}))
 
 (defn hop-left [node & target-map]
   (:left (get (or (first target-map) @node-map) node)))
