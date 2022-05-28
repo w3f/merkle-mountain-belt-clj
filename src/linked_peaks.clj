@@ -618,11 +618,10 @@
 (defn peak-merge [oneshot-nesting?]
   ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:peak-merge]))}
   ;; TODO: consider moving all conditionals into the execution logic of `algo`
-  #_{:clj-kondo/ignore [:missing-else-branch]}
   (if (not (zero? (count @mergeable-stack)))
     (let [Q (atom (pop-mergeable-stack))
           Q-old @Q
-                ;; Q-old-hash (:hash Q-old)
+         ;; Q-old-hash (:hash Q-old)
           L (get @node-map (:left @Q))]
 
       (swap! Q #(update % :height inc))
@@ -695,7 +694,7 @@
                                                              ;; if grandparent neither range nor belt, we just leave blank
                                                         [nil nil]))]
                     ;; if Q-old's grandparent is a range node, and Q-old's parent is not the left-child of Q-old's grandparent range, then it's the right-child, hence the range node to the right of Q-old's parent is in another range, so need to hop to it via path: Q-old's right's parent, and then update its left reference (without updating hash, since other range)
-                    ;; #dbg
+               ;; #dbg
                (if (and (:right Q-old)
                         (or (= :no-parent grandparent-type)
                             (and (= :range grandparent-type)
@@ -820,7 +819,8 @@
 
       #_{:clj-kondo/ignore [:unresolved-symbol]}
       (comment #_{:clj-kondo/ignore [:syntax]}
-       (if upgrade?)))))
+       (if upgrade?)))
+    nil))
 
 (defn algo [oneshot-nesting?]
   (let [
