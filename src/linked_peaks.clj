@@ -127,7 +127,7 @@
     (swap! node-array concat (repeat zero-leaves 0) (list item))))
 
 (defn reset-all []
- ;; NOTE: need to already set parent for dummy node
+ ;; NOTE: need to already set parent for phantom node, range, and belt
    (reset! node-map {#{} (assoc (peak-node nil nil ##Inf #{}) :parent #{})})
    (reset! node-array [])
    (reset! mergeable-stack [])
@@ -362,7 +362,7 @@
   )
 
 
-;; TODO: can simplify if use dummy belt node
+;; TODO: can simplify if use phantom belt node
 (defn child-contenders [type & child-leg]
   (let [rank (get type-rank type)]
     (if (= rank (:peak type-rank))
@@ -440,7 +440,7 @@
       ;; create new root belt node with new leaf's parent range node as right child and former root node as left child
        (let [new-belt-root (clojure.set/union h @root-belt-node)]
          (swap! belt-nodes #(assoc % new-belt-root (belt-node @root-belt-node h new-belt-root nil)))
-        ;; TODO: skipping #{} because don't have dummy #{} belt node yet -> fix once added
+        ;; TODO: skipping #{} because don't have phantom #{} belt node yet -> fix once added
          #_{:clj-kondo/ignore [:missing-else-branch]}
          (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
         ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
@@ -1159,7 +1159,7 @@
         left-most (filter #(= #{} (:left %)) peaks)
         right-most (filter #(nil? (:right %)) peaks)
         chain-from-left (take-while some? (iterate #(get nodes (:right %)) (first left-most)))
-        ;; TODO: might change dummy "peak" to be an actual peak - then don't need the silly condition over here
+        ;; TODO: might change phantom "peak" to be an actual peak - then don't need the silly condition over here
         chain-from-right (take-while #(and (some? %) (not= #{} (:hash %))) (iterate #(get nodes (:left %)) (first right-most)))]
     {:only-peaks-and-all-peaks
      [;; check that only one node lacks a :left or a :right
