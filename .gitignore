@@ -2,5 +2,8 @@
 *.pdf
 *.dot
 *.vz
+*.svg
 .nrepl-port
 .cpcache
+.clj-kondo
+.lsp
