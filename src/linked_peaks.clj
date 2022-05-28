@@ -914,13 +914,16 @@
       (state/current-atom-states)
       ))
 
-(defn play-algo-optimized [n]
+(defn play-algo-optimized
+  "plays algorithm without oneshot nesting but for the penultimate step"
+  [n]
   (do (reset-all)
       (doall (repeatedly (dec (dec n)) #(algo false)))
+      #_{:clj-kondo/ignore [:missing-else-branch]}
       (if (< 1 n) (algo true))
+      #_{:clj-kondo/ignore [:missing-else-branch]}
       (if (< 0 n) (algo false))
-      (state/current-atom-states)
-      ))
+      (state/current-atom-states)))
 
 (defn play-algo-oneshot-end [n]
   (do (reset-all)

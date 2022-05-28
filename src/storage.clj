@@ -29,6 +29,7 @@
     (swap! primitives.storage/leaf-count inc)
     (add-internal leaf (leaf-location @primitives.storage/leaf-count))
     (swap! parent-less-nodes-atom #(conj % (leaf-location @primitives.storage/leaf-count)))
+    #_{:clj-kondo/ignore [:missing-else-branch]}
     (if
         (not= (+ @primitives.storage/leaf-count 1) (int (Math/pow 2 (primitives.storage/p-adic-order 2 (+ @primitives.storage/leaf-count 1)))))
       (do
