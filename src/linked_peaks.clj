@@ -968,26 +968,30 @@
   []
   (every? (fn [[k v]] (and
                        (= k (if (and
-                                   ;; first, verify that left leaf is not nil
-                                 (not (nil? (:left v)))
-                                   ;; then, verify that left & right "children" are even in the same range
-                                   ;; (or (= #{} (:left v)) (distinct-ranges? (get-child v :left) (get-child v :right))))
-                                   ;; TODO: nail down condition under which we should skip left child from hash calc
-                                 (or (and (= :peak (:type (get-child v :left))) (distinct-ranges? (get-child v :left) (get-child v :right)))
-                                     (and (= :range (:type (get-child v :left))) (not= v (get-parent (get-child v :left))))))
-                                ;; if in distinct ranges, then left child does not get included in parent range node's "hash"
+                                 ;; first, verify that left leaf is not nil
+                                 (some? (:left v))
+                                 ;; then, verify that left & right "children" are even in the same range
+                                 (let [left-child (get-child v :left)]
+                                   (if (= :peak (:type left-child))
+                                     (distinct-ranges? left-child (get-child v :right))
+                                     ;; else
+                                     (if (= :range (:type left-child))
+                                       (not= v (get-parent left-child))
+                                       ;; if parent neither range nor belt, throw exception
+                                       (throw (Exception. "unhandled type of left child"))))))
+                              ;; if in distinct ranges, then left child does not get included in parent range node's "hash"
                               (:right v)
-                                ;; else, "hash" both
-                              (clojure.set/union (:right v) (:left v))))
-                       (= #{} (clojure.set/intersection (if (nil? (:left v)) #{} (:left v)) (:right v)))))
+                              ;; else, "hash" both
+                              (clojure.set/union (or (:left v) #{}) (:right v))))
+                       (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))))
           (:range-nodes (current-atom-states))))
 
 (defn verify-belt-node-parenting
   "verifies parenting relationships of all range nodes"
   []
   (every? (fn [[k v]] (and
-                       (= k (clojure.set/union (:right v) (:left v)))
-                       (= #{} (clojure.set/intersection (if (nil? (:left v)) #{} (:left v)) (:right v)))))
+                       (= k (clojure.set/union (or (:left v) #{}) (:right v)))
+                       (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))))
           (:belt-nodes (current-atom-states))))
 
 (defn verify-parenting
