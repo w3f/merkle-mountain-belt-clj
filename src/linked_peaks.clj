@@ -974,10 +974,54 @@
       (set-debugging-flags debugging-flags-state))))
 
 ;; TODO: must also ensure that parent-child references are symmetric
-(defn parent-child-mutual-acknowledgement [])
+(defn parent-child-mutual-acknowledgement
+  "parent and child mutually reference one another"
+  [parent child]
+  (and
+   (= parent (get-parent child))
+   (or (= child (get-child parent :left))
+       (= child (get-child parent :right)))))
+
+(defn verify-all-ancestry
+  "verifies both the children of `node` and its parent with respect to mutual acknowledgement"
+  [node]
+  (let [parent (get-parent node)]
+    (and
+     ;; verify parent
+     (if (some? parent)
+       (parent-child-mutual-acknowledgement parent node)
+       ;; if parent is nil, then must be root belt node
+       (= @state/root-belt-node (:hash node)))
+     ;; verify left child
+     (let [left-child (get-child node :left)]
+       (if (some? left-child)
+         ;; if the left child is a range node and its parent is a belt node, then the set of children of the left-child and the node must be disjoint
+         (or
+          (and (= :range (:type node)) (= :range (:type left-child)) (= :belt (:type (get-parent left-child))) (= #{} (clojure.set/intersection (:hash node) (:hash left-child))))
+          (parent-child-mutual-acknowledgement node left-child))
+         ;; if left child is nil, then must be phantom node
+         (= #{} (:hash node))))
+     ;; verify right child
+     (parent-child-mutual-acknowledgement node (get-child node :right)))))
+
+(let [
+      node (get @state/range-nodes #{1336})
+      ;; node (get @state/range-nodes #{})
+      ;; node (get @state/range-nodes (into #{} (range 0 1024)))
+      ]
+  ;; (verify-all-ancestry (get @state/range-nodes #{1336}))
+  ;; (truncate-#set-display node)
+  ;; (truncate-#set-display (get-child node :left))
+  ;; (truncate-#set-display (get-parent (get-child node :left)))
+  (verify-all-ancestry node))
+;; => true for leaf #{1336} @ (= leaf-count 1337)
+;; => true for leaf #{0..1023} @ (= leaf-count 1337)
+;; => false for leaf #{} @ (and (= leaf-count 1337) oneshot-nesting?)
 
 (defn verify-range-node-parenting
-  "verifies parenting relationships of all range nodes: parent hash is concatenation of its children, unless left \"child\" is only a phantom reference to another range"
+  "verifies parenting relationships of all range nodes:
+  1. parent hash is concatenation of its children, unless left \"child\" is only a phantom reference to another range
+  2. verify all ancestry relationships"
   []
   (every? (fn [[k v]] (and
                        (= k (if (and
@@ -993,10 +1037,12 @@
                                        ;; if parent neither range nor belt, throw exception
                                        (throw (Exception. "unhandled type of left child"))))))
                               ;; if in distinct ranges, then left child does not get included in parent range node's "hash"
+                              ;; TODO: stricter condition for distinct ranges of two range nodes
                               (:right v)
                               ;; else, "hash" both
                               (clojure.set/union (or (:left v) #{}) (:right v))))
-                       (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))))
+                       (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))
+                       (verify-all-ancestry v)))
           (:range-nodes (current-atom-states))))
 
 (defn verify-belt-node-parenting
@@ -1004,7 +1050,8 @@
   []
   (every? (fn [[k v]] (and
                        (= k (clojure.set/union (or (:left v) #{}) (:right v)))
-                       (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))))
+                       (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))
+                       (verify-all-ancestry v)))
           (:belt-nodes (current-atom-states))))
 
 (truncate-#set-display (get (:range-nodes (play-algo-oneshot-end 1337)) #{}))
@@ -1015,27 +1062,38 @@
    #_{:clj-kondo/ignore [:missing-else-branch]}
    (if cached
      (state/reset-atoms-from-cached! cached))
-   (println @state/leaf-count)
+   #_{:clj-kondo/ignore [:missing-else-branch]}
+   (if (= 0 (mod @state/leaf-count 100)) (println @state/leaf-count))
    (and
     (verify-range-node-parenting)
     (verify-belt-node-parenting)))
   ([]
    (verify-parenting nil)))
 
-;; FIXME: this shouldn't pass yet since have trident in oneshot (for its parent, phantom range node refers to left-most truthy range node, and not the phantom belt node)
+;; DONE: this shouldn't pass yet since have trident in oneshot (for its parent, phantom range node refers to left-most truthy range node, and not the phantom belt node)
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
-  (let [n 2000]
+  (let [n 1]
     (reset-all)
     (empty? (filter false?
                     (doall (repeatedly n #(do (algo true) (verify-parenting))))))))
+;; => false
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
-  (let [n 1500]
+  (let [n 5000]
     (reset-all)
     (last (take-while #(true? (second %))
-                 (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo true) (verify-parenting)))))))))
+                      (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo true) (verify-parenting)))))))))
+;; => nil (i.e. none passed)
+
+#_{:clj-kondo/ignore [:missing-else-branch]}
+(if @run-tests
+  (let [n 5000]
+    (reset-all)
+    (last (take-while #(true? (second %))
+                 (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo false) (verify-parenting)))))))))
+;; => 4999 (i.e. all passed)
 
 ;; show that, barring missing belt node impl in incremental algo, get matching
 ;; result between incremental & oneshot
