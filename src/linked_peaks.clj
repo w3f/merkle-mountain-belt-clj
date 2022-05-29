@@ -973,6 +973,9 @@
       (reset! global-debugging global-debugging-state)
       (set-debugging-flags debugging-flags-state))))
 
+;; TODO: must also ensure that parent-child references are symmetric
+(defn parent-child-mutual-acknowledgement [])
+
 (defn verify-range-node-parenting
   "verifies parenting relationships of all range nodes: parent hash is concatenation of its children, unless left \"child\" is only a phantom reference to another range"
   []
@@ -997,25 +1000,42 @@
           (:range-nodes (current-atom-states))))
 
 (defn verify-belt-node-parenting
-  "verifies parenting relationships of all range nodes"
+  "verifies parenting relationships of all belt nodes"
   []
   (every? (fn [[k v]] (and
                        (= k (clojure.set/union (or (:left v) #{}) (:right v)))
                        (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))))
           (:belt-nodes (current-atom-states))))
 
-(defn verify-parenting
-  "verifies that all parent hashes are calculated correctly" []
-  (and
-   (verify-range-node-parenting)
-   (verify-belt-node-parenting)))
+(truncate-#set-display (get (:range-nodes (play-algo-oneshot-end 1337)) #{}))
 
+(defn verify-parenting
+  "verifies that all parent hashes are calculated correctly"
+  ([cached]
+   #_{:clj-kondo/ignore [:missing-else-branch]}
+   (if cached
+     (state/reset-atoms-from-cached! cached))
+   (println @state/leaf-count)
+   (and
+    (verify-range-node-parenting)
+    (verify-belt-node-parenting)))
+  ([]
+   (verify-parenting nil)))
+
+;; FIXME: this shouldn't pass yet since have trident in oneshot (for its parent, phantom range node refers to left-most truthy range node, and not the phantom belt node)
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
   (let [n 2000]
     (reset-all)
     (empty? (filter false?
-                    (doall (repeatedly n #(do (algo false) (verify-parenting))))))))
+                    (doall (repeatedly n #(do (algo true) (verify-parenting))))))))
+
+#_{:clj-kondo/ignore [:missing-else-branch]}
+(if @run-tests
+  (let [n 1500]
+    (reset-all)
+    (last (take-while #(true? (second %))
+                 (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo true) (verify-parenting)))))))))
 
 ;; show that, barring missing belt node impl in incremental algo, get matching
 ;; result between incremental & oneshot

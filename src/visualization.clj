@@ -120,7 +120,7 @@
 (defn tangle-direct-view [graph]
   (viz/view-image (tangle-direct graph)))
 
-;; TODO: fix trident in oneshot (incremental works)
+;; FIXME: trident in oneshot (incremental works): for its parent, phantom range node refers to left-most truthy range node, and not the phantom belt node
 (tangle-direct-view (linked-peaks/graph 1337 false))
 (tangle-direct-view (linked-peaks/graph 1337 true))
 
