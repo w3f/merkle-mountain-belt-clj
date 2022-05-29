@@ -1,14 +1,24 @@
 (ns linked-peaks
   (:require
-   clojure.java.io
-   clojure.pprint
-   clojure.set
-   clojure.string
-   clojure.walk
-   primitives.core
-   primitives.storage
-   [state :refer [belt-nodes current-atom-states lastP leaf-count
-                  mergeable-stack node-array node-map pointers range-nodes root-belt-node]]))
+   [clojure.java.io]
+   [clojure.pprint]
+   [clojure.set]
+   [clojure.string]
+   [clojure.walk]
+   [primitives.core]
+   [primitives.storage]
+   [state
+    :refer
+    [belt-nodes
+     current-atom-states
+     lastP
+     leaf-count
+     mergeable-stack
+     node-array
+     node-map
+     pointers
+     range-nodes
+     root-belt-node]]))
 
 (println "start:" (new java.util.Date))
 
