@@ -110,7 +110,7 @@
  )
 
 ;; DONE: fix trident
-(let [n 3]
+(let [n 1337]
   (->>
    (linked-peaks/graph n false)
    tangle-dot
@@ -120,10 +120,9 @@
 (defn tangle-direct-view [graph]
   (viz/view-image (tangle-direct graph)))
 
-;; DONE: fix trident
-(tangle-direct-view (linked-peaks/graph 3 false))
-;; DONE: fix trident
-(tangle-direct-view (linked-peaks/graph 2000 false))
+;; TODO: fix trident in oneshot (incremental works)
+(tangle-direct-view (linked-peaks/graph 1337 false))
+(tangle-direct-view (linked-peaks/graph 1337 true))
 
 (linked-peaks/toggle-debugging)
 (linked-peaks/set-debugging-flags [:range-phantom])

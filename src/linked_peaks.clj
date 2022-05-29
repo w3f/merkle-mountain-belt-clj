@@ -1000,21 +1000,12 @@
    (verify-range-node-parenting)
    (verify-belt-node-parenting)))
 
-(truncate-#set-display (verify-belt-node-parenting))
-
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
   (let [n 2000]
     (reset-all)
     (empty? (filter false?
                     (doall (repeatedly n #(do (algo false) (verify-parenting))))))))
-
-(some? (play-algo 111 false))
-  ;; => ()
-
-(comment
-  ;; TODO: debug range parenting break from n=110 => n=111
-  (play-algo-debug-last-step 111))
 
 ;; show that, barring missing belt node impl in incremental algo, get matching
 ;; result between incremental & oneshot
@@ -1023,16 +1014,16 @@
 ;; of (n^2)/2 (i.e. O(n^2)). mitigated by only performing expensive oneshot at the
 ;; very end (since it's always erased inbetween anyways)
 #_{:clj-kondo/ignore [:missing-else-branch]}
-(if @run-tests
-  (let [n 1337]
-    [(clojure.set/difference
-      (into #{} (vals (:range-nodes (play-algo-oneshot-end n))))
-      (into #{} (vals (:range-nodes (play-algo n false)))))
-     (clojure.set/difference
-      (into #{} (vals (:range-nodes (play-algo n false))))
-      (into #{} (vals (:range-nodes (play-algo-oneshot-end n)))))])
-  ;; => [#{} #{}]
-  )
+(truncate-#set-display
+ (if @run-tests
+   (let [n 1337]
+     [(clojure.set/difference
+       (into #{} (vals (:range-nodes (play-algo-oneshot-end n))))
+       (into #{} (vals (:range-nodes (play-algo n false)))))
+      (clojure.set/difference
+       (into #{} (vals (:range-nodes (play-algo n false))))
+       (into #{} (vals (:range-nodes (play-algo-oneshot-end n)))))])))
+;; => [#{} #{}]
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
@@ -1417,31 +1408,27 @@
 ;; TODO: construct list of edges
 (defn graph [n oneshot?]
   (do
-    (play-algo n oneshot?)
+    (if oneshot?
+      (play-algo-oneshot-end n)
+      (play-algo n oneshot?))
     (let [peaks (select-keys
-                @node-map
-                (filter (fn [k] (= :peak (:type (get @node-map k)))) (keys @node-map)))
-         edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
-         nodes (into #{} (apply concat edges))]
+                 @node-map
+                 (filter (fn [k] (= :peak (:type (get @node-map k)))) (keys @node-map)))
+          edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
+          nodes (into #{} (apply concat edges))]
      ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))
-     [
-      ;; nodes
-      nodes
+      [;; nodes
+       nodes
       ;; edges
-      edges
+       edges
       ;; options
-      {
-       :graph {
-               :rankdir :BT
-               :label (str "n=" @leaf-count)
+       {:graph {:rankdir :BT
+                :label (str "n=" @leaf-count)
                ;; :layout :neato
-               }
-       :node {:shape :oval}
-       :node->id (fn [n] (:id n))
-       :node->descriptor (fn [n] (when (map? n) n))
-       }
-      ]
-     )))
+                }
+        :node {:shape :oval}
+        :node->id (fn [n] (:id n))
+        :node->descriptor (fn [n] (when (map? n) n))}])))
 
 (comment
   (co-path-internal (primitives.storage/leaf-location 65) []))
