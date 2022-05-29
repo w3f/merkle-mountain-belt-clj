@@ -238,8 +238,9 @@
     (reset! belt-nodes {})
     (letfn [;; takes type of child to find its storage map, and then updates its parent
             (update-parent [parent child]
-              (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent)))))
-            ]
+              (if (:type child) (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent))))
+                  ;; (println child "does not have a type key!")
+                  ))]
       ;; #dbg
       (let [belt-children (doall (map (fn [belt-range-count]
                                         (reduce (fn [left-child right-child]
@@ -279,16 +280,14 @@
             root-bn (doall
                      (reduce (fn [left-child right-child]
                                (let [bn (belt-node (:hash left-child) (:hash right-child)
-                                                   (clojure.set/union (:hash left-child) (:hash right-child)) nil)]
+                                                   (clojure.set/union (or (:hash left-child) #{}) (:hash right-child)) nil)]
                                  (doall (map
                                          (partial update-parent bn)
                                          [left-child right-child]))
                                  (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
-                                 bn
-                                 ))
-                             belt-children
-                             ))
-            ]
+                                 bn))
+                             (cons {:hash nil} belt-children)))]
+
         (reset! root-belt-node (:hash root-bn))
         {:belt-children belt-children
          :range-nodes @range-nodes
@@ -965,7 +964,7 @@
       (reset! global-debugging global-debugging-state)
       (set-debugging-flags debugging-flags-state))))
 
-;; TODO: must also ensure that parent-child references are symmetric
+;; DONE: must also ensure that parent-child references are symmetric
 (defn parent-child-mutual-acknowledgement
   "parent and child mutually reference one another"
   [parent child]
@@ -1063,14 +1062,13 @@
   ([]
    (verify-parenting nil)))
 
-;; DONE: this shouldn't pass yet since have trident in oneshot (for its parent, phantom range node refers to left-most truthy range node, and not the phantom belt node)
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
   (let [n 1]
     (reset-all)
     (empty? (filter false?
                     (doall (repeatedly n #(do (algo true) (verify-parenting))))))))
-;; => false
+;; => true
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
@@ -1078,7 +1076,7 @@
     (reset-all)
     (last (take-while #(true? (second %))
                       (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo true) (verify-parenting)))))))))
-;; => nil (i.e. none passed)
+;; => 4999 (i.e. all passed)
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
