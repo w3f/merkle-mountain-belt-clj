@@ -123,9 +123,8 @@
 ;; DONE: fix trident
 (tangle-direct-view (linked-peaks/graph 3 false))
 ;; DONE: fix trident
-(tangle-direct-view (linked-peaks/graph 111 false))
+(tangle-direct-view (linked-peaks/graph 2000 false))
 
-(linked-peaks/debugging-flags)
 (linked-peaks/toggle-debugging)
 (linked-peaks/set-debugging-flags [:range-phantom])
 (linked-peaks/play-algo-debug-last-step 6)

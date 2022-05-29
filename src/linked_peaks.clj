@@ -165,6 +165,7 @@
 ;; +: don't need to update left pointers of right siblings
 ;; -: harder links to node-array
 ;; -: I suspect we need right pointers for peaks anyways to facilitate range node updates
+
 (defn get-pointer []
   (let [pointer-upper-bound 9999
         pointer (first (drop-while
@@ -209,8 +210,6 @@
 ;; (truncate-#set-display (:range-nodes (play-algo-oneshot-end 8)))
 
 (comment (map #(get @node-map (nth @node-array (- (first %) 0))) (primitives.storage/parent-less-nodes-sorted-height (primitives.storage/parent-less-nodes @leaf-count))))
-
-(identity @node-array)
 
 (defn oneshot-nesting
   "performs a oneshot nesting of ephemeral range and belt nodes. takes flag `singleton-ranges?` to specify whether singleton peaks should also have a range node above them"
@@ -965,41 +964,48 @@
       (set-debugging-flags debugging-flags-state))))
 
 (defn verify-range-node-parenting
-  "verifies parenting relationships of all range nodes"
+  "verifies parenting relationships of all range nodes: parent hash is concatenation of its children, unless left \"child\" is only a phantom reference to another range"
   []
-  false)
+  (every? (fn [[k v]] (and
+                       (= k (if (and
+                                   ;; first, verify that left leaf is not nil
+                                 (not (nil? (:left v)))
+                                   ;; then, verify that left & right "children" are even in the same range
+                                   ;; (or (= #{} (:left v)) (distinct-ranges? (get-child v :left) (get-child v :right))))
+                                   ;; TODO: nail down condition under which we should skip left child from hash calc
+                                 (or (and (= :peak (:type (get-child v :left))) (distinct-ranges? (get-child v :left) (get-child v :right)))
+                                     (and (= :range (:type (get-child v :left))) (not= v (get-parent (get-child v :left))))))
+                                ;; if in distinct ranges, then left child does not get included in parent range node's "hash"
+                              (:right v)
+                                ;; else, "hash" both
+                              (clojure.set/union (:right v) (:left v))))
+                       (= #{} (clojure.set/intersection (if (nil? (:left v)) #{} (:left v)) (:right v)))))
+          (:range-nodes (current-atom-states))))
 
 (defn verify-belt-node-parenting
   "verifies parenting relationships of all range nodes"
   []
   (every? (fn [[k v]] (and
-                       (= k (clojure.set/union (:left v) (:right v)))
-                       (= #{} (clojure.set/intersection (:left v) (:right v)))))
+                       (= k (clojure.set/union (:right v) (:left v)))
+                       (= #{} (clojure.set/intersection (if (nil? (:left v)) #{} (:left v)) (:right v)))))
           (:belt-nodes (current-atom-states))))
 
 (defn verify-parenting
   "verifies that all parent hashes are calculated correctly" []
   (and
-   (verify-belt-node-parenting)
-   (verify-range-node-parenting)))
+   (verify-range-node-parenting)
+   (verify-belt-node-parenting)))
+
+(truncate-#set-display (verify-belt-node-parenting))
+
+#_{:clj-kondo/ignore [:missing-else-branch]}
+(if @run-tests
+  (let [n 2000]
+    (reset-all)
+    (empty? (filter false?
+                    (doall (repeatedly n #(do (algo false) (verify-parenting))))))))
 
 (some? (play-algo 111 false))
-;; DONE: debug this: should be empty
-(filter (fn [[k v]] (not (and
-                          (= k (if (and
-                                   ;; first, verify that left leaf is not nil
-                                    (not (nil? (:left v)))
-                                   ;; then, verify that left & right "children" are even in the same range
-                                   ;; (or (= #{} (:left v)) (distinct-ranges? (get-child v :left) (get-child v :right))))
-                                   ;; TODO: nail down condition under which we should skip left child from hash calc
-                                    (or (and (= :peak (:type (get-child v :left))) (distinct-ranges? (get-child v :left) (get-child v :right)))
-                                        (and (= :range (:type (get-child v :left))) (not= v (get-parent (get-child v :left))))))
-                                ;; if in distinct ranges, then left child does not get included in parent range node's "hash"
-                                 (:right v)
-                                ;; else, "hash" both
-                                 (clojure.set/union (:right v) (:left v))))
-                          (= #{} (clojure.set/intersection (if (nil? (:left v)) #{} (:left v)) (:right v))))))
-        (:range-nodes (current-atom-states)))
   ;; => ()
 
 (comment
