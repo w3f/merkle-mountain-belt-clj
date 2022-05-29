@@ -224,8 +224,7 @@
 (defn oneshot-nesting
   "performs a oneshot nesting of ephemeral range and belt nodes. takes flag `singleton-ranges?` to specify whether singleton peaks should also have a range node above them"
   [singleton-ranges?]
-  (let [
-        ;; {:keys [node-map node-array]} (select-keys (play-algo @leaf-count upgrade?) [:node-map :node-array])
+  (let [;; {:keys [node-map node-array]} (select-keys (play-algo @leaf-count upgrade?) [:node-map :node-array])
         ;; node-map (atom (:node-map algo-1222))
         ;; node-array (atom (:node-array algo-1222))
         ;; range-nodes (atom {})
@@ -237,14 +236,12 @@
         ]
     (reset! range-nodes {})
     (reset! belt-nodes {})
-    (letfn [
-            ;; takes type of child to find its storage map, and then updates its parent
+    (letfn [;; takes type of child to find its storage map, and then updates its parent
             (update-parent [parent child]
               (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent)))))
             ]
       ;; #dbg
-      (let [
-            belt-children (doall (map (fn [belt-range-count]
+      (let [belt-children (doall (map (fn [belt-range-count]
                                         (reduce (fn [left-child right-child]
                                                   (let [left-most (:intruder left-child)
                                                         rn (range-node (:hash left-child) (:hash right-child)
@@ -253,15 +250,14 @@
                                                                        ;; but
                                                                        ;; (= #{} (clojure.set/union #{} nil))
                                                                        (clojure.set/union (:hash right-child) #_{:clj-kondo/ignore [:missing-else-branch]}
-                                                                                                              (if-not (and singleton-ranges? left-most) (:hash left-child)))
+                                                                                          (if-not (and singleton-ranges? left-most) (:hash left-child)))
                                                                        ;; (clojure.set/union (if-not (and singleton-ranges? left-most) (:hash left-child)) (:hash right-child))
                                                                        nil)]
                                                     (doall (map
                                                             (partial update-parent rn)
                                                             (if (and singleton-ranges? left-most) [right-child] [left-child right-child])))
                                                     (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
-                                                    rn
-                                                    ))
+                                                    rn))
                                                 ;; returns all peaks that are in the given range.
                                                 ;; for every iteration, include the last node from the prior range, to make a linked list of all range nodes.
                                                 (update (into [] (if singleton-ranges?
@@ -271,15 +267,12 @@
                                                                      (reset! sorted-peaks (if (empty? remainder) remainder (cons {:hash new-leader} remainder)))
                                                                      (if (< 1 (count dropped))
                                                                        dropped
-                                                                       (conj dropped {}))
-                                                                     )
+                                                                       (conj dropped {})))
                                                                    (take belt-range-count
-                                                                         (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))
-                                                                   ))
+                                                                         (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))))
                                                         ;; DONE: first value shouldn't be last peak, but the actual range node's hash, i.e. the concatenation of hashes of the entire range
                                                         ;; tags the first node as NOT being in the same range
-                                                        0 #(if singleton-ranges? (assoc % :intruder true) %)
-                                                        )))
+                                                        0 #(if singleton-ranges? (assoc % :intruder true) %))))
                                       ;; returns number of nodes in each range
                                       (map count (cons [] (primitives.core/belt-ranges @leaf-count)))))
             ;; belt-children ()
@@ -303,8 +296,7 @@
          :root-belt-node @root-belt-node
          ;; :node-map node-map
          ;; :node-array node-array
-         }))
-    ))
+         }))))
 
 (map-indexed #(identity [%1 (count (cons [] (primitives.core/belt-ranges %2)))]) (range 100))
 
@@ -1004,6 +996,7 @@
      ;; verify right child
      (parent-child-mutual-acknowledgement node (get-child node :right)))))
 
+(play-algo 1337 false)
 (let [
       node (get @state/range-nodes #{1336})
       ;; node (get @state/range-nodes #{})
@@ -1234,9 +1227,10 @@
 (println "pre-big-algos:" (new java.util.Date))
 (def algo-1222 (play-algo-oneshot-end 1222))
 (def algo-1223 (play-algo-oneshot-end 1223))
-(def algo-1277 (play-algo-oneshot-end 1277))
-(def algo-1278 (play-algo-oneshot-end 1278))
-(def algo-1279 (play-algo-oneshot-end 1279))
+(comment
+  (def algo-1277 (play-algo-oneshot-end 1277))
+  (def algo-1278 (play-algo-oneshot-end 1278))
+  (def algo-1279 (play-algo-oneshot-end 1279)))
 (println "post-big-algos:" (new java.util.Date))
 
 ;; test: all peak nodes are connected and can be reached from one another
