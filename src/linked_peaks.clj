@@ -373,20 +373,15 @@
                 (throw (Exception. "no child-leg specified"))))
             (throw (Exception. "unhandled type & child-leg"))))))))
 
-(comment
-  (child-contenders :internal)
-  ;; => (:internal)
-  (child-contenders :peak)
-  ;; => (:internal)
-  (child-contenders :range :left)
-  ;; => (:range)
-  (child-contenders :range :right)
-  ;; => (:peak)
-  (child-contenders :belt :left)
-  ;; => (:range :belt)
-  (child-contenders :belt :right)
-  ;; => (:range)
-  )
+;; Test that child types match expected result
+(every? (fn [[[type child-leg] expected-child-type]]
+          (= expected-child-type (child-contenders type child-leg)))
+        [[[:internal nil] (list :internal)]
+         [[:peak nil] (list :internal)]
+         [[:range :left] (list :range)]
+         [[:range :right] (list :peak)]
+         [[:belt :left] (list :range :belt)]
+         [[:belt :right] (list :range)]])
 
 ;; DONE: refactor this since logic is somewhat clunky
 (defn get-parent
