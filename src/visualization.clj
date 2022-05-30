@@ -6,6 +6,7 @@
    [primitives.storage]
    [rhizome.viz :as viz]
    [storage]
+   [state]
    [tangle.core :as tangle])
   )
 
@@ -99,7 +100,6 @@
    javax.imageio.ImageIO/read
    ))
 
-
 (->
  (graph "p-1")
  tangle-dot
@@ -108,18 +108,21 @@
  viz/view-image
  )
 
-(let [n 300]
+(let [n 1337]
   (->>
    (linked-peaks/graph n false)
    tangle-dot
    (tangle/dot->svg)
-   (spit (str "ephemeral-nodes-" n ".svg"))
-   ))
+   (spit (str "ephemeral-nodes-" n ".svg"))))
 
 (defn tangle-direct-view [graph]
   (viz/view-image (tangle-direct graph)))
 
-(tangle-direct-view (linked-peaks/graph 20 false))
+(linked-peaks/toggle-debugging)
+(linked-peaks/set-debugging-flags [:range-phantom])
+(linked-peaks/play-algo-debug-last-step 6)
+(@state/belt-nodes)
+(@state/range-nodes)
 
 (defn tangle-direct-save [graph location]
   (spit (str location ".svg") ((comp tangle/dot->svg tangle-dot) graph)))
