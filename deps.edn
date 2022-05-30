@@ -1,7 +1,4 @@
 {:deps
- {
-  rhizome/rhizome {:mvn/version "0.2.9"}
+ {rhizome/rhizome {:mvn/version "0.2.9"}
   macroz/tangle {:mvn/version "0.2.2"}
-  org.clojure/test.check {:mvn/version "1.1.0"}
-  }
- }
+  org.clojure/test.check {:mvn/version "1.1.0"}}}

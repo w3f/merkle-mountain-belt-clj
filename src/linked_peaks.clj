@@ -48,16 +48,13 @@
         (str %))
       %)
    ;; (sort-by #(apply min (:hash %)) data)
-   data
-   )
-  )
+   data))
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (comment
   "example usage"
   (truncate-#set-display (:belt-nodes (oneshot-nesting-from-fresh 8 true)))
-  (truncate-#set-display (:range-nodes (oneshot-nesting-from-fresh 8 true)))
-  )
+  (truncate-#set-display (:range-nodes (oneshot-nesting-from-fresh 8 true))))
 
 (defn display-type-filtered [data type]
   (truncate-#set-display
@@ -67,8 +64,7 @@
 (comment
   "example usage"
   (display-type-filtered (vals (:node-map (play-algo 1222 true))) :peak)
-  (display-type-filtered (vals (:node-map (play-algo 20 true))) :internal)
-  )
+  (display-type-filtered (vals (:node-map (play-algo 20 true))) :internal))
 
 (defn merge-rule [n]
   (let [b (primitives.core/binary-repr-of-n (inc n))
@@ -155,21 +151,19 @@
   (:parent (get (or (first target-map) @node-map) node)))
 
 (comment (count #_{:clj-kondo/ignore [:unresolved-symbol]}
-                (oneshot-nesting-from-fresh 1223 true)))
+          (oneshot-nesting-from-fresh 1223 true)))
 (comment (count #_{:clj-kondo/ignore [:unresolved-symbol]}
-                (play-algo 1223 true)))
+          (play-algo 1223 true)))
 (comment (keys (:node-map #_{:clj-kondo/ignore [:unresolved-symbol]}
-                          (play-algo 6 true))))
+                (play-algo 6 true))))
 
 (comment
   (count (merge
           #_{:clj-kondo/ignore [:unresolved-symbol]}
           (oneshot-nesting-from-fresh 1222)
-          {
-           :mergeable-stack (atom @mergeable-stack)
+          {:mergeable-stack (atom @mergeable-stack)
            :leaf-count (atom @leaf-count)
-           :lastP (atom @lastP)
-           })))
+           :lastP (atom @lastP)})))
 
 ;; could switch to object pointers to avoid :right values, but not convinced that the advantages outweigh the disadvantages:
 ;; +: don't need to update left pointers of right siblings
@@ -182,8 +176,7 @@
                         #(contains? @pointers %)
                         (repeatedly #(rand-int pointer-upper-bound))))]
     (swap! pointers #(conj % pointer))
-    pointer)
-  )
+    pointer))
 (reset! pointers #{})
 
 (defn sanity-checks [Q-old]
@@ -309,8 +302,7 @@
       (contains? (into #{} @mergeable-stack) (:hash M))
       ;; TODO: might be able to remove the following if/once have unified rules independent of singleton-ness of new leaf
       (nil? (:hash M))
-      (= #{} (:hash M))
-    ))
+      (= #{} (:hash M))))
 
 ;; (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
 (get @node-map (:left (get @node-map @lastP)))
@@ -318,7 +310,7 @@
 
 ;; (:belt-nodes (play-algo-manual-end 13))
 (comment (:node-map #_{:clj-kondo/ignore [:unresolved-symbol]}
-                    (play-algo 200 false)))
+          (play-algo 200 false)))
 (comment (toggle-debugging))
 (reset! debugging-flags #{:belt :merge})
 (debugging [:belt])
@@ -358,9 +350,7 @@
   (parent-contenders :internal)
   (parent-contenders :peak)
   (parent-contenders :range)
-  (parent-contenders :belt)
-  )
-
+  (parent-contenders :belt))
 
 ;; TODO: can simplify if use phantom belt node
 (defn child-contenders [type & child-leg]
@@ -380,9 +370,8 @@
               (list :range :belt)
               (if (= (first child-leg) :right)
                 (list :range)
-                (throw (Exception. "no child-leg specified")) ))
-            (throw (Exception. "unhandled type & child-leg"))
-            ))))))
+                (throw (Exception. "no child-leg specified"))))
+            (throw (Exception. "unhandled type & child-leg"))))))))
 
 (comment
   (child-contenders :internal)
@@ -416,18 +405,15 @@
 (defn get-child [parent child-leg]
   (let [child-contenders (child-contenders (:type parent) child-leg)
         child-hash (get parent child-leg)
-        child-if-highest-rank (find @(get storage-maps (last child-contenders)) (get parent child-leg))
-        ]
+        child-if-highest-rank (find @(get storage-maps (last child-contenders)) (get parent child-leg))]
     (first (filter some? [(second (find @(get storage-maps (last child-contenders)) (get parent child-leg)))
-                          (second (find @(get storage-maps (first child-contenders)) (get parent child-leg)))])
-      )))
+                          (second (find @(get storage-maps (first child-contenders)) (get parent child-leg)))]))))
 
 (defn get-sibling [entry]
   (let [parent (get-parent entry)]
     (if (= (:hash entry) (:left parent))
       (get-child parent :right)
-      (get-child parent :left)))
-  )
+      (get-child parent :left))))
 
 (comment
   (get-sibling (get @node-map #{60})))
@@ -547,12 +533,12 @@
 
 ;; check that co-path is correct: ensure that we have no intersection of any of the "hashes" in the co-path
 (map
-  (fn [leaf-number]
-    (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [])]
-      (=
-       (reduce (fn [acc v] (+ acc (count v))) 0 co-path)
-       (count (into #{} (apply concat co-path))))))
-  (range 1 @leaf-count))
+ (fn [leaf-number]
+   (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [])]
+     (=
+      (reduce (fn [acc v] (+ acc (count v))) 0 co-path)
+      (count (into #{} (apply concat co-path))))))
+ (range 1 @leaf-count))
 
 (defn membership-proof [leaf state]
   (state/reset-atoms-from-cached! state)
@@ -566,36 +552,32 @@
 
 (defn verify-membership [membership-proof root-belt-node]
   (= (reduce (fn [acc v] (if (= #{} (clojure.set/intersection acc v))
-                        (clojure.set/union acc v)
+                           (clojure.set/union acc v)
                         ;; TODO: replace exception with returning eqvlt of result
-                        (throw (Exception. "invalid membership proof"))))
-           (:leaf membership-proof)
-           (:co-path membership-proof))
-     root-belt-node)
-  )
+                           (throw (Exception. "invalid membership proof"))))
+             (:leaf membership-proof)
+             (:co-path membership-proof))
+     root-belt-node))
 
 ;; verify that membership proof for all leafs are correct
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
   (let [state (state/current-atom-states)]
-   (empty?
-    (filter
-     #(not (verify-membership
-            (membership-proof % state)
-            (:root-belt-node state)))
-     (range 1 101)))
-   ))
+    (empty?
+     (filter
+      #(not (verify-membership
+             (membership-proof % state)
+             (:root-belt-node state)))
+      (range 1 101)))))
 
 ;; verify that membership proof for incorrect state root fails
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
   (let [state (state/current-atom-states)]
-   (not
-    (verify-membership
-     (membership-proof 59 state)
-     (clojure.set/union (:root-belt-node state) #{100})))
-   ))
-
+    (not
+     (verify-membership
+      (membership-proof 59 state)
+      (clojure.set/union (:root-belt-node state) #{100})))))
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
@@ -836,8 +818,7 @@
     nil))
 
 (defn algo [oneshot-nesting?]
-  (let [
-        ;; let h be hash of new leaf
+  (let [;; let h be hash of new leaf
         ;; h (str @leaf-count "-hash")
         h #{@leaf-count}
         ;; pointer (get-pointer)
@@ -886,9 +867,7 @@
       ;; (clojure.pprint/pprint [@node-map @node-array @mergeable-stack @lastP])
       ;; (clojure.pprint/pprint @node-map)
       ;; (clojure.pprint/pprint @node-map)
-      ))
-  )
-
+      )))
 (defn play-algo [n oneshot-nesting?]
   (reset-all)
   (doall (repeatedly n #(algo oneshot-nesting?)))
@@ -906,14 +885,14 @@
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if run-tests
   (let [n 50
-       retain-sequence-oneshot (play-algo-retain-sequence n true)
-       retain-sequence-no-oneshot (play-algo-retain-sequence n false)]
-   (every? #(and
-             (= (play-algo (inc %) true)
-                (nth retain-sequence-oneshot %))
-             (= (play-algo (inc %) false)
-                (nth retain-sequence-no-oneshot %)))
-           (range n))))
+        retain-sequence-oneshot (play-algo-retain-sequence n true)
+        retain-sequence-no-oneshot (play-algo-retain-sequence n false)]
+    (every? #(and
+              (= (play-algo (inc %) true)
+                 (nth retain-sequence-oneshot %))
+              (= (play-algo (inc %) false)
+                 (nth retain-sequence-no-oneshot %)))
+            (range n))))
 
 (defn play-algo-manual-end [n]
   (reset-all)
@@ -941,23 +920,22 @@
 (defn play-algo-debug-last-step [n]
   (let [global-debugging-state @global-debugging
         debugging-flags-state @debugging-flags]
-      (reset! global-debugging false)
-      (play-algo (dec n) false)
-      (reset! global-debugging true)
+    (reset! global-debugging false)
+    (play-algo (dec n) false)
+    (reset! global-debugging true)
       ;; (all-debugging)
-      (algo false)
-      (reset! global-debugging global-debugging-state)
-      (set-debugging-flags debugging-flags-state))
-)
+    (algo false)
+    (reset! global-debugging global-debugging-state)
+    (set-debugging-flags debugging-flags-state)))
 
 (defn play-algo-debug-all-steps [n]
   (let [global-debugging-state @global-debugging
         debugging-flags-state @debugging-flags]
-      (reset! global-debugging true)
-      (all-debugging)
-      (play-algo n false)
-      (reset! global-debugging global-debugging-state)
-      (set-debugging-flags debugging-flags-state)))
+    (reset! global-debugging true)
+    (all-debugging)
+    (play-algo n false)
+    (reset! global-debugging global-debugging-state)
+    (set-debugging-flags debugging-flags-state)))
 
 ;; DONE: must also ensure that parent-child references are symmetric
 (defn parent-child-mutual-acknowledgement
@@ -991,8 +969,7 @@
      (parent-child-mutual-acknowledgement node (get-child node :right)))))
 
 (play-algo 1337 false)
-(let [
-      node (get @state/range-nodes #{1336})
+(let [node (get @state/range-nodes #{1336})
       ;; node (get @state/range-nodes #{})
       ;; node (get @state/range-nodes (into #{} (range 0 1024)))
       ]
@@ -1078,7 +1055,7 @@
   (let [n 5000]
     (reset-all)
     (last (take-while #(true? (second %))
-                 (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo false) (verify-parenting)))))))))
+                      (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo false) (verify-parenting)))))))))
 ;; => 4999 (i.e. all passed)
 
 ;; show that, barring missing belt node impl in incremental algo, get matching
@@ -1120,8 +1097,8 @@
 
 (comment
   (with-open [w (clojure.java.io/writer "src/cached.edn")]
-   (binding [*out* w]
-     (pr @manual-only-algos))))
+    (binding [*out* w]
+      (pr @manual-only-algos))))
 
 (def manual-algos-cached
   (with-open [r (java.io.PushbackReader. (clojure.java.io/reader "src/cached.edn"))]
@@ -1148,8 +1125,7 @@
  @manual-only-algos
  ;; @optimized-manual-algos
  (map (fn [n] (play-algo-oneshot-end n)) (range 1 algo-bound))
- (map (fn [n] (play-algo n false)) (range 1 algo-bound))
- )
+ (map (fn [n] (play-algo n false)) (range 1 algo-bound)))
 
 (doall (map #(play-algo-manual-end %) (range 1 3)))
 
@@ -1164,8 +1140,7 @@
   (reset! debugging-flags #{:belt})
   (debugging [#{:singleton-range}]))
 
-(letfn [
-        (mapulation [value]
+(letfn [(mapulation [value]
           (identity value))
         ;; (mapulation [value]
         ;;   (dissoc value :parent))
@@ -1177,12 +1152,11 @@
   (filter
    #(false? (second %))
    (map-indexed (fn [idx n] [(inc idx) (=
-                                       (into #{} (map mapulation (vals (:belt-nodes (nth @oneshot-only-algos n)))))
-                                       (into #{} (map mapulation (vals (:belt-nodes (nth @manual-algos n))))))])
+                                        (into #{} (map mapulation (vals (:belt-nodes (nth @oneshot-only-algos n)))))
+                                        (into #{} (map mapulation (vals (:belt-nodes (nth @manual-algos n))))))])
                 (range (count @manual-algos)))))
 
-(letfn [
-        (mapulation [value]
+(letfn [(mapulation [value]
           (identity value))
         ;; (mapulation [value]
         ;;   (dissoc value :parent))
@@ -1194,8 +1168,7 @@
                                         (into #{} (map mapulation (vals (:range-nodes (nth @manual-only-algos n))))))])
                 (range (min (count @oneshot-only-algos) (count @manual-only-algos))))))
 
-(letfn [
-        (mapulation [value]
+(letfn [(mapulation [value]
           (identity value))
         ;; (mapulation [value]
         ;;   (dissoc value :parent))
@@ -1395,11 +1368,10 @@
   "plays algo while the upgrade and old algo still match"
   [upper-bound]
   (inc (first (last (filter #(= true (second %))
-                        (map-indexed (fn [index [oneshot full]] [index (= oneshot full)])
-                                     (map list
-                                          (play-algo-retain-sequence upper-bound false)
-                                          (play-algo-retain-sequence upper-bound true))
-                                     ))))))
+                            (map-indexed (fn [index [oneshot full]] [index (= oneshot full)])
+                                         (map list
+                                              (play-algo-retain-sequence upper-bound false)
+                                              (play-algo-retain-sequence upper-bound true))))))))
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
@@ -1422,8 +1394,7 @@
   ;; (play-algo 10 false)
   (play-algo 100 false)
   (map (fn [[k v]] [k (:parent v)]) @node-map)
-  (keys @node-map)
-  )
+  (keys @node-map))
 
 (keys @node-map)
 (get @node-map #{8 9})
@@ -1556,8 +1527,7 @@
                            entry
                            nil))
                       (filter #(contains? type-contenders %)
-                              (keys storage-maps))
-                      )))
+                              (keys storage-maps)))))
   ([hash]
    (get-nodes hash (into #{} (keys storage-maps)))))
 

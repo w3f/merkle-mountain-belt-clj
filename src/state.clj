@@ -29,17 +29,14 @@
   (reset! lastP (:lastP cached))
   (reset! belt-nodes (:belt-nodes cached))
   (reset! root-belt-node (:root-belt-node cached))
-  (reset! range-nodes (:range-nodes cached))
-  )
+  (reset! range-nodes (:range-nodes cached)))
 
 (defn current-atom-states []
-  {
-   :node-map @node-map
+  {:node-map @node-map
    :node-array @node-array
    :mergeable-stack @mergeable-stack
    :leaf-count @leaf-count
    :lastP @lastP
    :belt-nodes @belt-nodes
    :root-belt-node @root-belt-node
-   :range-nodes @range-nodes
-   })
+   :range-nodes @range-nodes})
