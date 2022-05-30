@@ -100,7 +100,6 @@
    javax.imageio.ImageIO/read
    ))
 
-
 (->
  (graph "p-1")
  tangle-dot
@@ -109,7 +108,6 @@
  viz/view-image
  )
 
-;; DONE: fix trident
 (let [n 1337]
   (->>
    (linked-peaks/graph n false)
@@ -119,10 +117,6 @@
 
 (defn tangle-direct-view [graph]
   (viz/view-image (tangle-direct graph)))
-
-;; FIXME: trident in oneshot (incremental works): for its parent, phantom range node refers to left-most truthy range node, and not the phantom belt node
-(tangle-direct-view (linked-peaks/graph 1337 false))
-(tangle-direct-view (linked-peaks/graph 1337 true))
 
 (linked-peaks/toggle-debugging)
 (linked-peaks/set-debugging-flags [:range-phantom])
