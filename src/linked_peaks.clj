@@ -352,36 +352,40 @@
   (parent-contenders :range)
   (parent-contenders :belt))
 
-;; TODO: can simplify if use phantom belt node
-(defn child-contenders [type & child-leg]
-  (let [rank (get type-rank type)]
-    (if (= rank (:peak type-rank))
-      (list (get (clojure.set/map-invert type-rank) (dec rank)))
-      (if (= type :internal)
-        (list :internal)
-        (if (= type :range)
-          (if (= (first child-leg) :left)
-            (list :range)
-            (if (= (first child-leg) :right)
-              (list :peak)
-              (throw (Exception. "no child-leg specified"))))
-          (if (= type :belt)
-            (if (= (first child-leg) :left)
-              (list :range :belt)
-              (if (= (first child-leg) :right)
-                (list :range)
-                (throw (Exception. "no child-leg specified"))))
-            (throw (Exception. "unhandled type & child-leg"))))))))
+;; DONE: can simplify if use phantom belt node since
+;; then have left child always have same type as parent
+(defn child-type
+  ([type]
+   (child-type type nil))
+  ([type child-leg]
+   (let [rank (get type-rank type)]
+     (if (= rank (:peak type-rank))
+       (get (clojure.set/map-invert type-rank) (dec rank))
+       (if (= type :internal)
+         :internal
+         (if (= type :range)
+           (if (= child-leg :left)
+             :range
+             (if (= child-leg :right)
+               :peak
+               (throw (Exception. "no child-leg specified"))))
+           (if (= type :belt)
+             (if (= child-leg :left)
+               :belt
+               (if (= child-leg :right)
+                 :range
+                 (throw (Exception. "no child-leg specified"))))
+             (throw (Exception. "unhandled type & child-leg")))))))))
 
 ;; Test that child types match expected result
 (every? (fn [[[type child-leg] expected-child-type]]
-          (= expected-child-type (child-contenders type child-leg)))
-        [[[:internal nil] (list :internal)]
-         [[:peak nil] (list :internal)]
-         [[:range :left] (list :range)]
-         [[:range :right] (list :peak)]
-         [[:belt :left] (list :range :belt)]
-         [[:belt :right] (list :range)]])
+          (= expected-child-type (child-type type child-leg)))
+        [[[:internal nil] :internal]
+         [[:peak nil] :internal]
+         [[:range :left] :range]
+         [[:range :right] :peak]
+         [[:belt :left] :belt]
+         [[:belt :right] :range]])
 
 ;; DONE: refactor this since logic is somewhat clunky
 (defn get-parent
@@ -398,11 +402,8 @@
   (truncate-#set-display (get-parent (get @range-nodes #{96 97}))))
 
 (defn get-child [parent child-leg]
-  (let [child-contenders (child-contenders (:type parent) child-leg)
-        child-hash (get parent child-leg)
-        child-if-highest-rank (find @(get storage-maps (last child-contenders)) (get parent child-leg))]
-    (first (filter some? [(second (find @(get storage-maps (last child-contenders)) (get parent child-leg)))
-                          (second (find @(get storage-maps (first child-contenders)) (get parent child-leg)))]))))
+  (let [child-type (child-type (:type parent) child-leg)]
+    (second (find @(get storage-maps child-type) (get parent child-leg)))))
 
 (defn get-sibling [entry]
   (let [parent (get-parent entry)]
@@ -862,6 +863,7 @@
     ;; (clojure.pprint/pprint @node-map)
     ;; (clojure.pprint/pprint @node-map)
     ))
+
 (defn play-algo [n oneshot-nesting?]
   (reset-all)
   (doall (repeatedly n #(algo oneshot-nesting?)))
