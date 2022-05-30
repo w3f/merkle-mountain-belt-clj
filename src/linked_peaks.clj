@@ -338,7 +338,8 @@
   ; => (:range :belt)
   )
 
-(defn parent-contenders [type]
+(defn parent-type-contenders
+  [type]
   (let [rank (get type-rank type)]
     (if (= rank (:peak type-rank))
       (list (get (clojure.set/map-invert type-rank) (inc rank)))
@@ -346,11 +347,13 @@
         (list :belt)
         (list type (get (clojure.set/map-invert type-rank) (inc rank)))))))
 
-(comment
-  (parent-contenders :internal)
-  (parent-contenders :peak)
-  (parent-contenders :range)
-  (parent-contenders :belt))
+;; Test that child types match expected result
+(every? (fn [[type expected-parent-type]]
+          (= expected-parent-type (parent-type-contenders type)))
+        [[:internal [:internal :peak]]
+         [:peak [:range]]
+         [:range [:range :belt]]
+         [:belt [:belt]]])
 
 ;; DONE: can simplify if use phantom belt node since
 ;; then have left child always have same type as parent
@@ -380,7 +383,7 @@
 ;; DONE: refactor this since logic is somewhat clunky
 (defn get-parent
   ([child]
-   (let [parent-type-contenders (parent-contenders (:type child))]
+   (let [parent-type-contenders (parent-type-contenders (:type child))]
      (first (filter #(and % (not= child %)) (map #(get @% (:parent child)) (vals (select-keys storage-maps parent-type-contenders)))))))
   ([child expected-parent]
    (let [parent (get-parent child)]
