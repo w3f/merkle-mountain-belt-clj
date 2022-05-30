@@ -1,7 +1,6 @@
 (ns primitives.core
   (:require [clojure.spec.alpha :as s]
-            [clojure.spec.test.alpha :as stest]
-            ))
+            [clojure.spec.test.alpha :as stest]))
 
 (defn binary-repr-of-n [n]
   (Integer/toBinaryString n))
@@ -34,7 +33,6 @@
 (comment
   (S-n 1221)
   (binary-repr-of-n 1222))
-
 
 (every? #(= (S-n %) (S-n-deprecated %)) (range 20000))
 

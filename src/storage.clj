@@ -1,7 +1,6 @@
 (ns storage
   (:require [primitives.core]
-            [primitives.storage :refer [left-child right-child storage-array leaf-location peak-location children node-height-literal parent-index parent-less-nodes position-parentless-nodes highest-exponent-st-dividing parent-less-nodes-atom parent-less-nodes-cache node-name range-node-edges-reduced range-node-edges parent-less-nodes-sorted-height]]
-            ))
+            [primitives.storage :refer [left-child right-child storage-array leaf-location peak-location children node-height-literal parent-index parent-less-nodes position-parentless-nodes highest-exponent-st-dividing parent-less-nodes-atom parent-less-nodes-cache node-name range-node-edges-reduced range-node-edges parent-less-nodes-sorted-height]]))
 
 (defonce peaks-accumulator (atom []))
 
@@ -20,29 +19,25 @@
   (let [array-len (count @storage-array)
         ;; incidentally correct since index is calculated starting at 1 in lieu of 0
         zero-leaves (- index array-len)]
-    (swap! storage-array concat (repeat zero-leaves 0) (list item))
-    ))
+    (swap! storage-array concat (repeat zero-leaves 0) (list item))))
 
 (defn add-leaf [leaf]
-  (do
-    ;; increase the leaf index
-    (swap! primitives.storage/leaf-count inc)
-    (add-internal leaf (leaf-location @primitives.storage/leaf-count))
-    (swap! parent-less-nodes-atom #(conj % (leaf-location @primitives.storage/leaf-count)))
-    #_{:clj-kondo/ignore [:missing-else-branch]}
-    (if
-        (not= (+ @primitives.storage/leaf-count 1) (int (Math/pow 2 (primitives.storage/p-adic-order 2 (+ @primitives.storage/leaf-count 1)))))
-      (do
-        (add-internal (str "p-" (swap! primitives.storage/node-count inc)) (peak-location @primitives.storage/leaf-count))
-        (swap! parent-less-nodes-atom #(conj % (peak-location @primitives.storage/leaf-count)))
-        (swap! parent-less-nodes-atom #(apply disj % (children (peak-location @primitives.storage/leaf-count)))))
-      )
-    (swap! peaks-accumulator #(conj % @parent-less-nodes-atom)))
-  )
+  ;; increase the leaf index
+  (swap! primitives.storage/leaf-count inc)
+  (add-internal leaf (leaf-location @primitives.storage/leaf-count))
+  (swap! parent-less-nodes-atom #(conj % (leaf-location @primitives.storage/leaf-count)))
+  #_{:clj-kondo/ignore [:missing-else-branch]}
+  (if
+   (not= (+ @primitives.storage/leaf-count 1) (int (Math/pow 2 (primitives.storage/p-adic-order 2 (+ @primitives.storage/leaf-count 1)))))
+    (do
+      (add-internal (str "p-" (swap! primitives.storage/node-count inc)) (peak-location @primitives.storage/leaf-count))
+      (swap! parent-less-nodes-atom #(conj % (peak-location @primitives.storage/leaf-count)))
+      (swap! parent-less-nodes-atom #(apply disj % (children (peak-location @primitives.storage/leaf-count))))))
+  (swap! peaks-accumulator #(conj % @parent-less-nodes-atom)))
 
 (comment
   (= (primitives.core/S-n @primitives.storage/leaf-count)
-    (reverse (sort (map node-height-literal @parent-less-nodes-cache)))))
+     (reverse (sort (map node-height-literal @parent-less-nodes-cache)))))
 
 (map (juxt identity node-height-literal) @parent-less-nodes-cache)
 
@@ -53,34 +48,29 @@
    (filter
     #(and
       (< (count @storage-array) (second %))
-      (not= 0 (node-name (first %)))
-      )
+      (not= 0 (node-name (first %))))
     (map (juxt identity parent-index) (range 1 (count @storage-array))))
    flatten
    (filter #(< % (count @storage-array)))
    ;; (into [])
-   (into #{})
-   )
-  )
+   (into #{})))
 
 (clojure.set/difference @parent-less-nodes-cache @parent-less-nodes-atom)
 
 (defn run [n]
-  (do
-   (reset! storage-array '[])
-   (reset! primitives.storage/leaf-count 0)
-   (reset! primitives.storage/node-count 0)
-   (reset! peaks-accumulator [])
-   (reset! parent-less-nodes-atom #{})
-   (println "------")
-   (doall (map #(add-leaf %) (range 1 n)))
+  (reset! storage-array '[])
+  (reset! primitives.storage/leaf-count 0)
+  (reset! primitives.storage/node-count 0)
+  (reset! peaks-accumulator [])
+  (reset! parent-less-nodes-atom #{})
+  (println "------")
+  (doall (map #(add-leaf %) (range 1 n)))
    ;; (doall (map #(add-leaf %) (range 1 1223)))
    ;; (doall (map #(add-leaf %) (range 1 1224)))
-   (reset! parent-less-nodes-cache (parent-less-nodes))
+  (reset! parent-less-nodes-cache (parent-less-nodes))
    ;; (println (range (count @storage-array)))
    ;; (println @storage-array)
-   (let [print-len 50] (apply str (map #(str %1 ": " %2 " |") (range print-len) (take print-len @storage-array))))
-   ))
+  (let [print-len 50] (apply str (map #(str %1 ": " %2 " |") (range print-len) (take print-len @storage-array)))))
 
 (comment
   (run 1223))
@@ -113,8 +103,7 @@
  #{}
  (clojure.set/difference
   (into #{} (filter #(not= 0 (nth @storage-array %)) (range (count @storage-array))))
-  (into #{} (flatten (map (juxt identity left-child right-child) (filter #(re-matches #"p-.*" (str (nth @storage-array %))) (range (count @storage-array))))))
-  ))
+  (into #{} (flatten (map (juxt identity left-child right-child) (filter #(re-matches #"p-.*" (str (nth @storage-array %))) (range (count @storage-array))))))))
 
 ;; [0 0 0 1 0 2 x 3 0 4 x 5 x 6 x 7 0 8 x 9 x]
 
@@ -154,18 +143,15 @@
    (if (empty? remainder)
      acc
      (range-node-map {:id (str "range-node-" (inc depth))
-                        :left acc
-                        :right (first remainder)}
-                       (rest remainder)
-                       (inc depth))
-     ))
-  )
+                      :left acc
+                      :right (first remainder)}
+                     (rest remainder)
+                     (inc depth)))))
 
 (defn left-to-right-parent [node]
   (if (number? node)
     (str "range-node-" (max 0 (- (position-parentless-nodes node) 1)))
-    (let []
-      (str "range-node-" (inc (Integer. (first (re-seq #"[0-9]+" node))))))))
+    (str "range-node-" (inc (Integer. (first (re-seq #"[0-9]+" node)))))))
 
 (defn left-to-right-range-node-path [node]
   (left-to-right-parent node))
@@ -194,7 +180,7 @@
 
 (comment (map first (parent-less-nodes-sorted-height @parent-less-nodes-cache)))
 (comment #_{:clj-kondo/ignore [:invalid-arity]}
-         ([1536 9] [1792 8] [2304 8] [2432 7] [2400 5] [2416 4] [2424 3] [2440 3] [2444 2] [2446 1]))
+ ([1536 9] [1792 8] [2304 8] [2432 7] [2400 5] [2416 4] [2424 3] [2440 3] [2444 2] [2446 1]))
 
 ;; DONE: intermediate algo (still requires reordering of image wrt. peak order in storage array)
 (defn peak-positions-intermediate
@@ -212,56 +198,46 @@
                   preindex (- array-size (mod array-size adic))
                   index (if (let [log (/ (Math/log preindex) (Math/log 2))] (= 0.0 (- log (int log))))
                           (- preindex adic)
-                          preindex)
-                  ]
+                          preindex)]
               (identity [(conj (first %1) index) index])
               ;; ()
               ;; [index (/ index adic)]
               )
            [[] (+ 3 (* 2 n))]
            ;; (reverse (primitives.core/S-n 1222))
-           (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))
-           ))
-   (into [] (reverse (sort (into [] (nth @peaks-accumulator (dec n)))))) )
-  )
+           (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))))
+   (into [] (reverse (sort (into [] (nth @peaks-accumulator (dec n))))))))
 
 ;; DONE: final algo
 (defn peak-positions-final
   "verifies that, up to `n`, the peak positions are correctly calculated"
   [m]
   (every? true?
-         (pmap
-          (fn [n]
-            (=
-             (let [array-size (+ 2 (* 2 n))]
-               (sort (reduce #(let [adic (int (Math/pow 2 %2))
-                                    prepreindex (- array-size (mod array-size adic))
-                                    preindex (if (let [log (/ (Math/log prepreindex) (Math/log 2))]
-                                                   (or
-                                                    (= 0.0 (- log (int log)))
-                                                    (some (fn [existing-index] (= existing-index prepreindex)) (reverse %1))
-                                                    ))
-                                               (- prepreindex adic)
-                                               prepreindex)
-                                    index (if (let [log (/ (Math/log preindex) (Math/log 2))]
-                                                (or
-                                                 (= 0.0 (- log (int log)))
-                                                 (some (fn [existing-index] (= existing-index preindex)) (reverse %1))
-                                                 ))
-                                            (- preindex adic)
-                                            preindex)
-                                    ]
-                                (conj %1 index)
-                                )
-                             []
-                             (primitives.core/S-n n)))
-               )
-             (sort (into [] (nth @peaks-accumulator (dec n))))
-             ))
-          (range 1222 (inc (count @peaks-accumulator)))
-          )))
+          (pmap
+           (fn [n]
+             (=
+              (let [array-size (+ 2 (* 2 n))]
+                (sort (reduce #(let [adic (int (Math/pow 2 %2))
+                                     prepreindex (- array-size (mod array-size adic))
+                                     preindex (if (let [log (/ (Math/log prepreindex) (Math/log 2))]
+                                                    (or
+                                                     (= 0.0 (- log (int log)))
+                                                     (some (fn [existing-index] (= existing-index prepreindex)) (reverse %1))))
+                                                (- prepreindex adic)
+                                                prepreindex)
+                                     index (if (let [log (/ (Math/log preindex) (Math/log 2))]
+                                                 (or
+                                                  (= 0.0 (- log (int log)))
+                                                  (some (fn [existing-index] (= existing-index preindex)) (reverse %1))))
+                                             (- preindex adic)
+                                             preindex)]
+                                 (conj %1 index))
+                              []
+                              (primitives.core/S-n n))))
+              (sort (into [] (nth @peaks-accumulator (dec n))))))
+           (range 1222 (inc (count @peaks-accumulator))))))
 
-(map-indexed (fn [index n] [(str "n: " index ", exponent: " (highest-exponent-st-dividing 2 n) )]) (range 40))
+(map-indexed (fn [index n] [(str "n: " index ", exponent: " (highest-exponent-st-dividing 2 n))]) (range 40))
 (map-indexed (fn [index n] [index (highest-exponent-st-dividing 2 n)]) (range 40))
 
 (count @peaks-accumulator)
@@ -281,28 +257,25 @@
 ;; DONE: concrete instance of intermediate algo
 (comment
   (every? true?
-         (pmap (fn [n] (= (first (reduce
-                                 #(let [p 2
+          (pmap (fn [n] (= (first (reduce
+                                   #(let [p 2
                                         ;; n 1222
-                                        array-size (dec (second %1))
-                                        height %2
-                                        rank 0
-                                        adic (int (Math/pow p height))
-                                        preindex (- array-size (mod array-size adic))
-                                        index (if (let [log (/ (Math/log preindex) (Math/log 2))] (= 0.0 (- log (int log))))
-                                                (- preindex adic)
-                                                preindex)
-                                        ]
-                                    (identity [(conj (first %1) index) index])
+                                          array-size (dec (second %1))
+                                          height %2
+                                          rank 0
+                                          adic (int (Math/pow p height))
+                                          preindex (- array-size (mod array-size adic))
+                                          index (if (let [log (/ (Math/log preindex) (Math/log 2))] (= 0.0 (- log (int log))))
+                                                  (- preindex adic)
+                                                  preindex)]
+                                      (identity [(conj (first %1) index) index])
                                     ;; ()
                                     ;; [index (/ index adic)]
-                                    )
-                                 [[] (+ 3 (* 2 n))]
-                                 (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))                   ))
-                         (reverse (sort (into [] (nth @peaks-accumulator (dec n)))))))
-               (range 1 2000)
-               )
-         ))
+                                      )
+                                   [[] (+ 3 (* 2 n))]
+                                   (map #(highest-exponent-st-dividing 2 %) (reverse (sort (nth @peaks-accumulator (dec n)))))))
+                           (reverse (sort (into [] (nth @peaks-accumulator (dec n)))))))
+                (range 1 2000))))
 
 (primitives.core/S-n 1222)
 (comment
@@ -350,8 +323,7 @@
   (if (primitives.core/has-children? node)
     (+ 1
        (apply max (map belt-depth (primitives.core/children node))))
-    1)
-  )
+    1))
 
 (comment
   (map belt-depth @parent-less-nodes-cache))
@@ -368,13 +340,13 @@
 (comment
   (if (= 0 (last (primitives.core/S-n @primitives.storage/leaf-count)))
    ;; if 0, create new parent of right-most parent-less node - parent-less node becomes left child and new leaf becomes right child. Then merge right-most parents with equal height.
-   "append and merge"
+    "append and merge"
    ;; if 1, create new parent of (singleton) right-most parent-less node. Then stop.
    ;; "append only"
-   (let [new-rightmost (primitives.core/mmb-append-leaf (primitives.core/belt-child-right-most core/example-belt) (primitives.core/leaf 3))]
-     (primitives.core/node new-rightmost))
+    (let [new-rightmost (primitives.core/mmb-append-leaf (primitives.core/belt-child-right-most core/example-belt) (primitives.core/leaf 3))]
+      (primitives.core/node new-rightmost))
    ;; (assoc-in @core/storage)
-   ))
+    ))
 
 (map #(nth @storage-array %) (parent-less-nodes))
 
