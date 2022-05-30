@@ -286,6 +286,7 @@
                                          [left-child right-child]))
                                  (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
                                  bn))
+                             ;; TODO: ugly hack - integrate neater eventually (but not strictly necessary since oneshot algorithm is not intended for production - only to verify construction of incremental algorithm)
                              (cons {:hash nil} belt-children)))]
 
         (reset! root-belt-node (:hash root-bn))
