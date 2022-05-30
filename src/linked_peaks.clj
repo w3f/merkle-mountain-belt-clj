@@ -729,18 +729,17 @@
                         ;; TODO: this is hacky and simply reasoned from n=6: may not be generally applicable!
                   (if (not= (:hash old-bn) new-grandparent-hash)
                     (swap! belt-nodes #(dissoc % (:hash old-bn)))
-                    (do
-                      (let [left-of-old-bn (get @belt-nodes (:left old-bn))]
-                        (if (contains? @belt-nodes (:left left-of-old-bn))
+                    (let [left-of-old-bn (get @belt-nodes (:left old-bn))]
+                      (if (contains? @belt-nodes (:left left-of-old-bn))
                                 ;; TODO: check if parent should actually be new-bn in general
-                          (swap! belt-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
-                          (if (contains? @range-nodes (:left left-of-old-bn))
+                        (swap! belt-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
+                        (if (contains? @range-nodes (:left left-of-old-bn))
                           ;; (if (and (not (contains? #{1 2 5} @leaf-count)) (contains? @range-nodes (:left left-of-old-bn)))
-                            #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
-                             (swap! range-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
+                          #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+                           (swap! range-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
                             ;; (throw (Exception. (str "old belt node's left child didn't have a left child at " @leaf-count)))
-                            ))
-                        (swap! belt-nodes #(dissoc % (:hash left-of-old-bn))))))
+                          ))
+                      (swap! belt-nodes #(dissoc % (:hash left-of-old-bn)))))
                         ;; DONE: cover relatives of old-bn & update their references
                   ))
                     ;; add new parent range node that couples to old parent range's left
@@ -890,18 +889,17 @@
   )
 
 (defn play-algo [n oneshot-nesting?]
-  (do (reset-all)
-      (doall (repeatedly n #(algo oneshot-nesting?)))
-      ;; (println "-----------------")
-      ;; (clojure.pprint/pprint @node-map)
-      (state/current-atom-states)
-      ))
+  (reset-all)
+  (doall (repeatedly n #(algo oneshot-nesting?)))
+  ;; (println "-----------------")
+  ;; (clojure.pprint/pprint @node-map)
+  (state/current-atom-states))
 
 (defn play-algo-retain-sequence
   "play algorithm up to `n`, retaining sequence of intermediate states"
   [n oneshot-nesting?]
-  (do (reset-all)
-      (doall (repeatedly n #(do (algo oneshot-nesting?) (state/current-atom-states))))))
+  (reset-all)
+  (doall (repeatedly n #(do (algo oneshot-nesting?) (state/current-atom-states)))))
 
 ;; verify that play-algo & play-algo-retain-sequence match
 #_{:clj-kondo/ignore [:missing-else-branch]}
@@ -917,34 +915,31 @@
            (range n))))
 
 (defn play-algo-manual-end [n]
-  (do (reset-all)
-      (doall (repeatedly (dec n) #(algo true)))
-      (algo false)
-      (state/current-atom-states)
-      ))
+  (reset-all)
+  (doall (repeatedly (dec n) #(algo true)))
+  (algo false)
+  (state/current-atom-states))
 
 (defn play-algo-optimized
   "plays algorithm without oneshot nesting but for the penultimate step"
   [n]
-  (do (reset-all)
-      (doall (repeatedly (dec (dec n)) #(algo false)))
-      #_{:clj-kondo/ignore [:missing-else-branch]}
-      (if (< 1 n) (algo true))
-      #_{:clj-kondo/ignore [:missing-else-branch]}
-      (if (< 0 n) (algo false))
-      (state/current-atom-states)))
+  (reset-all)
+  (doall (repeatedly (dec (dec n)) #(algo false)))
+  #_{:clj-kondo/ignore [:missing-else-branch]}
+  (if (< 1 n) (algo true))
+  #_{:clj-kondo/ignore [:missing-else-branch]}
+  (if (< 0 n) (algo false))
+  (state/current-atom-states))
 
 (defn play-algo-oneshot-end [n]
-  (do (reset-all)
-      (doall (repeatedly (dec n) #(algo false)))
-      (algo true)
-      (state/current-atom-states)
-      ))
+  (reset-all)
+  (doall (repeatedly (dec n) #(algo false)))
+  (algo true)
+  (state/current-atom-states))
 
 (defn play-algo-debug-last-step [n]
-  (do
-    (let [global-debugging-state @global-debugging
-          debugging-flags-state @debugging-flags]
+  (let [global-debugging-state @global-debugging
+        debugging-flags-state @debugging-flags]
       (reset! global-debugging false)
       (play-algo (dec n) false)
       (reset! global-debugging true)
@@ -952,17 +947,16 @@
       (algo false)
       (reset! global-debugging global-debugging-state)
       (set-debugging-flags debugging-flags-state))
-      ))
+)
 
 (defn play-algo-debug-all-steps [n]
-  (do
-    (let [global-debugging-state @global-debugging
-          debugging-flags-state @debugging-flags]
+  (let [global-debugging-state @global-debugging
+        debugging-flags-state @debugging-flags]
       (reset! global-debugging true)
       (all-debugging)
       (play-algo n false)
       (reset! global-debugging global-debugging-state)
-      (set-debugging-flags debugging-flags-state))))
+      (set-debugging-flags debugging-flags-state)))
 
 ;; DONE: must also ensure that parent-child references are symmetric
 (defn parent-child-mutual-acknowledgement
@@ -1259,13 +1253,13 @@
      :right-most (map :hash right-most)}))
 
 (defn oneshot-nesting-from-cached [cached singleton-ranges?]
-  (do (state/reset-atoms-from-cached! cached)
+  (state/reset-atoms-from-cached! cached)
       ;; (oneshot-nesting)
-      (merge (state/current-atom-states) (oneshot-nesting singleton-ranges?))))
+  (merge (state/current-atom-states) (oneshot-nesting singleton-ranges?)))
 
 (defn oneshot-nesting-from-fresh [n singleton-ranges?]
-  (do (play-algo n true)
-      (merge (state/current-atom-states) (oneshot-nesting singleton-ranges?))))
+  (play-algo n true)
+  (merge (state/current-atom-states) (oneshot-nesting singleton-ranges?)))
 
 ;; test that caching vs fresh has same result
 #_{:clj-kondo/ignore [:missing-else-branch]}
