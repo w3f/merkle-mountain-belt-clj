@@ -359,23 +359,13 @@
    (child-type type nil))
   ([type child-leg]
    (let [rank (get type-rank type)]
-     (if (= rank (:peak type-rank))
-       (get (clojure.set/map-invert type-rank) (dec rank))
-       (if (= type :internal)
-         :internal
-         (if (= type :range)
-           (if (= child-leg :left)
-             :range
-             (if (= child-leg :right)
-               :peak
-               (throw (Exception. "no child-leg specified"))))
-           (if (= type :belt)
-             (if (= child-leg :left)
-               :belt
-               (if (= child-leg :right)
-                 :range
-                 (throw (Exception. "no child-leg specified"))))
-             (throw (Exception. "unhandled type & child-leg")))))))))
+     (if (<= rank (:peak type-rank))
+       :internal
+       (if (= child-leg :left)
+         type
+         (if (= child-leg :right)
+           (get (clojure.set/map-invert type-rank) (dec rank))
+           (throw (Exception. "no child-leg specified"))))))))
 
 ;; Test that child types match expected result
 (every? (fn [[[type child-leg] expected-child-type]]
