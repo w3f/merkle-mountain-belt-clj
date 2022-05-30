@@ -22,19 +22,18 @@
     (swap! storage-array concat (repeat zero-leaves 0) (list item))))
 
 (defn add-leaf [leaf]
-  (do
-    ;; increase the leaf index
-    (swap! primitives.storage/leaf-count inc)
-    (add-internal leaf (leaf-location @primitives.storage/leaf-count))
-    (swap! parent-less-nodes-atom #(conj % (leaf-location @primitives.storage/leaf-count)))
-    #_{:clj-kondo/ignore [:missing-else-branch]}
-    (if
-     (not= (+ @primitives.storage/leaf-count 1) (int (Math/pow 2 (primitives.storage/p-adic-order 2 (+ @primitives.storage/leaf-count 1)))))
-      (do
-        (add-internal (str "p-" (swap! primitives.storage/node-count inc)) (peak-location @primitives.storage/leaf-count))
-        (swap! parent-less-nodes-atom #(conj % (peak-location @primitives.storage/leaf-count)))
-        (swap! parent-less-nodes-atom #(apply disj % (children (peak-location @primitives.storage/leaf-count))))))
-    (swap! peaks-accumulator #(conj % @parent-less-nodes-atom))))
+  ;; increase the leaf index
+  (swap! primitives.storage/leaf-count inc)
+  (add-internal leaf (leaf-location @primitives.storage/leaf-count))
+  (swap! parent-less-nodes-atom #(conj % (leaf-location @primitives.storage/leaf-count)))
+  #_{:clj-kondo/ignore [:missing-else-branch]}
+  (if
+   (not= (+ @primitives.storage/leaf-count 1) (int (Math/pow 2 (primitives.storage/p-adic-order 2 (+ @primitives.storage/leaf-count 1)))))
+    (do
+      (add-internal (str "p-" (swap! primitives.storage/node-count inc)) (peak-location @primitives.storage/leaf-count))
+      (swap! parent-less-nodes-atom #(conj % (peak-location @primitives.storage/leaf-count)))
+      (swap! parent-less-nodes-atom #(apply disj % (children (peak-location @primitives.storage/leaf-count))))))
+  (swap! peaks-accumulator #(conj % @parent-less-nodes-atom)))
 
 (comment
   (= (primitives.core/S-n @primitives.storage/leaf-count)
@@ -59,20 +58,19 @@
 (clojure.set/difference @parent-less-nodes-cache @parent-less-nodes-atom)
 
 (defn run [n]
-  (do
-    (reset! storage-array '[])
-    (reset! primitives.storage/leaf-count 0)
-    (reset! primitives.storage/node-count 0)
-    (reset! peaks-accumulator [])
-    (reset! parent-less-nodes-atom #{})
-    (println "------")
-    (doall (map #(add-leaf %) (range 1 n)))
+  (reset! storage-array '[])
+  (reset! primitives.storage/leaf-count 0)
+  (reset! primitives.storage/node-count 0)
+  (reset! peaks-accumulator [])
+  (reset! parent-less-nodes-atom #{})
+  (println "------")
+  (doall (map #(add-leaf %) (range 1 n)))
    ;; (doall (map #(add-leaf %) (range 1 1223)))
    ;; (doall (map #(add-leaf %) (range 1 1224)))
-    (reset! parent-less-nodes-cache (parent-less-nodes))
+  (reset! parent-less-nodes-cache (parent-less-nodes))
    ;; (println (range (count @storage-array)))
    ;; (println @storage-array)
-    (let [print-len 50] (apply str (map #(str %1 ": " %2 " |") (range print-len) (take print-len @storage-array))))))
+  (let [print-len 50] (apply str (map #(str %1 ": " %2 " |") (range print-len) (take print-len @storage-array)))))
 
 (comment
   (run 1223))
@@ -153,8 +151,7 @@
 (defn left-to-right-parent [node]
   (if (number? node)
     (str "range-node-" (max 0 (- (position-parentless-nodes node) 1)))
-    (let []
-      (str "range-node-" (inc (Integer. (first (re-seq #"[0-9]+" node))))))))
+    (str "range-node-" (inc (Integer. (first (re-seq #"[0-9]+" node)))))))
 
 (defn left-to-right-range-node-path [node]
   (left-to-right-parent node))

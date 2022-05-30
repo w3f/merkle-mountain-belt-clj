@@ -169,17 +169,17 @@
   (storage/run (inc 100))
   ((juxt
     tangle-direct-view
-     ;; tangle-dot
+    ;; tangle-dot
     #(tangle-direct-save % (str "belted-edges-" @primitives.storage/leaf-count ".png")))
    [;; nodes
-     ;; (primitives.storage/node-name-maps (into [] (flatten core/belted-edges)))
-     ;; (primitives.storage/node-maps-updated (into [] (into #{} (flatten (core/belted-nodes)))))
-     ;; (core/graph-nodes)
+    ;; (primitives.storage/node-name-maps (into [] (flatten core/belted-edges)))
+    ;; (primitives.storage/node-maps-updated (into [] (into #{} (flatten (core/belted-nodes)))))
+    ;; (core/graph-nodes)
     (map core/merge-positions (map #(update % :posx (fn [old] (* 1.8 old))) core/test-nodes-decorated))
-     ;; (primitives.storage/node-maps (into [] (flatten (core/belted-edges))))
-     ;; (into [] (flatten core/belted-edges))
+    ;; (primitives.storage/node-maps (into [] (flatten (core/belted-edges))))
+    ;; (into [] (flatten core/belted-edges))
 
-     ;; edges
+    ;; edges
     (core/belted-edges)
 
     {:node {:shape :oval}

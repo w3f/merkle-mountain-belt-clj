@@ -28,11 +28,11 @@
                      (if pos {:index index
                               :id (:id (nth storage index))
                               :pos (str index "," (:pos (nth storage index)) "!")
-                             ;; :pos (str index "," (node-height-literal index) "!")
+                              ;; :pos (str index "," (node-height-literal index) "!")
                               }
                          {:index index
                           :id (:id (nth storage index))
-                         ;; :pos (str index "," (node-height-literal index) "!")
+                          ;; :pos (str index "," (node-height-literal index) "!")
                           })))(range (count storage))))
 
 (comment
@@ -87,7 +87,7 @@
   (let [array-size (+ 2 (* 2 n))]
     (reduce #(let [adic (int (Math/pow 2 %2))
                    prepreindex (- array-size (mod array-size adic))
-                        ;; TODO: refactor since this only supports two collisions
+                   ;; TODO: refactor since this only supports two collisions
                    preindex (if (let [log (/ (Math/log prepreindex) (Math/log 2))]
                                   (or
                                    (= 0.0 (- log (int log)))

@@ -184,7 +184,7 @@
   (some identity (map
                   #(find-subtree % node-key value?)
                   roots))
-   ;; )
+  ;; )
   )
 
 ;; mmb visualization
@@ -572,15 +572,15 @@
                     (let [last-belt-node {:type "belt-node" :index belt-node-index}
                           new-belt-node {:type "belt-node" :index (inc belt-node-index)}]
                       (if (= -1 belt-node-index)
-                       ;; if first belt node, add the edges [last-node-n-1 belt-node-0] [last-node-n belt-node-0]
+                        ;; if first belt node, add the edges [last-node-n-1 belt-node-0] [last-node-n belt-node-0]
                         [[(last (last range-collector)) new-belt-node] [(if (empty? new-edges)
-                                                                         ;; if no new edges, then the last range was a singleton, so we just append it directly to the belt
+                                                                          ;; if no new edges, then the last range was a singleton, so we just append it directly to the belt
                                                                           (first new-range)
                                                                           (last (last new-edges)))
                                                                         new-belt-node]]
-                       ;; otherwise, add the edges [belt-node-n-1 belt-node-n] [last-node belt-node-n]
+                        ;; otherwise, add the edges [belt-node-n-1 belt-node-n] [last-node belt-node-n]
                         [[last-belt-node new-belt-node] [(if (empty? new-edges)
-                                                          ;; if no new edges, then the last range was a singleton, so we just append it directly to the belt
+                                                           ;; if no new edges, then the last range was a singleton, so we just append it directly to the belt
                                                            (first new-range)
                                                            (last (last new-edges))) new-belt-node]]))))
 
@@ -631,7 +631,7 @@
            [(if (int? child)
               (primitives.storage/node-name child)
               ;; (#(str (first %) ": " (second %)) ((juxt identity storage/node-name storage/node-height-literal) child))
-             ;; child
+              ;; child
               (parse-typed-name child))
             (parse-typed-name parent)])
          (first (range-aggregator (deep-walk (fn [_] (take-parent-less-node)) (belt-ranges @primitives.storage/leaf-count)))))))
@@ -648,7 +648,7 @@
                ;; :id (#(str (first %) ": " (second %)) ((juxt storage/node-name storage/node-height-literal) (:index child)))
                :index (:index child)
                ;; :pos (str child "," (primitives.storage/node-height-literal child))}
-              ;; :pos (str child "," 0)}
+               ;; :pos (str child "," 0)}
                :pos 0}
               ;; child
               {:id (str (:type child) "-" (:index child))
@@ -705,8 +705,8 @@
                                               (position-in-peak-ordering y))) (get nodes "peak-node"))
                    (get nodes "range-node")
                    (get nodes "belt-node")
-    ;; (update-position (sort-by :index (get nodes "range-node")))
-    ;; (update-position (sort-by :index (get nodes "belt-node")))
+                   ;; (update-position (sort-by :index (get nodes "range-node")))
+                   ;; (update-position (sort-by :index (get nodes "belt-node")))
                    ]))
 (def test-nodes-decorated
   (let [peak-nodes (map merge-positions (peak-x-positions (first test-nodes)))
