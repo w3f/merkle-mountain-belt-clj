@@ -1097,42 +1097,29 @@
 ;; while upgrading algo, test that new result matches cached
 (= manual-algos-cached
    (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
-;; => true
+;; => false
 
 ;; TODO: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
 (truncate-#set-display
  (if @run-tests
    (let [n 110]
-     [["belts"
-       (clojure.set/difference
-        (into #{} (vals (:belt-nodes (nth manual-algos-cached (dec n)))))
-        (into #{} (vals (:belt-nodes (play-algo n false)))))
-       (clojure.set/difference
-        (into #{} (vals (:belt-nodes (play-algo n false))))
-        (into #{} (vals (:belt-nodes (nth manual-algos-cached (dec n))))))]
-      ["ranges"
-       (clojure.set/difference
-        (into #{} (vals (:range-nodes (nth manual-algos-cached (dec n)))))
-        (into #{} (vals (:range-nodes (play-algo n false)))))
-       (clojure.set/difference
-        (into #{} (vals (:range-nodes (play-algo n false))))
-        (into #{} (vals (:range-nodes (nth manual-algos-cached (dec n))))))]
-      ["peaks"
-       (clojure.set/difference
-        (into #{} (vals (:peak-nodes (nth manual-algos-cached (dec n)))))
-        (into #{} (vals (:peak-nodes (play-algo n false)))))
-       (clojure.set/difference
-        (into #{} (vals (:peak-nodes (play-algo n false))))
-        (into #{} (vals (:peak-nodes (nth manual-algos-cached (dec n))))))]
-      ["internal"
-       (clojure.set/difference
-        (into #{} (vals (:internal-nodes (nth manual-algos-cached (dec n)))))
-        (into #{} (vals (:internal-nodes (play-algo n false)))))
-       (clojure.set/difference
-        (into #{} (vals (:internal-nodes (play-algo n false))))
-        (into #{} (vals (:internal-nodes (nth manual-algos-cached (dec n))))))]])))
-;; => [#{} #{}]
-
+     (letfn [(values [m k]
+               (into #{} (vals (k m))))
+             (diff [k]
+               [k
+                (clojure.set/difference
+                 (values (nth manual-algos-cached (dec n)) k)
+                 (values (play-algo n false) k))
+                (clojure.set/difference
+                 (values (play-algo n false) k)
+                 (values (nth manual-algos-cached (dec n)) k))])]
+       (map diff [:belt-nodes :range-nodes :peak-nodes :internal-nodes])))))
+;; => (
+;; [:belt-nodes "#{}" #{{:hash "#{}", :parent "#{0..63}", :type :belt, :right "#{}", :left nil}}]
+;; [:range-nodes #{{:left nil, :right "#{}", :hash "#{}", :parent "#{0..63}", :type :range}} #{{:hash "#{}", :parent "#{}", :type :range, :right "#{}", :left nil}}]
+;; [:peak-nodes "#{}" "#{}"]
+;; [:internal-nodes "#{}" "#{}"]
+;; )
 
 (= manual-algos-cached
    (map #(update % :node-array (comp rest rest))) (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
