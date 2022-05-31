@@ -1098,7 +1098,7 @@
    (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
 ;; => false
 
-;; TODO: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
+;; DONE: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
 (clojure.test/deftest cache-aligned
   (let [n 110
         cached (nth manual-algos-cached (dec n))
@@ -1121,13 +1121,8 @@
         :belt-nodes :range-nodes :node-map))))
 
 (clojure.test/run-test cache-aligned)
-;; FAIL in (cache-aligned) (NO_SOURCE_FILE:1113)
-;; expected: (= ["#{}" "#{}"] (truncate-#set-display (diff :belt-nodes)))
-;;   actual: (not (= ["#{}" "#{}"] ["#{}" #{{:hash "#{}", :parent "#{0..63}", :type :belt, :right "#{}", :left nil}}]))
-
-;; FAIL in (cache-aligned) (NO_SOURCE_FILE:1113)
-;; expected: (= ["#{}" "#{}"] (truncate-#set-display (diff :range-nodes)))
-;;   actual: (not (= ["#{}" "#{}"] [#{{:left nil, :right "#{}", :hash "#{}", :parent "#{0..63}", :type :range}} #{{:hash "#{}", :parent "#{}", :type :range, :right "#{}", :left nil}}]))
+;; Ran 1 tests containing 17 assertions.
+;; 0 failures, 0 errors.
 
 (= manual-algos-cached
    (map #(update % :node-array (comp rest rest))) (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
