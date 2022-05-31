@@ -141,7 +141,6 @@
   (reset! lastP #{})
   (reset! belt-nodes {#{} (belt-node nil #{} #{} #{0})})
   (reset! root-belt-node #{})
-  ;; TODO: remove range node hack here
   (reset! range-nodes {#{} (range-node nil #{} #{} #{})}))
 
 (defn hop-left [node & target-map]
@@ -420,9 +419,8 @@
          (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
          ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
          (reset! root-belt-node new-belt-root)
-         ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
          #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
-          (swap! range-nodes #(assoc % h (range-node (:hash (get-parent (get @node-map @lastP) :range)) h h new-belt-root))))
+          (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @lastP)) h h new-belt-root))))
 
        (swap! node-map #(assoc-in % [h :parent] h))
        ;; TODO: conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
