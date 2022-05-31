@@ -4,6 +4,7 @@
    [clojure.pprint]
    [clojure.set]
    [clojure.string]
+   [clojure.test]
    [clojure.walk]
    [primitives.core]
    [primitives.storage]
@@ -1098,26 +1099,29 @@
 ;; => false
 
 ;; TODO: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
-(truncate-#set-display
- (if @run-tests
-   (let [n 110]
-     (letfn [(values [m k]
-               (into #{} (vals (k m))))
-             (diff [k]
-               [k
-                (clojure.set/difference
-                 (values (nth manual-algos-cached (dec n)) k)
-                 (values (play-algo n false) k))
-                (clojure.set/difference
-                 (values (play-algo n false) k)
-                 (values (nth manual-algos-cached (dec n)) k))])]
-       (map diff [:belt-nodes :range-nodes :peak-nodes :internal-nodes])))))
-;; => (
-;; [:belt-nodes "#{}" #{{:hash "#{}", :parent "#{0..63}", :type :belt, :right "#{}", :left nil}}]
-;; [:range-nodes #{{:left nil, :right "#{}", :hash "#{}", :parent "#{0..63}", :type :range}} #{{:hash "#{}", :parent "#{}", :type :range, :right "#{}", :left nil}}]
-;; [:peak-nodes "#{}" "#{}"]
-;; [:internal-nodes "#{}" "#{}"]
-;; )
+(clojure.test/deftest cache-aligned
+  (let [n 110]
+    (letfn [(values [m k]
+              (into #{} (vals (k m))))
+            (diff [k]
+              [(clojure.set/difference
+                (values (nth manual-algos-cached (dec n)) k)
+                (values (play-algo n false) k))
+               (clojure.set/difference
+                (values (play-algo n false) k)
+                (values (nth manual-algos-cached (dec n)) k))])]
+      (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
+        :belt-nodes :range-nodes :peak-nodes :internal-nodes))))
+
+(clojure.test/run-test cache-aligned)
+;; FAIL in (cache-aligned) (NO_SOURCE_FILE:1113)
+;; expected: (= ["#{}" "#{}"] (truncate-#set-display (diff :belt-nodes)))
+;;   actual: (not (= ["#{}" "#{}"] ["#{}" #{{:hash "#{}", :parent "#{0..63}", :type :belt, :right "#{}", :left nil}}]))
+
+;; FAIL in (cache-aligned) (NO_SOURCE_FILE:1113)
+;; expected: (= ["#{}" "#{}"] (truncate-#set-display (diff :range-nodes)))
+;;   actual: (not (= ["#{}" "#{}"] [#{{:left nil, :right "#{}", :hash "#{}", :parent "#{0..63}", :type :range}} #{{:hash "#{}", :parent "#{}", :type :range, :right "#{}", :left nil}}]))
+
 
 (= manual-algos-cached
    (map #(update % :node-array (comp rest rest))) (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
