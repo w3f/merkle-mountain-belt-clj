@@ -1100,18 +1100,25 @@
 
 ;; TODO: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
 (clojure.test/deftest cache-aligned
-  (let [n 110]
+  (let [n 110
+        cached (nth manual-algos-cached (dec n))
+        fresh (play-algo n false)]
+    ;; test that all keys are present
+    (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
+    ;; test that all non-map values match
+    (clojure.test/are [k] (= (k cached) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node :joe)
+    ;; test that all maps match
     (letfn [(values [m k]
               (into #{} (vals (k m))))
             (diff [k]
               [(clojure.set/difference
-                (values (nth manual-algos-cached (dec n)) k)
-                (values (play-algo n false) k))
+                (values cached k)
+                (values fresh k))
                (clojure.set/difference
-                (values (play-algo n false) k)
-                (values (nth manual-algos-cached (dec n)) k))])]
+                (values fresh k)
+                (values cached k))])]
       (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
-        :belt-nodes :range-nodes :peak-nodes :internal-nodes))))
+        :belt-nodes :range-nodes :node-map))))
 
 (clojure.test/run-test cache-aligned)
 ;; FAIL in (cache-aligned) (NO_SOURCE_FILE:1113)
@@ -1121,7 +1128,6 @@
 ;; FAIL in (cache-aligned) (NO_SOURCE_FILE:1113)
 ;; expected: (= ["#{}" "#{}"] (truncate-#set-display (diff :range-nodes)))
 ;;   actual: (not (= ["#{}" "#{}"] [#{{:left nil, :right "#{}", :hash "#{}", :parent "#{0..63}", :type :range}} #{{:hash "#{}", :parent "#{}", :type :range, :right "#{}", :left nil}}]))
-
 
 (= manual-algos-cached
    (map #(update % :node-array (comp rest rest))) (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
