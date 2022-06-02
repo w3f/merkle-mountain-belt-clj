@@ -132,7 +132,10 @@
   (let [array-len (count @node-array)
         ;; incidentally correct since index is calculated starting at 1 in lieu of 0
         zero-leaves (- index array-len)]
-    (swap! node-array concat (repeat zero-leaves 0) (list item))))
+    (swap! node-array (fn [coll items]
+                        (reduce
+                         conj coll items)) (concat (repeat zero-leaves 0) (list item)))
+    ))
 
 (defn reset-all []
   ;; NOTE: need to already set parent for phantom node, range, and belt
