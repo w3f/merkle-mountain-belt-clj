@@ -1079,6 +1079,8 @@
 (def oneshot-algos (atom (map #(play-algo-oneshot-end %) (range 1 algo-bound))))
 (def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 algo-bound)))))
 (def manual-only-algos (atom (doall (play-algo-retain-sequence (dec algo-bound) false))))
+;; NOTE: extended range of manual-only-algos beyond algo bound
+(def manual-only-algos-large (atom (drop 1327 (doall (play-algo-retain-sequence 1337 false)))))
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def optimized-manual-algos (atom (map #(play-algo-optimized %) (range 1 algo-bound))))
 (println "post-algos:" (new java.util.Date))
@@ -1093,6 +1095,19 @@
     (binding [*read-eval* false]
       (read r))))
 
+(comment
+  (with-open [w (clojure.java.io/writer "src/cached-large.edn")]
+    (binding [*out* w]
+      (pr @manual-only-algos-large))))
+
+(let [fp "src/cached-large.edn"]
+  (if (.exists (clojure.java.io/file fp))
+    (def manual-algos-cached-large
+      (with-open [r (java.io.PushbackReader. (clojure.java.io/reader fp))]
+        (binding [*read-eval* false]
+          (read r))))
+    (throw (Exception. "cached-large.edn has not been created yet - please amend!"))))
+
 ;; while upgrading algo, test that new result matches cached
 (= manual-algos-cached
    (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
@@ -1100,8 +1115,10 @@
 
 ;; DONE: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
 (clojure.test/deftest cache-aligned
-  (let [n 110
-        cached (nth manual-algos-cached (dec n))
+  (let [n 1337
+        ;; n 110
+        cached (nth manual-algos-cached-large (- (dec n) 1327))
+        ;; cached (nth manual-algos-cached (dec n))
         fresh (play-algo n false)]
     ;; test that all keys are present
     (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
