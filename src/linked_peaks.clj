@@ -1,5 +1,6 @@
 (ns linked-peaks
   (:require
+   [clj-async-profiler.core :as prof]
    [clojure.java.io]
    [clojure.pprint]
    [clojure.set]
@@ -1229,6 +1230,21 @@
   (def algo-1278 (play-algo-oneshot-end 1278))
   (def algo-1279 (play-algo-oneshot-end 1279)))
 (println "post-big-algos:" (new java.util.Date))
+
+(def algo-100 (play-algo 100 false))
+
+(prof/serve-files 8080)
+
+;; profile aggregate time spent for last step of tree
+(prof/profile (dotimes [_ 10000]
+                (letfn [(reset-from-1222-and-play []
+                          (do (state/reset-atoms-from-cached! algo-1222)
+                              (algo false)))
+                        (reset-from-100-and-play []
+                          (do (state/reset-atoms-from-cached! algo-100)
+                              (algo false)))]
+                  (reset-from-1222-and-play)
+                  (reset-from-100-and-play))))
 
 ;; test: all peak nodes are connected and can be reached from one another
 #_{:clj-kondo/ignore [:missing-else-branch]}
