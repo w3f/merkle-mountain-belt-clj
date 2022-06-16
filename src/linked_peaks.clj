@@ -1238,6 +1238,9 @@
 
 (prof/serve-files 8080)
 
+;; profile aggregate time spent for full tree
+(prof/profile ((play-algo 5000 false)))
+
 ;; profile aggregate time spent for last step of tree
 (prof/profile (dotimes [_ 10000]
                 (letfn [(reset-from-1222-and-play []
