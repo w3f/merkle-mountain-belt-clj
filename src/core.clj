@@ -96,6 +96,19 @@
     (+ 1
        (apply min (map tree-min-depth (children node))))
     1))
+
+(defn mmr-max-depth [node]
+  (if (has-children? node)
+    (+ 1
+       (mmr-max-depth (::left node)))
+    1))
+
+(defn mmr-min-depth [node]
+  (if (has-children? node)
+    (+ 1
+       (mmr-min-depth (::right node)))
+    1))
+
 (defn hash-node [node]
   (if (has-children? node)
     (hash (str (::left node) (::right node)))
@@ -166,18 +179,20 @@
 
 (defn range-node? [node]
   (not=
-   (tree-depth (::left node))
-   (tree-depth (::right node))))
+   (mmr-max-depth node)
+   (mmr-min-depth node)))
 
-(defn decorate-node-types [node]
+(defn decorate-node-types
+  "decorates range and peak nodes"
+  [node]
   (if (has-children? node)
     (if (range-node? node)
-      (assoc node ::type ::range)
-      node)
-    node
-    )
-  )
-
+      (assoc node
+             ::left (assoc (::left node) ::type ::peak)
+             ::right (decorate-node-types (::right node))
+             ::type ::range)
+      (assoc node ::type ::peak))
+    node))
 (tree-min-depth (::right (mmr-from-leafcount 7)))
 (tree-depth (::right (mmr-from-leafcount 7)))
 (decorate-node-types (mmr-from-leafcount 7))
@@ -229,6 +244,49 @@
                   :node->descriptor (fn [n] {:label n})
                   :node->cluster (fn [node-key] (tree-depth (find-subtree mmr node-key join-labeling))))
   graph)
+
+(defn mean-posx [node]
+  (if (has-children? node)
+    (/ (reduce + (map mean-posx (children node))) 2)
+    (::index node)))
+
+(-> (let [n 22
+          mmr (mmr-from-leafcount n)
+          nodes (atom nil)
+          edges (atom nil)]
+      (letfn [(add-nodes-edges [node]
+                ;; (swap! nodes #(conj % (dissoc node ::left ::right)))
+                (swap! nodes #(conj % {:index (::index node)
+                                       :id (::index node)
+                                       :pos (str (float (mean-posx node))
+                                                    "," (mmr-max-depth node) "!")
+                                       }))
+                (if (has-children? node)
+                  (do (swap! edges #(concat % [
+                                               [(::index node) (::index (::left node))]
+                                               [(::index node) (::index (::right node))]]))
+                      (doall (map add-nodes-edges (children node))))))]
+        (add-nodes-edges mmr)
+        [
+         ;; nodes
+         @nodes
+
+         ;; edges
+         @edges
+
+         ;; formatting options
+         {:node {:shape :oval}
+          :node->id (fn [n] (:id n))
+          :node->descriptor (fn [n] (when (map? n) n))
+          :graph {:rankdir :BT,
+                  :label (str "n=" (mmr-leafcount mmr)),
+                  :layout :neato}}
+         ]))
+    (#(apply tangle/graph->dot %))
+    (tangle/dot->image "png")
+    javax.imageio.ImageIO/read
+    viz/view-image
+    )
 
 (defn rhizome-to-tangle [graph]
   [(keys graph)
