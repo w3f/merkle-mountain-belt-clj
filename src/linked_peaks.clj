@@ -134,8 +134,7 @@
         zero-leaves (- index array-len)]
     (swap! node-array (fn [coll items]
                         (reduce
-                         conj coll items)) (concat (repeat zero-leaves 0) (list item)))
-    ))
+                         conj coll items)) (concat (repeat zero-leaves 0) (list item)))))
 
 (defn reset-all []
   ;; NOTE: need to already set parent for phantom node, range, and belt
@@ -695,7 +694,7 @@
 
                 (let [old-bn (get-parent (get-parent Q-old :range) :belt)
                       new-bn (belt-node
-                              ;; if "hash" of old and new belt node are the same, then we're dealing with a range merge (maybe only for n=6), so old belt node's right child is no longer range leader, so need to use old belt node's 
+                              ;; if "hash" of old and new belt node are the same, then we're dealing with a range merge (maybe only for n=6), so old belt node's right child is no longer range leader, so need to use old belt node's
                               (if (= :left child-leg) rn (if (not= (:hash old-bn) new-grandparent-hash) (:left old-bn) (:left (get @belt-nodes (:left old-bn)))))
                               (if (= :right child-leg) rn (:right old-bn))
                               new-grandparent-hash
@@ -1239,7 +1238,7 @@
 (prof/serve-files 8080)
 
 ;; profile aggregate time spent for full tree
-(prof/profile ((play-algo 5000 false)))
+(prof/profile (play-algo 5000 false))
 
 ;; profile aggregate time spent for last step of tree
 (prof/profile (dotimes [_ 10000]

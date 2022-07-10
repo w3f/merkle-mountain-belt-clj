@@ -62,6 +62,10 @@
       :node->id (fn [n] (:id n))
       :node->descriptor (fn [n] (when (map? n) n))}]))
 
+(defn construct-graph [n starting-node]
+  (storage/run n)
+  (graph starting-node))
+
 (graph "p-1")
 (comment (primitives.storage/path (primitives.storage/name-index "p-1")))
 
@@ -84,8 +88,10 @@
    (tangle/dot->image "png")
    javax.imageio.ImageIO/read))
 
+(tangle-direct (construct-graph 5 "p-1"))
+
 (->
- (graph "p-1")
+ (construct-graph 10 "p-1")
  tangle-dot
  (tangle/dot->image "png")
  javax.imageio.ImageIO/read
