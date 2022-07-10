@@ -2,6 +2,7 @@
   (:require
    [core :refer [mmr-from-leafcount mmr-leafcount mmr-max-depth]]
    [primitives.core :refer [children has-children?]]
+   [primitives.visualization :refer [truncate-#set-display]]
    [rhizome.viz :as viz]
    [tangle.core :as tangle]))
 
@@ -48,6 +49,7 @@
 
 (->
  (graph 7)
+ truncate-#set-display
  (#(apply tangle/graph->dot %))
  (tangle/dot->image "png")
  javax.imageio.ImageIO/read

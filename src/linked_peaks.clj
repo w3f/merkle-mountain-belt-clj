@@ -9,18 +9,11 @@
    [clojure.walk]
    [primitives.core]
    [primitives.storage]
+   [primitives.visualization :refer [truncate-#set-display]]
    [state
     :refer
-    [belt-nodes
-     current-atom-states
-     lastP
-     leaf-count
-     mergeable-stack
-     node-array
-     node-map
-     pointers
-     range-nodes
-     root-belt-node]]))
+    [belt-nodes current-atom-states lastP leaf-count mergeable-stack
+     node-array node-map pointers range-nodes root-belt-node]]))
 
 (println "start:" (new java.util.Date))
 
@@ -39,18 +32,6 @@
 (defn debugging [flags]
   (and @global-debugging
        (every? #(contains? @debugging-flags %) flags)))
-
-(defn truncate-#set-display [data]
-  (clojure.walk/postwalk
-   #(if (and (contains? #{clojure.lang.PersistentHashSet
-                          clojure.lang.PersistentTreeSet} (type %))
-             (every? number? %))
-      (if (< 1 (count %))
-        (str "#{" (apply min %) ".." (apply max %) "}")
-        (str %))
-      %)
-   ;; (sort-by #(apply min (:hash %)) data)
-   data))
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (comment
