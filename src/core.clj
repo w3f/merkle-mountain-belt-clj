@@ -245,49 +245,6 @@
                   :node->cluster (fn [node-key] (tree-depth (find-subtree mmr node-key join-labeling))))
   graph)
 
-(defn mean-posx [node]
-  (if (has-children? node)
-    (/ (reduce + (map mean-posx (children node))) 2)
-    (::index node)))
-
-(-> (let [n 22
-          mmr (mmr-from-leafcount n)
-          nodes (atom nil)
-          edges (atom nil)]
-      (letfn [(add-nodes-edges [node]
-                ;; (swap! nodes #(conj % (dissoc node ::left ::right)))
-                (swap! nodes #(conj % {:index (::index node)
-                                       :id (::index node)
-                                       :pos (str (float (mean-posx node))
-                                                    "," (mmr-max-depth node) "!")
-                                       }))
-                (if (has-children? node)
-                  (do (swap! edges #(concat % [
-                                               [(::index node) (::index (::left node))]
-                                               [(::index node) (::index (::right node))]]))
-                      (doall (map add-nodes-edges (children node))))))]
-        (add-nodes-edges mmr)
-        [
-         ;; nodes
-         @nodes
-
-         ;; edges
-         @edges
-
-         ;; formatting options
-         {:node {:shape :oval}
-          :node->id (fn [n] (:id n))
-          :node->descriptor (fn [n] (when (map? n) n))
-          :graph {:rankdir :BT,
-                  :label (str "n=" (mmr-leafcount mmr)),
-                  :layout :neato}}
-         ]))
-    (#(apply tangle/graph->dot %))
-    (tangle/dot->image "png")
-    javax.imageio.ImageIO/read
-    viz/view-image
-    )
-
 (defn rhizome-to-tangle [graph]
   [(keys graph)
    (apply concat (map (fn [[k v]] (map #(identity [k %]) v)) graph))
