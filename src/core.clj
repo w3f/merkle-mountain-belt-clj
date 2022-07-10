@@ -52,6 +52,9 @@
 (defn take-index []
   (swap! index inc))
 
+(defn take-leaf-index []
+  (swap! leaf-index inc))
+
 (defn decrease-index []
   (swap! index dec))
 
@@ -76,7 +79,7 @@
 
 ;; (mmr-from-leafcount 5)
 
-(defn leaf [index & value]
+(defn leaf [index & [value]]
   {::value (if value value (if join-labeling (swap! leaf-index inc) index))
    ::index index
    ::type ::leaf})
@@ -171,10 +174,10 @@
 
 (defn mmr-from-leafcount [leafcount]
   (reset! index -1)
-  (reset! leaf-index -1)
+  (reset! leaf-index 0)
   (reduce (fn [root _]
-            (mmr-append-leaf root (leaf (take-index))))
-          (leaf (take-index))
+            (mmr-append-leaf root (leaf (take-index) (take-leaf-index))))
+          (leaf (take-index) (take-leaf-index))
           (range (dec leafcount))))
 
 (defn range-node? [node]
