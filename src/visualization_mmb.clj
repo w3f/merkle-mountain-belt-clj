@@ -4,7 +4,8 @@
    [core]
    [linked-peaks]
    [primitives.storage]
-   [primitives.visualization :refer [decorate-edges decorate-nodes]]
+   [primitives.visualization :refer [decorate-edges decorate-nodes
+                                     tangle-direct-view tangle-dot]]
    [rhizome.viz :as viz]
    [state]
    [storage]
@@ -75,16 +76,6 @@
   (primitives.storage/range-node-edges
    (map primitives.storage/node-name (primitives.storage/parent-less-nodes)))))
 
-(defn tangle-dot [graph]
-  (#(apply tangle/graph->dot %) graph))
-
-(defn tangle-direct [graph]
-  (->
-   graph
-   tangle-dot
-   (tangle/dot->image "png")
-   javax.imageio.ImageIO/read))
-
 (->
  (construct-graph 10 "p-1")
  tangle-dot
@@ -97,10 +88,8 @@
    (linked-peaks/graph n false)
    tangle-dot
    (tangle/dot->svg)
-   (spit (str "ephemeral-nodes-" n ".svg"))))
+   (spit (str "visualizations/ephemeral-nodes-" n ".svg"))))
 
-(defn tangle-direct-view [graph]
-  (viz/view-image (tangle-direct graph)))
 
 (linked-peaks/toggle-debugging)
 (linked-peaks/set-debugging-flags [:range-phantom])
@@ -108,8 +97,8 @@
 @state/belt-nodes
 @state/range-nodes
 
-(defn tangle-direct-save [graph location]
-  (spit (str location ".svg") ((comp tangle/dot->svg tangle-dot) graph)))
+(defn tangle-direct-save [graph name]
+  (spit (str "visualizations/" name ".svg") ((comp tangle/dot->svg tangle-dot) graph)))
 
 (tangle-direct-view (graph "p-1"))
 (tangle-direct-save (graph "p-1") "p-1")
@@ -171,7 +160,7 @@
   ((juxt
     tangle-direct-view
     ;; tangle-dot
-    #(tangle-direct-save % (str "belted-edges-" @primitives.storage/leaf-count ".png")))
+    #(tangle-direct-save % (str "belted-edges-" @primitives.storage/leaf-count)))
    [;; nodes
     ;; (primitives.storage/node-name-maps (into [] (flatten core/belted-edges)))
     ;; (primitives.storage/node-maps-updated (into [] (into #{} (flatten (core/belted-nodes)))))

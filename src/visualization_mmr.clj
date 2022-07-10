@@ -12,13 +12,19 @@
     (:core/value node)))
 
 (defn graph [n]
-  (let [mmr (mmr-from-leafcount n)
+  (let [mmr (-> n
+                mmr-from-leafcount
+                core/decorate-node-types)
         nodes (atom nil)
         edges (atom nil)]
     (letfn [(add-nodes-edges [node]
               ;; (swap! nodes #(conj % (dissoc node ::left ::right)))
               (swap! nodes #(conj % {:index (:core/index node)
                                      :id (:core/index node)
+                                     :color (or ((:core/type node) {:core/node "grey"
+                                                                    :core/leaf "lightblue"
+                                                                    :core/peak "red"})
+                                                    "green")
                                      :label (:core/value node)
                                      :pos (str (float (mean-posx node))
                                                "," (mmr-max-depth node) "!")
@@ -38,7 +44,7 @@
        @edges
 
        ;; formatting options
-       {:node {:shape :oval}
+       {:node {:shape :egg}
         :node->id (fn [n] (:id n))
         :node->descriptor (fn [n] (when (map? n) n))
         :graph {:rankdir :BT,
