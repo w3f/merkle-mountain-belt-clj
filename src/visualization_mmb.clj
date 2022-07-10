@@ -1,24 +1,14 @@
-(ns visualization
+(ns visualization-mmb
   (:require
    clojure.walk
    [core]
    [linked-peaks]
    [primitives.storage]
+   [primitives.visualization :refer [decorate-edges decorate-nodes]]
    [rhizome.viz :as viz]
-   [storage]
    [state]
+   [storage]
    [tangle.core :as tangle]))
-
-(defn decorate-nodes [nodes decorated-nodes decoration]
-  (map
-   #(if (contains? (into #{} decorated-nodes) (:id %))
-      (merge decoration %)
-      %) nodes))
-
-(defn decorate-edges [edges decorated-edges decoration]
-  (map #(if (and (contains? (into #{} decorated-edges) (first %)) (contains? (into #{} decorated-edges) (second %)))
-          (concat % [decoration]) %)
-       edges))
 
 ;; TODO: decide at what layer to perform name parsing
 (defn force-name-parsing [form]
