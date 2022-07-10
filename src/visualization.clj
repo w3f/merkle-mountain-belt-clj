@@ -35,7 +35,8 @@
                                         (primitives.storage/range-node-edges
                                          (map primitives.storage/node-name (primitives.storage/parent-less-nodes))))]
     ;; [range-node-edges range-nodes]
-    [;; nodes
+    [
+     ;; nodes
      (->
       ;; nodes
       (concat
@@ -47,6 +48,7 @@
       (decorate-nodes (force-name-parsing (primitives.storage/co-path (primitives.storage/name-index starting-node))) {:color "blue"})
       ;; decorate starting node
       (decorate-nodes #{starting-node} {:color "red"}))
+
      ;; edges
      (->
       (concat
@@ -55,12 +57,17 @@
                      (list (:id %) (primitives.storage/node-name (primitives.storage/left-child (:index %))))
                      (list (:id %) (primitives.storage/node-name (primitives.storage/right-child (:index %))))) (primitives.storage/parent-ids)))
        range-node-edges)
+
       ;; decorate co-path edges
       (decorate-edges (force-name-parsing (primitives.storage/path (primitives.storage/name-index starting-node)))
                       {:style :dashed :color "blue"}))
+
+     ;; formatting options
      {:node {:shape :oval}
       :node->id (fn [n] (:id n))
-      :node->descriptor (fn [n] (when (map? n) n))}]))
+      :node->descriptor (fn [n] (when (map? n) n))}
+     ;; {}
+     ]))
 
 (defn construct-graph [n starting-node]
   (storage/run n)
@@ -88,8 +95,6 @@
    (tangle/dot->image "png")
    javax.imageio.ImageIO/read))
 
-(tangle-direct (construct-graph 5 "p-1"))
-
 (->
  (construct-graph 10 "p-1")
  tangle-dot
@@ -110,8 +115,8 @@
 (linked-peaks/toggle-debugging)
 (linked-peaks/set-debugging-flags [:range-phantom])
 (linked-peaks/play-algo-debug-last-step 6)
-(@state/belt-nodes)
-(@state/range-nodes)
+@state/belt-nodes
+@state/range-nodes
 
 (defn tangle-direct-save [graph location]
   (spit (str location ".svg") ((comp tangle/dot->svg tangle-dot) graph)))
@@ -195,11 +200,7 @@
              :label (str "n=" @primitives.storage/leaf-count),
              :layout :neato}}]))
 
-(core/belted-edges)
-
-(flatten (core/belted-edges))
-(nth @primitives.storage/storage-array 1536)
-(primitives.storage/node-name 1536)
+(map core/merge-positions (map #(update % :posx (fn [old] (* 1.8 old))) core/test-nodes-decorated))
 
 (primitives.storage/node-maps-updated (into [] (into #{} (flatten (core/belted-nodes)))))
 
