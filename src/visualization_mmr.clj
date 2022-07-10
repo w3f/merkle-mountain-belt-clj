@@ -8,7 +8,7 @@
 (defn mean-posx [node]
   (if (has-children? node)
     (/ (reduce + (map mean-posx (children node))) 2)
-    (:core/index node)))
+    (:core/value node)))
 
 (defn graph [n]
   (let [mmr (mmr-from-leafcount n)
@@ -18,6 +18,7 @@
               ;; (swap! nodes #(conj % (dissoc node ::left ::right)))
               (swap! nodes #(conj % {:index (:core/index node)
                                      :id (:core/index node)
+                                     :label (:core/value node)
                                      :pos (str (float (mean-posx node))
                                                "," (mmr-max-depth node) "!")
                                      }))

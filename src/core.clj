@@ -1,18 +1,21 @@
 (ns core
-  (:require [rhizome.viz :as viz]
-            [tangle.core :as tangle]
-            [clojure.spec.alpha :as s]
-            [clojure.spec.gen.alpha :as sgen]
-            ;; [clojure.spec.test.alpha :as stest]
-            [primitives.core :refer [children has-children? belt-ranges S-n]]
-            [primitives.storage]))
+  (:require
+   clojure.set
+   [clojure.spec.alpha :as s]
+   [clojure.spec.gen.alpha :as sgen] ;; [clojure.spec.test.alpha :as stest]
+   [clojure.walk :as walk]
+   [primitives.core :refer [belt-ranges children has-children? S-n]]
+   [primitives.storage]
+   [rhizome.viz :as viz]
+   [tangle.core :as tangle]))
 
 (println "start:" (new java.util.Date))
 
 (defonce index (atom -1))
 (defonce leaf-index (atom -1))
 
-(def join-labeling false)
+(def labeling (atom :join))
+(reset! labeling :set)
 
 (s/def ::hash (s/or :int nat-int? :string string?))
 
@@ -71,16 +74,24 @@
   {::left left
    ::right right
    ;; ::value (hash (str left right))
-   ::value (if join-labeling
+   ::value (if (= :join @labeling)
              (str (parentheses-maybe (str (::value left))) "⋁" (parentheses-maybe (str (::value right))))
-             index)
+             (if (= :set @labeling)
+               (let [vals (map ::value [left right])]
+                 (if (= ::leaf (::type left))
+                   ;; if left is leaf, then so is right
+                     (apply sorted-set vals)
+                   (if (= ::leaf (::type right))
+                     ;; if right is leaf and left not, conj leaf into hashsets
+                     (conj (first vals) (second vals))
+                     ;; if neither are leaves, concat hashsets
+                     (apply clojure.set/union vals))))
+               index))
    ::index index
    ::type ::node})
 
-;; (mmr-from-leafcount 5)
-
 (defn leaf [index & [value]]
-  {::value (if value value (if join-labeling (swap! leaf-index inc) index))
+  {::value (if value value (if labeling (swap! leaf-index inc) index))
    ::index index
    ::type ::leaf})
 
@@ -200,8 +211,8 @@
 (tree-depth (::right (mmr-from-leafcount 7)))
 (decorate-node-types (mmr-from-leafcount 7))
 (defn mmr-graph [root]
-  (apply merge (flatten [{((if join-labeling ::value ::index) root)
-                          (map (if join-labeling ::value ::index) (children root))}
+  (apply merge (flatten [{((if (= :join @labeling) ::value (if (= :set @labeling) ::value ::index)) root)
+                          (map (if (= :join @labeling) ::value (if (= :set @labeling) ::value ::index)) (children root))}
                          (map mmr-graph (children root))])))
 
 (defn mmb-graph [roots]
@@ -236,7 +247,7 @@
                   :node->descriptor (fn [n] {:label n})
                   :node->cluster (fn [node-key] (if (= node-key "RN-1")
                                                   0
-                                                  (tree-depth (find-subtree-mmb mmb node-key join-labeling)))))
+                                                  (tree-depth (find-subtree-mmb mmb node-key labeling)))))
   graph)
 
 ;; mmr visualization
@@ -245,7 +256,7 @@
       graph (mmr-graph mmr)]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
-                  :node->cluster (fn [node-key] (tree-depth (find-subtree mmr node-key join-labeling))))
+                  :node->cluster (fn [node-key] (tree-depth (find-subtree mmr node-key labeling))))
   graph)
 
 (defn rhizome-to-tangle [graph]
