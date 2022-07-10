@@ -1,8 +1,8 @@
 (ns visualization-mmr
   (:require
-   [core :refer [mmr-from-leafcount mmr-leafcount mmr-max-depth]]
+   [core :refer [mmr-from-leafcount mmr-leafcount mmr-max-depth mmr-min-depth]]
    [primitives.core :refer [children has-children?]]
-   [primitives.visualization :refer [truncate-#set-display]]
+   [primitives.visualization :refer [tangle-direct-save truncate-#set-display]]
    [rhizome.viz :as viz]
    [tangle.core :as tangle]))
 
@@ -11,10 +11,25 @@
     (/ (reduce + (map mean-posx (children node))) 2)
     (:core/value node)))
 
-(defn graph [n]
+(defn get-peaks [root]
+  (if (has-children? root)
+    (cons (:core/left root) (get-peaks (:core/right root)))
+    [root]))
+
+(def temp-counter-index (atom 1000))
+
+(defn l2r-mmr-from-r2l-mmr [mmr]
+  (reset! temp-counter-index 1000)
+  (reduce
+   (fn [left right] (core/node left right (swap! temp-counter-index inc)))
+   (get-peaks mmr)))
+
+(defn graph [n l2r?]
   (let [mmr (-> n
                 mmr-from-leafcount
-                core/decorate-node-types)
+                (#(if l2r? (l2r-mmr-from-r2l-mmr %) %))
+                (#(if l2r? (core/decorate-node-types-l2r %) (core/decorate-node-types %)))
+                )
         nodes (atom nil)
         edges (atom nil)]
     (letfn [(add-nodes-edges [node]
@@ -24,7 +39,7 @@
                                      :color (or ((:core/type node) {:core/node "grey"
                                                                     :core/leaf "lightblue"
                                                                     :core/peak "red"})
-                                                    "green")
+                                                "green")
                                      :label (:core/value node)
                                      :pos (str (float (mean-posx node))
                                                "," (mmr-max-depth node) "!")
@@ -61,3 +76,7 @@
  javax.imageio.ImageIO/read
  viz/view-image
  )
+
+(let [l2r? true]
+  (map (fn [n] (tangle-direct-save (truncate-#set-display (graph n l2r?)) (str (if l2r? "f-") "mmr-n-" n)))
+       (range 1 100)))

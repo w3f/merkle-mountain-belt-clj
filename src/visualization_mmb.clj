@@ -5,7 +5,7 @@
    [linked-peaks]
    [primitives.storage]
    [primitives.visualization :refer [decorate-edges decorate-nodes
-                                     tangle-direct-view tangle-dot]]
+                                     tangle-direct-save tangle-direct-view tangle-dot]]
    [rhizome.viz :as viz]
    [state]
    [storage]
@@ -96,9 +96,6 @@
 (linked-peaks/play-algo-debug-last-step 6)
 @state/belt-nodes
 @state/range-nodes
-
-(defn tangle-direct-save [graph name]
-  (spit (str "visualizations/" name ".svg") ((comp tangle/dot->svg tangle-dot) graph)))
 
 (tangle-direct-view (graph "p-1"))
 (tangle-direct-save (graph "p-1") "p-1")

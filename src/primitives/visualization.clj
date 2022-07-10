@@ -31,6 +31,9 @@
 (defn tangle-direct-view [graph]
   (viz/view-image (tangle-direct graph)))
 
+(defn tangle-direct-save [graph name]
+  (spit (str "visualizations/" name ".svg") ((comp tangle/dot->svg tangle-dot) graph)))
+
 (defn truncate-#set-display [data]
   (walk/postwalk
    #(if (and (contains? #{clojure.lang.PersistentHashSet
