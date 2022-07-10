@@ -71,24 +71,31 @@
    ::value (if join-labeling
              (str (parentheses-maybe (str (::value left))) "⋁" (parentheses-maybe (str (::value right))))
              index)
-   ::index index})
+   ::index index
+   ::type ::node})
 
 ;; (mmr-from-leafcount 5)
 
 (defn leaf [index & value]
   {::value (if value value (if join-labeling (swap! leaf-index inc) index))
-   ::index index})
+   ::index index
+   ::type ::leaf})
 
 ;; hack: value of leaf == height of represented peak
 (comment (node (leaf 1) (leaf 0) 0))
 (S-n 3)
 
-(defn mmr-depth [node]
+(defn tree-depth [node]
   (if (has-children? node)
     (+ 1
-       (apply max (map mmr-depth (children node))))
+       (apply max (map tree-depth (children node))))
     1))
 
+(defn tree-min-depth [node]
+  (if (has-children? node)
+    (+ 1
+       (apply min (map tree-min-depth (children node))))
+    1))
 (defn hash-node [node]
   (if (has-children? node)
     (hash (str (::left node) (::right node)))
@@ -157,6 +164,23 @@
           (leaf (take-index))
           (range (dec leafcount))))
 
+(defn range-node? [node]
+  (not=
+   (tree-depth (::left node))
+   (tree-depth (::right node))))
+
+(defn decorate-node-types [node]
+  (if (has-children? node)
+    (if (range-node? node)
+      (assoc node ::type ::range)
+      node)
+    node
+    )
+  )
+
+(tree-min-depth (::right (mmr-from-leafcount 7)))
+(tree-depth (::right (mmr-from-leafcount 7)))
+(decorate-node-types (mmr-from-leafcount 7))
 (defn mmr-graph [root]
   (apply merge (flatten [{((if join-labeling ::value ::index) root)
                           (map (if join-labeling ::value ::index) (children root))}
@@ -194,7 +218,7 @@
                   :node->descriptor (fn [n] {:label n})
                   :node->cluster (fn [node-key] (if (= node-key "RN-1")
                                                   0
-                                                  (mmr-depth (find-subtree-mmb mmb node-key join-labeling)))))
+                                                  (tree-depth (find-subtree-mmb mmb node-key join-labeling)))))
   graph)
 
 ;; mmr visualization
@@ -203,7 +227,7 @@
       graph (mmr-graph mmr)]
   (viz/view-graph (keys graph) graph
                   :node->descriptor (fn [n] {:label n})
-                  :node->cluster (fn [node-key] (mmr-depth (find-subtree mmr node-key join-labeling))))
+                  :node->cluster (fn [node-key] (tree-depth (find-subtree mmr node-key join-labeling))))
   graph)
 
 (defn rhizome-to-tangle [graph]
