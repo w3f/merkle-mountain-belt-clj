@@ -789,6 +789,7 @@
                    ;; (update-position (sort-by :index (get nodes "range-node")))
                    ;; (update-position (sort-by :index (get nodes "belt-node")))
                    ]))
+
 (def test-nodes-decorated
   (let [peak-nodes (map merge-positions (peak-x-positions (first test-nodes)))
         range-nodes (sort-by :index (second test-nodes))

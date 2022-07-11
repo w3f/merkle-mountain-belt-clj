@@ -72,7 +72,7 @@
     ))
 
 (->
- (graph 7)
+ (graph 11 false false)
  truncate-#set-display
  (#(apply tangle/graph->dot %))
  (tangle/dot->image "png")

@@ -23,7 +23,7 @@
  (primitives.storage/range-node-edges
   (map primitives.storage/node-name (primitives.storage/parent-less-nodes))))
 
-(defn graph [starting-node]
+(defn graph [starting-node bagged?]
   (let [[range-node-edges range-nodes] (force-name-parsing
                                         (primitives.storage/range-node-edges
                                          (map primitives.storage/node-name (primitives.storage/parent-less-nodes))))]
