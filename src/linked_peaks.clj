@@ -1566,7 +1566,7 @@
     [ ;; nodes
      nodes
      ;; edges
-     edges
+     (filter (fn [[start end]] (not= start end)) edges)
      ;; options
      {:graph {:rankdir (if fixed-pos? :BT :TB)
               :label (str "n=" @leaf-count)
