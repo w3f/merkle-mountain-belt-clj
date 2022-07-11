@@ -1484,27 +1484,46 @@
                                                       (take-while some? (iterate hop-left (:lastP nodes))))))
              (every? nil? (map #(:parent (get @node-map %)) (take-while #(some? (get @node-map %)) (iterate hop-left @lastP))))])))
 
+(defn node-plus-edge [node]
+  (letfn [(id [node]
+            (str (:hash node) (:type node)))]
+    (let [posx (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
+          height (or (:height node)
+                     (inc (max (or (:height (get-child node :left)) 0)
+                               (or (:height (get-child node :right)) 0))))
+          posy (if (not= ##Inf height) height 0)]
+      [{:id (id node)
+        :pos (str posx "," posy "!")}
+       (if (get-parent node) [(id (get-parent node)) (id node)] [(id node) (id node)])
+       ])))
 ;; TODO: construct list of edges
 (defn graph [n oneshot?]
   (if oneshot?
     (play-algo-oneshot-end n)
     (play-algo n oneshot?))
-  (let [peaks (select-keys
-               @node-map
-               (filter (fn [k] (= :peak (:type (get @node-map k)))) (keys @node-map)))
-        edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
-        nodes (into #{} (apply concat edges))]
+  (let [
+        ;; peaks (select-keys
+        ;;        @node-map
+        ;;        (filter (fn [k] (= :peak (:type (get @node-map k)))) (keys @node-map)))
+        ;; peaks @node-map
+        ;; edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
+        ;; nodes (into #{} (apply concat edges))
+        [nodes edges] (apply mapv vector
+                             (map node-plus-edge
+                                  (filter #(not= #{} (:hash %))
+                                          (apply concat (map vals [@node-map @range-nodes @belt-nodes])))))
+        ]
     ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))
-    [;; nodes
+    [ ;; nodes
      nodes
      ;; edges
      edges
      ;; options
      {:graph {:rankdir :BT
               :label (str "n=" @leaf-count)
-              ;; :layout :neato
+              :layout :neato
               }
-      :node {:shape :oval}
+      :node {:shape :egg}
       :node->id (fn [n] (:id n))
       :node->descriptor (fn [n] (when (map? n) n))}]))
 

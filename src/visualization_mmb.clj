@@ -1,11 +1,13 @@
 (ns visualization-mmb
   (:require
+   clojure.set
    clojure.walk
    [core]
    [linked-peaks]
-   [primitives.storage]
+   [primitives.storage :refer [children]]
    [primitives.visualization :refer [decorate-edges decorate-nodes
-                                     tangle-direct-save tangle-direct-view tangle-dot]]
+                                     tangle-direct-save tangle-direct-view tangle-dot
+                                     truncate-#set-display]]
    [rhizome.viz :as viz]
    [state]
    [storage]
