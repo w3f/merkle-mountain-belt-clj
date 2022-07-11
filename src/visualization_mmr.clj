@@ -82,6 +82,8 @@
 
 (let [l2r? false
       unbagged? true]
-  (map (fn [n] (tangle-direct-save (truncate-#set-display (graph n l2r? unbagged?))
-                                  (str (if l2r? "f-" (if unbagged? "u-" "")) "mmr-n-" n)))
+  (map (fn [n] (-> n
+                   (graph l2r? unbagged?)
+                   truncate-#set-display
+                   (tangle-direct-save (str (if l2r? "f-" (if unbagged? "u-" "")) "mmr-n-" n))))
        (range 1 100)))
