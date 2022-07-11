@@ -70,7 +70,7 @@
   (reset! peaks-accumulator [])
   (reset! parent-less-nodes-atom #{})
   (println "------")
-  (doall (map #(add-leaf %) (range 1 n)))
+  (doall (map #(add-leaf %) (range 1 (inc n))))
    ;; (doall (map #(add-leaf %) (range 1 1223)))
    ;; (doall (map #(add-leaf %) (range 1 1224)))
   (reset! parent-less-nodes-cache (parent-less-nodes))
