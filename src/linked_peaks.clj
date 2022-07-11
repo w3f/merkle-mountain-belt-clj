@@ -1484,7 +1484,7 @@
                                                       (take-while some? (iterate hop-left (:lastP nodes))))))
              (every? nil? (map #(:parent (get @node-map %)) (take-while #(some? (get @node-map %)) (iterate hop-left @lastP))))])))
 
-(defn node-plus-edge [node]
+(defn node-plus-edge [node bagging?]
   (letfn [(id [node]
             (str (:hash node) (:type node)))
           (label [node]
@@ -1519,10 +1519,10 @@
                                   })
                    "yellow")
         }
-       (if (get-parent node) [(id (get-parent node)) (id node)] [(id node) (id node)])
+       (if (and (get-parent node) (or bagging? (not (contains? #{:belt :range} (:type (get-parent node)))))) [(id (get-parent node)) (id node)] [(id node) (id node)])
        ])))
 ;; TODO: construct list of edges
-(defn graph [n oneshot? fixed-pos?]
+(defn graph [n oneshot? bagging? fixed-pos?]
   (if oneshot?
     (play-algo-oneshot-end n)
     (play-algo n oneshot?))
@@ -1534,10 +1534,14 @@
         ;; edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
         ;; nodes (into #{} (apply concat edges))
         [nodes edges] (apply mapv vector
-                             (map node-plus-edge
+                             (map #(node-plus-edge % bagging?)
                                   ;; (filter #(not= #{} (:hash %))
-                                  (filter #(not= :internal (:type %))
-                                  ;; (filter (fn [_] true)
+                                  ;; (filter #(not= :internal (:type %))
+                                  (filter (if bagging?
+                                            (fn [_] true)
+                                            #(not (or
+                                                   (= #{} (:hash %))
+                                                   (contains? #{:belt :range} (:type %)))))
                                           (apply concat (map vals [@node-map @range-nodes @belt-nodes])))))
         ]
     ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))
@@ -1546,7 +1550,7 @@
      ;; edges
      edges
      ;; options
-     {:graph {:rankdir :BT
+     {:graph {:rankdir (if fixed-pos? :BT :TB)
               :label (str "n=" @leaf-count)
               :layout (if fixed-pos? :neato :dot)
               }
