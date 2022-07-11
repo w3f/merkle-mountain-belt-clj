@@ -157,6 +157,14 @@
     ;; if this is not the case, preserve the left branch of the old mmr and append the new leaf to the right branch
     (do (decrease-index) (node (::left old-node) (mmr-append-leaf (::right old-node) (assoc new-leaf ::index @index)) (take-index)))))
 
+(defn mmr-l2r-append-leaf [old-node new-leaf]
+  (if
+   (is-power-of-two (mmr-leafcount old-node))
+    ;; if number of leafs stemming from old-node is power of two, then create a new node that has the old-node as left child and the new leaf as right child
+    (node old-node new-leaf (take-index))
+    ;; if this is not the case, preserve the left branch of the old mmr and append the new leaf to the right branch
+    (do (decrease-index) (node (::left old-node) (mmr-l2r-append-leaf (::right old-node) (assoc new-leaf ::index @index)) (take-index)))))
+
 (defonce root-storage (atom []))
 
 (defn mmb-append-leaf [old-node new-leaf]
@@ -191,6 +199,14 @@
           (leaf (take-index) (take-leaf-index))
           (range (dec leafcount))))
 
+(defn mmr-l2r-from-leafcount [leafcount]
+  (reset! index -1)
+  (reset! leaf-index 0)
+  (reduce (fn [root _]
+            (mmr-l2r-append-leaf root (leaf (take-index) (take-leaf-index))))
+          (leaf (take-index) (take-leaf-index))
+          (range (dec leafcount))))
+
 (defn range-node? [node]
   (not=
    (mmr-max-depth node)
@@ -204,6 +220,18 @@
       (assoc node
              ::left (assoc (::left node) ::type ::peak)
              ::right (decorate-node-types (::right node))
+             ::type ::range)
+      (assoc node ::type ::peak))
+    node))
+
+(defn decorate-node-types-l2r
+  "decorates range and peak nodes"
+  [node]
+  (if (has-children? node)
+    (if (range-node? node)
+      (assoc node
+             ::left (decorate-node-types (::left node))
+             ::right (assoc (::right node) ::type ::peak)
              ::type ::range)
       (assoc node ::type ::peak))
     node))
