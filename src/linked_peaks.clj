@@ -1489,7 +1489,7 @@
             (str (:hash node) (:type node)))
           (label [node]
             (let [hash (:hash node)]
-              (if (= 1 (count hash))
+              (if (and (contains? #{:internal :peak} (:type node)) (= 1 (count hash)))
                 (str (first hash))
                 (truncate-#set-display hash))))
           (height [node]
@@ -1502,7 +1502,15 @@
           posy (if (not= ##Inf height) height 0)]
       [{:id (id node)
         :label (label node)
-        :pos (str posx "," posy "!")}
+        :pos (str posx "," posy "!")
+        :color (or ((:type node) {
+                                  :internal (if (= 0 (:height node)) "lightblue" "grey")
+                                  :peak "red"
+                                  :range "green"
+                                  :belt "brown"
+                                  })
+                   "yellow")
+        }
        (if (get-parent node) [(id (get-parent node)) (id node)] [(id node) (id node)])
        ])))
 ;; TODO: construct list of edges
