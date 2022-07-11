@@ -1512,8 +1512,16 @@
                                  :internal 0
                                  }))
                 (inc (max (or #_{:clj-kondo/ignore [:missing-else-branch]}
-                              (if (not= #{} (:left node)) (height (get-child node :left))) 0)
-                          (or (height (get-child node :right)) 0)))))]
+                              (if (not= #{} (:left node))
+                                (height (if (or (not= :range (:type node))
+                                                (= (:hash node) (:parent (get-child node :left)))) (get-child node :left)
+                                            (get-child node :right)))) 0)
+                          (or (- (height (if hide-helper-nodes?
+                                           (get-real-right-child node)
+                                           (get-child node :right)))
+                                 (if (and hide-helper-nodes?
+                                          (= (:right node) (:hash node))) 1 0)
+                                 ) 0)))))]
     (let [posx (if (not= #{} (:hash node))
                  (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
                  -1)
