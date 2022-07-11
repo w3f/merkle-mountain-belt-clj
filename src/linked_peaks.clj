@@ -1494,10 +1494,18 @@
                 (truncate-#set-display hash))))
           (height [node]
             (or (:height node)
+                (if (= #{} (:hash node))
+                  ((:type node) {
+                                 :belt (dec (height (get-parent node)))
+                                 :range 1
+                                 :internal 0
+                                 }))
                 (inc (max (or #_{:clj-kondo/ignore [:missing-else-branch]}
                               (if (not= #{} (:left node)) (height (get-child node :left))) 0)
                           (or (height (get-child node :right)) 0)))))]
-    (let [posx (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
+    (let [posx (if (not= #{} (:hash node))
+                 (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
+                 -1)
           height (height node)
           posy (if (not= ##Inf height) height 0)]
       [{:id (id node)
@@ -1514,7 +1522,7 @@
        (if (get-parent node) [(id (get-parent node)) (id node)] [(id node) (id node)])
        ])))
 ;; TODO: construct list of edges
-(defn graph [n oneshot?]
+(defn graph [n oneshot? fixed-pos?]
   (if oneshot?
     (play-algo-oneshot-end n)
     (play-algo n oneshot?))
@@ -1527,7 +1535,9 @@
         ;; nodes (into #{} (apply concat edges))
         [nodes edges] (apply mapv vector
                              (map node-plus-edge
-                                  (filter #(not= #{} (:hash %))
+                                  ;; (filter #(not= #{} (:hash %))
+                                  (filter #(not= :internal (:type %))
+                                  ;; (filter (fn [_] true)
                                           (apply concat (map vals [@node-map @range-nodes @belt-nodes])))))
         ]
     ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))
@@ -1538,7 +1548,7 @@
      ;; options
      {:graph {:rankdir :BT
               :label (str "n=" @leaf-count)
-              :layout :neato
+              :layout (if fixed-pos? :neato :dot)
               }
       :node {:shape :egg}
       :node->id (fn [n] (:id n))
