@@ -375,12 +375,23 @@
        parent
        (throw (Exception. (str "parent type expected: " expected-parent "\nactual parent type: " (:type parent) " " (:hash child) " " (:type child))))))))
 
+(defn get-real-ancestor [child]
+  (if (= (:hash child) (:parent child))
+    (get-real-ancestor (get-parent child))
+    (get-parent child)))
+
 (comment
   (truncate-#set-display (get-parent (get @range-nodes #{96 97}))))
 
 (defn get-child [parent child-leg]
   (let [child-type (child-type (:type parent) child-leg)]
     (second (find @(get storage-maps child-type) (get parent child-leg)))))
+
+(defn get-children [parent]
+  (map (partial get-child parent) [:left :right]))
+
+(defn intermediary-node? [node]
+  (contains? (into #{} (map :hash (get-children node))) (:hash node)))
 
 (defn get-sibling [entry]
   (let [parent (get-parent entry)]
@@ -1484,7 +1495,7 @@
                                                       (take-while some? (iterate hop-left (:lastP nodes))))))
              (every? nil? (map #(:parent (get @node-map %)) (take-while #(some? (get @node-map %)) (iterate hop-left @lastP))))])))
 
-(defn node-plus-edge [node bagging?]
+(defn node-plus-edge [node bagging? hide-helper-nodes?]
   (letfn [(id [node]
             (str (:hash node) (:type node)))
           (label [node]
@@ -1507,7 +1518,8 @@
                  (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
                  -1)
           height (height node)
-          posy (if (not= ##Inf height) height 0)]
+          posy (if (not= ##Inf height) height 0)
+          parent (if hide-helper-nodes? get-real-ancestor get-parent)]
       [{:id (id node)
         :label (label node)
         :pos (str posx "," posy "!")
@@ -1519,10 +1531,10 @@
                                   })
                    "yellow")
         }
-       (if (and (get-parent node) (or bagging? (not (contains? #{:belt :range} (:type (get-parent node)))))) [(id (get-parent node)) (id node)] [(id node) (id node)])
+       (if (and (parent node) (or bagging? (not (contains? #{:belt :range} (:type (get-parent node)))))) [(id (parent node)) (id node)] [(id node) (id node)])
        ])))
 ;; TODO: construct list of edges
-(defn graph [n oneshot? bagging? fixed-pos?]
+(defn graph [n oneshot? bagging? hide-helper-nodes? fixed-pos?]
   (if oneshot?
     (play-algo-oneshot-end n)
     (play-algo n oneshot?))
@@ -1534,14 +1546,20 @@
         ;; edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
         ;; nodes (into #{} (apply concat edges))
         [nodes edges] (apply mapv vector
-                             (map #(node-plus-edge % bagging?)
+                             (map #(node-plus-edge % bagging? hide-helper-nodes?)
                                   ;; (filter #(not= #{} (:hash %))
                                   ;; (filter #(not= :internal (:type %))
-                                  (filter (if bagging?
-                                            (fn [_] true)
-                                            #(not (or
-                                                   (= #{} (:hash %))
-                                                   (contains? #{:belt :range} (:type %)))))
+                                  (filter (if hide-helper-nodes?
+                                            #(not
+                                              (or
+                                               (= #{} (:hash %))
+                                               (intermediary-node? %)))
+                                            (if bagging?
+                                              (fn [_] true)
+                                              #(not (or
+                                                     (= #{} (:hash %))
+                                                     (contains? #{:belt :range} (:type %)))))
+                                            )
                                           (apply concat (map vals [@node-map @range-nodes @belt-nodes])))))
         ]
     ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))

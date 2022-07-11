@@ -92,6 +92,24 @@
    (tangle/dot->svg)
    (spit (str "visualizations/ephemeral-nodes-" n ".svg"))))
 
+(let [n 4]
+  (->
+   (linked-peaks/graph n false true true true)
+   tangle-dot
+   (tangle/dot->image "png")
+   javax.imageio.ImageIO/read
+   viz/view-image
+   )
+  )
+
+(let [bagging? true
+      hide-helper-nodes? true
+      fixed-pos? true]
+  (map (fn [n] (->
+               (linked-peaks/graph n false bagging? hide-helper-nodes? fixed-pos?)
+               (tangle-direct-save (str (if hide-helper-nodes? "" "verbose-") (if bagging? "f-" "u-") "mmb-n-" n))
+               ))
+       (range 1 64)))
 
 (linked-peaks/toggle-debugging)
 (linked-peaks/set-debugging-flags [:range-phantom])
