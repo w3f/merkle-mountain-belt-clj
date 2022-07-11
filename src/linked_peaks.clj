@@ -1486,13 +1486,22 @@
 
 (defn node-plus-edge [node]
   (letfn [(id [node]
-            (str (:hash node) (:type node)))]
+            (str (:hash node) (:type node)))
+          (label [node]
+            (let [hash (:hash node)]
+              (if (= 1 (count hash))
+                (str (first hash))
+                (truncate-#set-display hash))))
+          (height [node]
+            (or (:height node)
+                (inc (max (or #_{:clj-kondo/ignore [:missing-else-branch]}
+                              (if (not= #{} (:left node)) (height (get-child node :left))) 0)
+                          (or (height (get-child node :right)) 0)))))]
     (let [posx (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
-          height (or (:height node)
-                     (inc (max (or (:height (get-child node :left)) 0)
-                               (or (:height (get-child node :right)) 0))))
+          height (height node)
           posy (if (not= ##Inf height) height 0)]
       [{:id (id node)
+        :label (label node)
         :pos (str posx "," posy "!")}
        (if (get-parent node) [(id (get-parent node)) (id node)] [(id node) (id node)])
        ])))
