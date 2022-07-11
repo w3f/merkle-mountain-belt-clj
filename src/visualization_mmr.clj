@@ -24,7 +24,7 @@
    (fn [left right] (core/node left right (swap! temp-counter-index inc)))
    (get-peaks mmr)))
 
-(defn graph [n l2r?]
+(defn graph [n l2r? unbagged?]
   (let [mmr (-> n
                 mmr-from-leafcount
                 (#(if l2r? (l2r-mmr-from-r2l-mmr %) %))
@@ -34,22 +34,25 @@
         edges (atom nil)]
     (letfn [(add-nodes-edges [node]
               ;; (swap! nodes #(conj % (dissoc node ::left ::right)))
-              (swap! nodes #(conj % {:index (:core/index node)
-                                     :id (:core/index node)
-                                     :color (or ((:core/type node) {:core/node "grey"
-                                                                    :core/leaf "lightblue"
-                                                                    :core/peak "red"})
-                                                "green")
-                                     :label (:core/value node)
-                                     :pos (str (float (mean-posx node))
-                                               "," (mmr-max-depth node) "!")
-                                     }))
-              #_{:clj-kondo/ignore [:missing-else-branch]}
-              (if (has-children? node)
-                (do (swap! edges #(concat % [
-                                             [(:core/index node) (:core/index (:core/left node))]
-                                             [(:core/index node) (:core/index (:core/right node))]]))
-                    (doall (map add-nodes-edges (children node))))))]
+              (let [display? (not (and unbagged? (= :core/range (:core/type node))))]
+                #_{:clj-kondo/ignore [:missing-else-branch]}
+                (if display? (swap! nodes #(conj % {:index (:core/index node)
+                                                    :id (:core/index node)
+                                                    ;; :fillcolor ((:core/type node) {:core/node "grey"})
+                                                    :color (or ((:core/type node) {:core/node "grey"
+                                                                                   :core/leaf "lightblue"
+                                                                                   :core/peak "red"})
+                                                               "green")
+                                                    :label (:core/value node)
+                                                    :pos (str (float (mean-posx node))
+                                                              "," (mmr-max-depth node) "!")
+                                                    })))
+                #_ {:clj-kondo/ignore [:missing-else-branch]}
+                (if (has-children? node)
+                  (do (if display? (swap! edges #(concat % [
+                                                            [(:core/index node) (:core/index (:core/left node))]
+                                                            [(:core/index node) (:core/index (:core/right node))]])))
+                      (doall (map add-nodes-edges (children node)))))))]
       (add-nodes-edges mmr)
       [
        ;; nodes
@@ -77,6 +80,8 @@
  viz/view-image
  )
 
-(let [l2r? true]
-  (map (fn [n] (tangle-direct-save (truncate-#set-display (graph n l2r?)) (str (if l2r? "f-") "mmr-n-" n)))
+(let [l2r? false
+      unbagged? true]
+  (map (fn [n] (tangle-direct-save (truncate-#set-display (graph n l2r? unbagged?))
+                                  (str (if l2r? "f-" (if unbagged? "u-" "")) "mmr-n-" n)))
        (range 1 100)))
