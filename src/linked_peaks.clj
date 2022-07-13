@@ -318,8 +318,7 @@
   (filter #(< (get type-rank type) (get type-rank %)) (keys type-rank)))
 
 (comment
-  (higher-type-ranks :peak)
-  ; => (:range :belt)
+  (higher-type-ranks :peak) ; => (:range :belt)
   )
 
 (defn parent-type-contenders
@@ -478,6 +477,9 @@
   "returns the node with a given hash, as long as it exists for the provided type"
   [hash type]
   (get @(get storage-maps type) hash))
+
+(defn lowest-type-rank [hash]
+  (first (filter #(get-node hash %) (keys type-rank))))
 
 ;; siblings of ephemeral nodes are also ephemeral
 (defn co-path-ephemeral
@@ -1561,8 +1563,52 @@
         }
        (if (and (parent node) (or bagging? (not (contains? #{:belt :range} (:type (get-parent node)))))) [(id (parent node)) (id node)] [(id node) (id node)])
        ])))
+
+(defn co-path-ids [node]
+  (letfn [(id [node]
+            (str (:hash node) (:type node)))]
+    (map id (concat (map (fn [hash] {:hash hash :type :internal}) (co-path-internal node []))
+                    (map (fn [hash] {:hash hash :type (lowest-type-rank hash)})
+                         (co-path-ephemeral (get-sibling (get-node (last (co-path-internal node [])) :internal)) []))))
+    ))
+
+(defn- nodes-edges [bagging? hide-helper-nodes?]
+  (apply mapv vector
+         (map #(node-plus-edge % bagging? hide-helper-nodes?)
+              ;; (filter #(not= #{} (:hash %))
+              ;; (filter #(not= :internal (:type %))
+              (filter (if hide-helper-nodes?
+                        (if bagging?
+                          #(not
+                            (or
+                             (= #{} (:hash %))
+                             (intermediary-node? %)))
+                          #(not
+                            (or
+                             (= #{} (:hash %))
+                             (contains? #{:belt :range} (:type %))
+                             (intermediary-node? %))))
+                        (if bagging?
+                          (fn [_] true)
+                          #(not (or
+                                 (= #{} (:hash %))
+                                 (contains? #{:belt :range} (:type %)))))
+                        )
+                      (apply concat (map vals [@node-map @range-nodes @belt-nodes]))))))
+
+(defn id-trimmed [id] (first (clojure.string/split id #":")))
+
+(defn decorate-copath [nodes leaf]
+  (let [ids (co-path-ids (leaf-location leaf))]
+    ;; (map (if (contains?)))
+    (map #(if (= (id-trimmed (:id %)) (str #{leaf}))
+            (assoc % :color "green")
+            (if (contains? (into #{} (map id-trimmed ids)) (id-trimmed (:id %)))
+              (assoc % :color "red")
+              (assoc % :color "grey"))) nodes)))
+
 ;; TODO: construct list of edges
-(defn graph [n oneshot? bagging? hide-helper-nodes? fixed-pos?]
+(defn graph [n leaf-to-prove oneshot? bagging? hide-helper-nodes? fixed-pos?]
   (if oneshot?
     (play-algo-oneshot-end n)
     (play-algo n oneshot?))
@@ -1573,32 +1619,13 @@
         ;; peaks @node-map
         ;; edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
         ;; nodes (into #{} (apply concat edges))
-        [nodes edges] (apply mapv vector
-                             (map #(node-plus-edge % bagging? hide-helper-nodes?)
-                                  ;; (filter #(not= #{} (:hash %))
-                                  ;; (filter #(not= :internal (:type %))
-                                  (filter (if hide-helper-nodes?
-                                            (if bagging?
-                                              #(not
-                                                (or
-                                                 (= #{} (:hash %))
-                                                 (intermediary-node? %)))
-                                             #(not
-                                                (or
-                                                 (= #{} (:hash %))
-                                                 (contains? #{:belt :range} (:type %))
-                                                 (intermediary-node? %))))
-                                            (if bagging?
-                                              (fn [_] true)
-                                              #(not (or
-                                                     (= #{} (:hash %))
-                                                     (contains? #{:belt :range} (:type %)))))
-                                            )
-                                          (apply concat (map vals [@node-map @range-nodes @belt-nodes])))))
+        [nodes edges] (nodes-edges bagging? hide-helper-nodes?)
         ]
     ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))
     [ ;; nodes
-     nodes
+     (if leaf-to-prove
+       (decorate-copath nodes leaf-to-prove)
+       nodes)
      ;; edges
      (filter (fn [[start end]] (not= start end)) edges)
      ;; options

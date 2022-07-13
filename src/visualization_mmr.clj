@@ -1,7 +1,8 @@
 (ns visualization-mmr
   (:require
    [clojure.set :as set]
-   [core :refer [is-peak? mmr-from-leafcount mmr-leafcount mmr-max-depth]]
+   [core :refer [copath-nodes decorate-node is-peak? mmr-from-leafcount
+                 mmr-leafcount mmr-max-depth path]]
    [primitives.core :refer [children has-children?]]
    [primitives.visualization :refer [tangle-direct-save truncate-#set-display]]
    [rhizome.viz :as viz]
@@ -30,14 +31,18 @@
                                                     x)))))
      (get-peaks mmr))))
 
-(defn graph [n l2r? unbagged?]
+(defn graph [n leaf-to-prove l2r? unbagged?]
   (let [mmr (-> n
                 mmr-from-leafcount
                 (#(if l2r? (l2r-mmr-from-r2l-mmr %) %))
                 (#(if l2r? (core/decorate-node-types-l2r %) (core/decorate-node-types %)))
                 )
         nodes (atom nil)
-        edges (atom nil)]
+        edges (atom nil)
+        path (path mmr leaf-to-prove)
+        copath-indices (if leaf-to-prove
+                         (into #{} (map :core/index (copath-nodes mmr path)))
+                         nil)]
     (letfn [(add-nodes-edges [node]
               ;; (swap! nodes #(conj % (dissoc node ::left ::right)))
               (let [display? (not (and unbagged? (= :core/range (:core/type node))))]
@@ -45,10 +50,12 @@
                 (if display? (swap! nodes #(conj % {:index (:core/index node)
                                                     :id (:core/index node)
                                                     ;; :fillcolor ((:core/type node) {:core/node "grey"})
-                                                    :color (or ((:core/type node) {:core/node "grey"
-                                                                                   :core/leaf "lightblue"
-                                                                                   :core/peak "red"})
-                                                               "green")
+                                                    :color (if leaf-to-prove
+                                                             "grey"
+                                                             (or ((:core/type node) {:core/node "grey"
+                                                                                     :core/leaf "lightblue"
+                                                                                     :core/peak "red"})
+                                                                 "green"))
                                                     :label (:core/value node)
                                                     :pos (str (float (mean-posx node))
                                                               "," (mmr-max-depth node) "!")
@@ -62,7 +69,9 @@
       (add-nodes-edges mmr)
       [
        ;; nodes
-       @nodes
+       (if leaf-to-prove
+         (map #(decorate-node % #{(:core/index (get-in mmr path))} {:color "green"}) (map #(decorate-node % copath-indices {:color "red"}) @nodes))
+         @nodes)
 
        ;; edges
        @edges
@@ -78,7 +87,7 @@
     ))
 
 (->
- (graph 11 false false)
+ (graph 11 nil false false)
  truncate-#set-display
  (#(apply tangle/graph->dot %))
  (tangle/dot->image "png")
@@ -86,10 +95,10 @@
  viz/view-image
  )
 
-(let [l2r? false
-      unbagged? true]
+(let [l2r? true
+      unbagged? false]
   (map (fn [n] (-> n
-                   (graph l2r? unbagged?)
+                   (graph nil l2r? unbagged?)
                    truncate-#set-display
                    (tangle-direct-save (str (if l2r? "f-" (if unbagged? "u-" "")) "mmr-n-" n))))
        (range 1 100)))

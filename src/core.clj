@@ -232,6 +232,11 @@
              ::type ::range)
       (assoc node ::type ::peak))
     node))
+
+(defn decorate-node [node nodes-to-decorate decoration-map]
+  (if (contains? nodes-to-decorate (:index node))
+    (merge node decoration-map)
+    node))
 (tree-min-depth (::right (mmr-from-leafcount 7)))
 (tree-depth (::right (mmr-from-leafcount 7)))
 (decorate-node-types (mmr-from-leafcount 7))
@@ -256,6 +261,48 @@
          (filter
           #(not (or (nil? %) (empty? %)))
           (map #(find-subtree % node-key value?) (children root)))))))))
+
+(defn keys-in [m]
+  (if (map? m)
+    (vec
+     (mapcat (fn [[k v]]
+               (let [sub (keys-in v)
+                     nested (map #(into [k] %) (filter (comp not empty?) sub))]
+                 (if (seq nested)
+                   nested
+                   [[k]])))
+             m))
+    []))
+
+(defn paths [mmr]
+  (->> mmr
+       keys-in
+       (filter #(= :core/type (last %)))
+       (filter #(= :core/leaf (get-in mmr %)))
+       (map butlast)
+       ))
+
+(defn path [mmr leaf]
+  (nth (paths mmr) (dec leaf)))
+
+(defn copath [mmr leaf]
+  (map #(get {:core/left :core/right
+              :core/right :core/left}
+             %)
+       (path mmr leaf)))
+
+(defn path-nodes [root path]
+  (if (has-children? root)
+    (cons root (path-nodes ((first path) root) (rest path)))
+    [root]))
+
+(defn copath-nodes [root path]
+  (let [next-copath (((first path) {:core/left :core/right
+                                    :core/right :core/left}) root)]
+    (if (< 1 (count path))
+      (cons next-copath
+            (copath-nodes ((first path) root) (rest path)))
+      [next-copath])))
 
 (defn find-subtree-mmb [roots node-key & value?]
   ;; (or
