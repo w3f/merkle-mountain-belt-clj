@@ -123,6 +123,10 @@
        (mmr-min-depth (::right node)))
     1))
 
+(defn is-peak? [node]
+  (and (= :core/node (:core/type node))
+       (= (mmr-max-depth node) (mmr-min-depth node))))
+
 (defn hash-node [node]
   (if (has-children? node)
     (hash (str (::left node) (::right node)))
@@ -199,13 +203,6 @@
           (leaf (take-index) (take-leaf-index))
           (range (dec leafcount))))
 
-(defn mmr-l2r-from-leafcount [leafcount]
-  (reset! index -1)
-  (reset! leaf-index 0)
-  (reduce (fn [root _]
-            (mmr-l2r-append-leaf root (leaf (take-index) (take-leaf-index))))
-          (leaf (take-index) (take-leaf-index))
-          (range (dec leafcount))))
 
 (defn range-node? [node]
   (not=

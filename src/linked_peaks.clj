@@ -8,7 +8,7 @@
    [clojure.test]
    [clojure.walk]
    [primitives.core]
-   [primitives.storage]
+   [primitives.storage :refer [leaf-location]]
    [primitives.visualization :refer [truncate-#set-display]]
    [state
     :refer
@@ -389,6 +389,16 @@
 
 (defn get-children [parent]
   (map (partial get-child parent) [:left :right]))
+
+(defn get-real-right-child [node]
+  (if (= (:hash (get-child (get-child node :right) :right)) (:right node))
+    (get-real-right-child (get-child node :right))
+    (get-child node :right)))
+
+(defn get-real-left-child [node]
+  (if (= (:hash (get-child (get-child node :left) :right)) (:left node))
+    (get-real-right-child (get-child node :left))
+    (get-child node :left)))
 
 (defn intermediary-node? [node]
   (contains? (into #{} (map :hash (get-children node))) (:hash node)))
@@ -803,7 +813,7 @@
 (defn algo [oneshot-nesting?]
   (let [;; let h be hash of new leaf
         ;; h (str @leaf-count "-hash")
-        h #{@leaf-count}
+        h #{(inc @leaf-count)}
         ;; pointer (get-pointer)
         ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
         P (peak-node (:hash (get @node-map @lastP)) nil 0 h)
@@ -1495,6 +1505,18 @@
                                                       (take-while some? (iterate hop-left (:lastP nodes))))))
              (every? nil? (map #(:parent (get @node-map %)) (take-while #(some? (get @node-map %)) (iterate hop-left @lastP))))])))
 
+(defn posx [node]
+  ;; #dbg
+            (if (not= #{} (:hash node))
+              (if (contains? #{:internal :peak} (:type node))
+                ;; if internal or peak, calculate mean position from sum of leaves
+                (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
+                ;; if ephemeral calculate as mean of children
+                (float (/
+                        (reduce + (map posx (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))
+                        (count (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))))
+              -1))
+
 (defn node-plus-edge [node bagging? hide-helper-nodes?]
   (letfn [(id [node]
             (str (:hash node) (:type node)))
@@ -1521,16 +1543,14 @@
                                            (get-child node :right)))
                                  (if (and hide-helper-nodes?
                                           (= (:right node) (:hash node))) 1 0)
-                                 ) 0)))))]
-    (let [posx (if (not= #{} (:hash node))
-                 (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
-                 -1)
-          height (height node)
+                                 ) 0)))))
+          ]
+    (let [height (height node)
           posy (if (not= ##Inf height) height 0)
           parent (if hide-helper-nodes? get-real-ancestor get-parent)]
       [{:id (id node)
         :label (label node)
-        :pos (str posx "," posy "!")
+        :pos (str (posx node) "," posy "!")
         :color (or ((:type node) {
                                   :internal (if (= 0 (:height node)) "lightblue" "grey")
                                   :peak "red"
@@ -1558,10 +1578,16 @@
                                   ;; (filter #(not= #{} (:hash %))
                                   ;; (filter #(not= :internal (:type %))
                                   (filter (if hide-helper-nodes?
-                                            #(not
-                                              (or
-                                               (= #{} (:hash %))
-                                               (intermediary-node? %)))
+                                            (if bagging?
+                                              #(not
+                                                (or
+                                                 (= #{} (:hash %))
+                                                 (intermediary-node? %)))
+                                             #(not
+                                                (or
+                                                 (= #{} (:hash %))
+                                                 (contains? #{:belt :range} (:type %))
+                                                 (intermediary-node? %))))
                                             (if bagging?
                                               (fn [_] true)
                                               #(not (or

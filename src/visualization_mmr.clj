@@ -1,6 +1,7 @@
 (ns visualization-mmr
   (:require
-   [core :refer [mmr-from-leafcount mmr-leafcount mmr-max-depth mmr-min-depth]]
+   [clojure.set :as set]
+   [core :refer [is-peak? mmr-from-leafcount mmr-leafcount mmr-max-depth]]
    [primitives.core :refer [children has-children?]]
    [primitives.visualization :refer [tangle-direct-save truncate-#set-display]]
    [rhizome.viz :as viz]
@@ -12,17 +13,22 @@
     (:core/value node)))
 
 (defn get-peaks [root]
-  (if (has-children? root)
+  (if (and (has-children? root) (not (is-peak? root)))
     (cons (:core/left root) (get-peaks (:core/right root)))
     [root]))
 
-(def temp-counter-index (atom 1000))
+(defn get-ranges [root]
+  (if (and (has-children? root) (not (is-peak? root)))
+    (cons root (get-ranges (:core/right root)))
+    []))
 
 (defn l2r-mmr-from-r2l-mmr [mmr]
-  (reset! temp-counter-index 1000)
-  (reduce
-   (fn [left right] (core/node left right (swap! temp-counter-index inc)))
-   (get-peaks mmr)))
+  (let [root-indices (atom (reverse (map :core/index (get-ranges mmr))))]
+    (reduce
+     (fn [left right] (core/node left right ((fn [] (let [x (first @root-indices)]
+                                                    (swap! root-indices #(rest %))
+                                                    x)))))
+     (get-peaks mmr))))
 
 (defn graph [n l2r? unbagged?]
   (let [mmr (-> n
