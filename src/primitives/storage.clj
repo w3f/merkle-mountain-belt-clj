@@ -19,7 +19,8 @@
   (map (fn [index] {:index index
                     :id (nth storage index)
                    ;; :pos (str index "," (node-height-literal index) "!")
-                    })(range (count storage))))
+                    })
+       (range (count storage))))
 
 (defn node-maps-updated
   ;; creates maps with `:id` as the storage entry and `:index` as the index with the collection

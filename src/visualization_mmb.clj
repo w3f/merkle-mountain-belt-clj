@@ -1,24 +1,17 @@
-(ns visualization
+(ns visualization-mmb
   (:require
+   clojure.set
    clojure.walk
    [core]
    [linked-peaks]
-   [primitives.storage]
+   [primitives.storage :refer [children]]
+   [primitives.visualization :refer [decorate-edges decorate-nodes
+                                     tangle-direct-save tangle-direct-view tangle-dot
+                                     truncate-#set-display]]
    [rhizome.viz :as viz]
-   [storage]
    [state]
+   [storage]
    [tangle.core :as tangle]))
-
-(defn decorate-nodes [nodes decorated-nodes decoration]
-  (map
-   #(if (contains? (into #{} decorated-nodes) (:id %))
-      (merge decoration %)
-      %) nodes))
-
-(defn decorate-edges [edges decorated-edges decoration]
-  (map #(if (and (contains? (into #{} decorated-edges) (first %)) (contains? (into #{} decorated-edges) (second %)))
-          (concat % [decoration]) %)
-       edges))
 
 ;; TODO: decide at what layer to perform name parsing
 (defn force-name-parsing [form]
@@ -26,41 +19,87 @@
    #(if (map? %) (core/parse-typed-name %) %)
    form))
 
+(defn position [storage-entry]
+  (if (integer? (:id storage-entry))
+    [(:id storage-entry) 0]
+    (reduce
+     (fn [[x0 y0] [x1 y1]] [(float (/ (+ x0 x1) 2)) (inc (/ (+ y0 y1) 2))])
+     (map (comp position #(nth (primitives.storage/node-maps @primitives.storage/storage-array) %)) (children (:index storage-entry))))
+    ))
+
+(defn name [storage-entry]
+  (if (integer? (:id storage-entry))
+    (:id storage-entry)
+    (let [[left right] (map
+                    (comp name #(nth (primitives.storage/node-maps @primitives.storage/storage-array) %))
+                    (children (:index storage-entry)))]
+      (if (integer? left)
+        #{left right}
+        (clojure.set/union left right)))))
+
+(defn decorate-name [node]
+  (assoc node :id (let [name (name node)]
+                    (if (and (contains? #{clojure.lang.PersistentHashSet
+                                          clojure.lang.PersistentTreeSet} (type name))
+                             (every? number? name))
+                      (if (< 1 (count name))
+                        (str "#{" (apply min name) ".." (apply max name) "}")
+                        (str name))
+                      name))))
+
 (force-name-parsing
  (primitives.storage/range-node-edges
-  (map primitives.storage/node-name (primitives.storage/parent-less-nodes))))
+  (map #(name %) (primitives.storage/parent-less-nodes))))
 
-(defn graph [starting-node]
+(defn graph [starting-node bagged?]
   (let [[range-node-edges range-nodes] (force-name-parsing
                                         (primitives.storage/range-node-edges
                                          (map primitives.storage/node-name (primitives.storage/parent-less-nodes))))]
     ;; [range-node-edges range-nodes]
-    [;; nodes
+    [
+     ;; nodes
      (->
       ;; nodes
       (concat
        ;; normal nodes
-       (primitives.storage/non-zero-entries)
+       (map (comp decorate-name decorate-position) (primitives.storage/non-zero-entries))
        ;; range nodes
-       (map (fn [range-node] {:id range-node}) range-nodes))
+       (if bagged? (map (fn [range-node] {:id range-node}) range-nodes) '()))
       ;; decorate co-path nodes
-      (decorate-nodes (force-name-parsing (primitives.storage/co-path (primitives.storage/name-index starting-node))) {:color "blue"})
+      ;; (decorate-nodes (force-name-parsing (primitives.storage/co-path (primitives.storage/name-index starting-node))) {:color "blue"})
       ;; decorate starting node
-      (decorate-nodes #{starting-node} {:color "red"}))
+      ;; (decorate-nodes #{starting-node} {:color "red"})
+      )
+
      ;; edges
      (->
       (concat
        (apply concat
               (map #(list
-                     (list (:id %) (primitives.storage/node-name (primitives.storage/left-child (:index %))))
-                     (list (:id %) (primitives.storage/node-name (primitives.storage/right-child (:index %))))) (primitives.storage/parent-ids)))
-       range-node-edges)
+                     (list (:id (decorate-name %)) (:id (decorate-name (nth (primitives.storage/node-maps @primitives.storage/storage-array) (primitives.storage/left-child (:index %))))))
+                     (list (:id (decorate-name %)) (:id (decorate-name (nth (primitives.storage/node-maps @primitives.storage/storage-array) (primitives.storage/right-child (:index %))))))) (primitives.storage/parent-ids)))
+       ;; (if bagged? range-node-edges '())
+       )
+
       ;; decorate co-path edges
-      (decorate-edges (force-name-parsing (primitives.storage/path (primitives.storage/name-index starting-node)))
-                      {:style :dashed :color "blue"}))
-     {:node {:shape :oval}
+      ;; (decorate-edges (force-name-parsing (primitives.storage/path (primitives.storage/name-index starting-node)))
+      ;;                 {:style :dashed :color "blue"})
+      )
+
+     ;; formatting options
+     {:node {:shape :egg}
       :node->id (fn [n] (:id n))
-      :node->descriptor (fn [n] (when (map? n) n))}]))
+      :node->descriptor (fn [n] (when (map? n) n))
+      :graph {:rankdir :BT,
+              :label (str "n=" @primitives.storage/leaf-count),
+              :layout :neato}
+      }
+     ;; {}
+     ]))
+
+(defn construct-graph [n starting-node bagged?]
+  (storage/run n)
+  (graph starting-node bagged?))
 
 (graph "p-1")
 (comment (primitives.storage/path (primitives.storage/name-index "p-1")))
@@ -74,18 +113,8 @@
   (primitives.storage/range-node-edges
    (map primitives.storage/node-name (primitives.storage/parent-less-nodes)))))
 
-(defn tangle-dot [graph]
-  (#(apply tangle/graph->dot %) graph))
-
-(defn tangle-direct [graph]
-  (->
-   graph
-   tangle-dot
-   (tangle/dot->image "png")
-   javax.imageio.ImageIO/read))
-
 (->
- (graph "p-1")
+ (construct-graph 10 "p-1")
  tangle-dot
  (tangle/dot->image "png")
  javax.imageio.ImageIO/read
@@ -96,19 +125,33 @@
    (linked-peaks/graph n false)
    tangle-dot
    (tangle/dot->svg)
-   (spit (str "ephemeral-nodes-" n ".svg"))))
+   (spit (str "visualizations/ephemeral-nodes-" n ".svg"))))
 
-(defn tangle-direct-view [graph]
-  (viz/view-image (tangle-direct graph)))
+(let [n 17]
+  (->
+   (linked-peaks/graph n 16 false true true true)
+   tangle-dot
+   (tangle/dot->image "png")
+   javax.imageio.ImageIO/read
+   viz/view-image
+   )
+  )
+
+(let [bagging? true
+      hide-helper-nodes? true
+      fixed-pos? true
+      leaf-to-prove 3]
+  (map (fn [n] (->
+               (linked-peaks/graph n leaf-to-prove false bagging? hide-helper-nodes? fixed-pos?)
+               (tangle-direct-save (str (if hide-helper-nodes? "" "verbose-") (if bagging? "f-" "u-") "mmb-n-" n))
+               ))
+       (range 1 64)))
 
 (linked-peaks/toggle-debugging)
 (linked-peaks/set-debugging-flags [:range-phantom])
 (linked-peaks/play-algo-debug-last-step 6)
-(@state/belt-nodes)
-(@state/range-nodes)
-
-(defn tangle-direct-save [graph location]
-  (spit (str location ".svg") ((comp tangle/dot->svg tangle-dot) graph)))
+@state/belt-nodes
+@state/range-nodes
 
 (tangle-direct-view (graph "p-1"))
 (tangle-direct-save (graph "p-1") "p-1")
@@ -170,7 +213,7 @@
   ((juxt
     tangle-direct-view
     ;; tangle-dot
-    #(tangle-direct-save % (str "belted-edges-" @primitives.storage/leaf-count ".png")))
+    #(tangle-direct-save % (str "belted-edges-" @primitives.storage/leaf-count)))
    [;; nodes
     ;; (primitives.storage/node-name-maps (into [] (flatten core/belted-edges)))
     ;; (primitives.storage/node-maps-updated (into [] (into #{} (flatten (core/belted-nodes)))))
@@ -189,11 +232,7 @@
              :label (str "n=" @primitives.storage/leaf-count),
              :layout :neato}}]))
 
-(core/belted-edges)
-
-(flatten (core/belted-edges))
-(nth @primitives.storage/storage-array 1536)
-(primitives.storage/node-name 1536)
+(map core/merge-positions (map #(update % :posx (fn [old] (* 1.8 old))) core/test-nodes-decorated))
 
 (primitives.storage/node-maps-updated (into [] (into #{} (flatten (core/belted-nodes)))))
 

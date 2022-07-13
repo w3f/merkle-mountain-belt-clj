@@ -8,19 +8,12 @@
    [clojure.test]
    [clojure.walk]
    [primitives.core]
-   [primitives.storage]
+   [primitives.storage :refer [leaf-location]]
+   [primitives.visualization :refer [truncate-#set-display]]
    [state
     :refer
-    [belt-nodes
-     current-atom-states
-     lastP
-     leaf-count
-     mergeable-stack
-     node-array
-     node-map
-     pointers
-     range-nodes
-     root-belt-node]]))
+    [belt-nodes current-atom-states lastP leaf-count mergeable-stack
+     node-array node-map pointers range-nodes root-belt-node]]))
 
 (println "start:" (new java.util.Date))
 
@@ -39,18 +32,6 @@
 (defn debugging [flags]
   (and @global-debugging
        (every? #(contains? @debugging-flags %) flags)))
-
-(defn truncate-#set-display [data]
-  (clojure.walk/postwalk
-   #(if (and (contains? #{clojure.lang.PersistentHashSet
-                          clojure.lang.PersistentTreeSet} (type %))
-             (every? number? %))
-      (if (< 1 (count %))
-        (str "#{" (apply min %) ".." (apply max %) "}")
-        (str %))
-      %)
-   ;; (sort-by #(apply min (:hash %)) data)
-   data))
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (comment
@@ -134,8 +115,7 @@
         zero-leaves (- index array-len)]
     (swap! node-array (fn [coll items]
                         (reduce
-                         conj coll items)) (concat (repeat zero-leaves 0) (list item)))
-    ))
+                         conj coll items)) (concat (repeat zero-leaves 0) (list item)))))
 
 (defn reset-all []
   ;; NOTE: need to already set parent for phantom node, range, and belt
@@ -338,8 +318,7 @@
   (filter #(< (get type-rank type) (get type-rank %)) (keys type-rank)))
 
 (comment
-  (higher-type-ranks :peak)
-  ; => (:range :belt)
+  (higher-type-ranks :peak) ; => (:range :belt)
   )
 
 (defn parent-type-contenders
@@ -395,12 +374,33 @@
        parent
        (throw (Exception. (str "parent type expected: " expected-parent "\nactual parent type: " (:type parent) " " (:hash child) " " (:type child))))))))
 
+(defn get-real-ancestor [child]
+  (if (= (:hash child) (:parent child))
+    (get-real-ancestor (get-parent child))
+    (get-parent child)))
+
 (comment
   (truncate-#set-display (get-parent (get @range-nodes #{96 97}))))
 
 (defn get-child [parent child-leg]
   (let [child-type (child-type (:type parent) child-leg)]
     (second (find @(get storage-maps child-type) (get parent child-leg)))))
+
+(defn get-children [parent]
+  (map (partial get-child parent) [:left :right]))
+
+(defn get-real-right-child [node]
+  (if (= (:hash (get-child (get-child node :right) :right)) (:right node))
+    (get-real-right-child (get-child node :right))
+    (get-child node :right)))
+
+(defn get-real-left-child [node]
+  (if (= (:hash (get-child (get-child node :left) :right)) (:left node))
+    (get-real-right-child (get-child node :left))
+    (get-child node :left)))
+
+(defn intermediary-node? [node]
+  (contains? (into #{} (map :hash (get-children node))) (:hash node)))
 
 (defn get-sibling [entry]
   (let [parent (get-parent entry)]
@@ -477,6 +477,9 @@
   "returns the node with a given hash, as long as it exists for the provided type"
   [hash type]
   (get @(get storage-maps type) hash))
+
+(defn lowest-type-rank [hash]
+  (first (filter #(get-node hash %) (keys type-rank))))
 
 ;; siblings of ephemeral nodes are also ephemeral
 (defn co-path-ephemeral
@@ -695,7 +698,7 @@
 
                 (let [old-bn (get-parent (get-parent Q-old :range) :belt)
                       new-bn (belt-node
-                              ;; if "hash" of old and new belt node are the same, then we're dealing with a range merge (maybe only for n=6), so old belt node's right child is no longer range leader, so need to use old belt node's 
+                              ;; if "hash" of old and new belt node are the same, then we're dealing with a range merge (maybe only for n=6), so old belt node's right child is no longer range leader, so need to use old belt node's
                               (if (= :left child-leg) rn (if (not= (:hash old-bn) new-grandparent-hash) (:left old-bn) (:left (get @belt-nodes (:left old-bn)))))
                               (if (= :right child-leg) rn (:right old-bn))
                               new-grandparent-hash
@@ -812,7 +815,7 @@
 (defn algo [oneshot-nesting?]
   (let [;; let h be hash of new leaf
         ;; h (str @leaf-count "-hash")
-        h #{@leaf-count}
+        h #{(inc @leaf-count)}
         ;; pointer (get-pointer)
         ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
         P (peak-node (:hash (get @node-map @lastP)) nil 0 h)
@@ -1239,7 +1242,7 @@
 (prof/serve-files 8080)
 
 ;; profile aggregate time spent for full tree
-(prof/profile ((play-algo 5000 false)))
+(prof/profile (play-algo 5000 false))
 
 ;; profile aggregate time spent for last step of tree
 (prof/profile (dotimes [_ 10000]
@@ -1504,27 +1507,133 @@
                                                       (take-while some? (iterate hop-left (:lastP nodes))))))
              (every? nil? (map #(:parent (get @node-map %)) (take-while #(some? (get @node-map %)) (iterate hop-left @lastP))))])))
 
+(defn posx [node]
+  ;; #dbg
+            (if (not= #{} (:hash node))
+              (if (contains? #{:internal :peak} (:type node))
+                ;; if internal or peak, calculate mean position from sum of leaves
+                (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
+                ;; if ephemeral calculate as mean of children
+                (float (/
+                        (reduce + (map posx (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))
+                        (count (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))))
+              -1))
+
+(defn node-plus-edge [node bagging? hide-helper-nodes?]
+  (letfn [(id [node]
+            (str (:hash node) (:type node)))
+          (label [node]
+            (let [hash (:hash node)]
+              (if (and (contains? #{:internal :peak} (:type node)) (= 1 (count hash)))
+                (str (first hash))
+                (truncate-#set-display hash))))
+          (height [node]
+            (or (:height node)
+                (if (= #{} (:hash node))
+                  ((:type node) {
+                                 :belt (dec (height (get-parent node)))
+                                 :range 1
+                                 :internal 0
+                                 }))
+                (inc (max (or #_{:clj-kondo/ignore [:missing-else-branch]}
+                              (if (not= #{} (:left node))
+                                (height (if (or (not= :range (:type node))
+                                                (= (:hash node) (:parent (get-child node :left)))) (get-child node :left)
+                                            (get-child node :right)))) 0)
+                          (or (- (height (if hide-helper-nodes?
+                                           (get-real-right-child node)
+                                           (get-child node :right)))
+                                 (if (and hide-helper-nodes?
+                                          (= (:right node) (:hash node))) 1 0)
+                                 ) 0)))))
+          ]
+    (let [height (height node)
+          posy (if (not= ##Inf height) height 0)
+          parent (if hide-helper-nodes? get-real-ancestor get-parent)]
+      [{:id (id node)
+        :label (label node)
+        :pos (str (posx node) "," posy "!")
+        :color (or ((:type node) {
+                                  :internal (if (= 0 (:height node)) "lightblue" "grey")
+                                  :peak "red"
+                                  :range "green"
+                                  :belt "brown"
+                                  })
+                   "yellow")
+        }
+       (if (and (parent node) (or bagging? (not (contains? #{:belt :range} (:type (get-parent node)))))) [(id (parent node)) (id node)] [(id node) (id node)])
+       ])))
+
+(defn co-path-ids [node]
+  (letfn [(id [node]
+            (str (:hash node) (:type node)))]
+    (map id (concat (map (fn [hash] {:hash hash :type :internal}) (co-path-internal node []))
+                    (map (fn [hash] {:hash hash :type (lowest-type-rank hash)})
+                         (co-path-ephemeral (get-sibling (get-node (last (co-path-internal node [])) :internal)) []))))
+    ))
+
+(defn- nodes-edges [bagging? hide-helper-nodes?]
+  (apply mapv vector
+         (map #(node-plus-edge % bagging? hide-helper-nodes?)
+              ;; (filter #(not= #{} (:hash %))
+              ;; (filter #(not= :internal (:type %))
+              (filter (if hide-helper-nodes?
+                        (if bagging?
+                          #(not
+                            (or
+                             (= #{} (:hash %))
+                             (intermediary-node? %)))
+                          #(not
+                            (or
+                             (= #{} (:hash %))
+                             (contains? #{:belt :range} (:type %))
+                             (intermediary-node? %))))
+                        (if bagging?
+                          (fn [_] true)
+                          #(not (or
+                                 (= #{} (:hash %))
+                                 (contains? #{:belt :range} (:type %)))))
+                        )
+                      (apply concat (map vals [@node-map @range-nodes @belt-nodes]))))))
+
+(defn id-trimmed [id] (first (clojure.string/split id #":")))
+
+(defn decorate-copath [nodes leaf]
+  (let [ids (co-path-ids (leaf-location leaf))]
+    ;; (map (if (contains?)))
+    (map #(if (= (id-trimmed (:id %)) (str #{leaf}))
+            (assoc % :color "green")
+            (if (contains? (into #{} (map id-trimmed ids)) (id-trimmed (:id %)))
+              (assoc % :color "red")
+              (assoc % :color "grey"))) nodes)))
+
 ;; TODO: construct list of edges
-(defn graph [n oneshot?]
+(defn graph [n leaf-to-prove oneshot? bagging? hide-helper-nodes? fixed-pos?]
   (if oneshot?
     (play-algo-oneshot-end n)
     (play-algo n oneshot?))
-  (let [peaks (select-keys
-               @node-map
-               (filter (fn [k] (= :peak (:type (get @node-map k)))) (keys @node-map)))
-        edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
-        nodes (into #{} (apply concat edges))]
+  (let [
+        ;; peaks (select-keys
+        ;;        @node-map
+        ;;        (filter (fn [k] (= :peak (:type (get @node-map k)))) (keys @node-map)))
+        ;; peaks @node-map
+        ;; edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
+        ;; nodes (into #{} (apply concat edges))
+        [nodes edges] (nodes-edges bagging? hide-helper-nodes?)
+        ]
     ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))
-    [;; nodes
-     nodes
+    [ ;; nodes
+     (if leaf-to-prove
+       (decorate-copath nodes leaf-to-prove)
+       nodes)
      ;; edges
-     edges
+     (filter (fn [[start end]] (not= start end)) edges)
      ;; options
-     {:graph {:rankdir :BT
+     {:graph {:rankdir (if fixed-pos? :BT :TB)
               :label (str "n=" @leaf-count)
-              ;; :layout :neato
+              :layout (if fixed-pos? :neato :dot)
               }
-      :node {:shape :oval}
+      :node {:shape :egg}
       :node->id (fn [n] (:id n))
       :node->descriptor (fn [n] (when (map? n) n))}]))
 

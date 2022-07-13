@@ -1,6 +1,12 @@
 (ns storage
-  (:require [primitives.core]
-            [primitives.storage :refer [left-child right-child storage-array leaf-location peak-location children node-height-literal parent-index parent-less-nodes position-parentless-nodes highest-exponent-st-dividing parent-less-nodes-atom parent-less-nodes-cache node-name range-node-edges-reduced range-node-edges parent-less-nodes-sorted-height]]))
+  (:require
+   clojure.set
+   [primitives.core]
+   [primitives.storage :refer [children highest-exponent-st-dividing
+                               leaf-location left-child node-height-literal node-name
+                               parent-index parent-less-nodes parent-less-nodes-atom parent-less-nodes-cache
+                               parent-less-nodes-sorted-height peak-location position-parentless-nodes
+                               range-node-edges right-child storage-array]]))
 
 (defonce peaks-accumulator (atom []))
 
@@ -64,7 +70,7 @@
   (reset! peaks-accumulator [])
   (reset! parent-less-nodes-atom #{})
   (println "------")
-  (doall (map #(add-leaf %) (range 1 n)))
+  (doall (map #(add-leaf %) (range 1 (inc n))))
    ;; (doall (map #(add-leaf %) (range 1 1223)))
    ;; (doall (map #(add-leaf %) (range 1 1224)))
   (reset! parent-less-nodes-cache (parent-less-nodes))
