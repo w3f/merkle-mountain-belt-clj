@@ -1,9 +1,11 @@
 (ns linked-peaks
   (:require
+   [clj-async-profiler.core :as prof]
    [clojure.java.io]
    [clojure.pprint]
    [clojure.set]
    [clojure.string]
+   [clojure.test]
    [clojure.walk]
    [primitives.core]
    [primitives.storage]
@@ -130,7 +132,10 @@
   (let [array-len (count @node-array)
         ;; incidentally correct since index is calculated starting at 1 in lieu of 0
         zero-leaves (- index array-len)]
-    (swap! node-array concat (repeat zero-leaves 0) (list item))))
+    (swap! node-array (fn [coll items]
+                        (reduce
+                         conj coll items)) (concat (repeat zero-leaves 0) (list item)))
+    ))
 
 (defn reset-all []
   ;; NOTE: need to already set parent for phantom node, range, and belt
@@ -141,7 +146,6 @@
   (reset! lastP #{})
   (reset! belt-nodes {#{} (belt-node nil #{} #{} #{0})})
   (reset! root-belt-node #{})
-  ;; TODO: remove range node hack here
   (reset! range-nodes {#{} (range-node nil #{} #{} #{})}))
 
 (defn hop-left [node & target-map]
@@ -338,7 +342,8 @@
   ; => (:range :belt)
   )
 
-(defn parent-contenders [type]
+(defn parent-type-contenders
+  [type]
   (let [rank (get type-rank type)]
     (if (= rank (:peak type-rank))
       (list (get (clojure.set/map-invert type-rank) (inc rank)))
@@ -346,52 +351,43 @@
         (list :belt)
         (list type (get (clojure.set/map-invert type-rank) (inc rank)))))))
 
-(comment
-  (parent-contenders :internal)
-  (parent-contenders :peak)
-  (parent-contenders :range)
-  (parent-contenders :belt))
+;; Test that child types match expected result
+(every? (fn [[type expected-parent-type]]
+          (= expected-parent-type (parent-type-contenders type)))
+        [[:internal [:internal :peak]]
+         [:peak [:range]]
+         [:range [:range :belt]]
+         [:belt [:belt]]])
 
-;; TODO: can simplify if use phantom belt node
-(defn child-contenders [type & child-leg]
-  (let [rank (get type-rank type)]
-    (if (= rank (:peak type-rank))
-      (list (get (clojure.set/map-invert type-rank) (dec rank)))
-      (if (= type :internal)
-        (list :internal)
-        (if (= type :range)
-          (if (= (first child-leg) :left)
-            (list :range)
-            (if (= (first child-leg) :right)
-              (list :peak)
-              (throw (Exception. "no child-leg specified"))))
-          (if (= type :belt)
-            (if (= (first child-leg) :left)
-              (list :range :belt)
-              (if (= (first child-leg) :right)
-                (list :range)
-                (throw (Exception. "no child-leg specified"))))
-            (throw (Exception. "unhandled type & child-leg"))))))))
+;; DONE: can simplify if use phantom belt node since
+;; then have left child always have same type as parent
+(defn child-type
+  ([type]
+   (child-type type nil))
+  ([type child-leg]
+   (let [rank (get type-rank type)]
+     (if (<= rank (:peak type-rank))
+       :internal
+       (if (= child-leg :left)
+         type
+         (if (= child-leg :right)
+           (get (clojure.set/map-invert type-rank) (dec rank))
+           (throw (Exception. "no child-leg specified"))))))))
 
-(comment
-  (child-contenders :internal)
-  ;; => (:internal)
-  (child-contenders :peak)
-  ;; => (:internal)
-  (child-contenders :range :left)
-  ;; => (:range)
-  (child-contenders :range :right)
-  ;; => (:peak)
-  (child-contenders :belt :left)
-  ;; => (:range :belt)
-  (child-contenders :belt :right)
-  ;; => (:range)
-  )
+;; Test that child types match expected result
+(every? (fn [[[type child-leg] expected-child-type]]
+          (= expected-child-type (child-type type child-leg)))
+        [[[:internal nil] :internal]
+         [[:peak nil] :internal]
+         [[:range :left] :range]
+         [[:range :right] :peak]
+         [[:belt :left] :belt]
+         [[:belt :right] :range]])
 
 ;; DONE: refactor this since logic is somewhat clunky
 (defn get-parent
   ([child]
-   (let [parent-type-contenders (parent-contenders (:type child))]
+   (let [parent-type-contenders (parent-type-contenders (:type child))]
      (first (filter #(and % (not= child %)) (map #(get @% (:parent child)) (vals (select-keys storage-maps parent-type-contenders)))))))
   ([child expected-parent]
    (let [parent (get-parent child)]
@@ -403,11 +399,8 @@
   (truncate-#set-display (get-parent (get @range-nodes #{96 97}))))
 
 (defn get-child [parent child-leg]
-  (let [child-contenders (child-contenders (:type parent) child-leg)
-        child-hash (get parent child-leg)
-        child-if-highest-rank (find @(get storage-maps (last child-contenders)) (get parent child-leg))]
-    (first (filter some? [(second (find @(get storage-maps (last child-contenders)) (get parent child-leg)))
-                          (second (find @(get storage-maps (first child-contenders)) (get parent child-leg)))]))))
+  (let [child-type (child-type (:type parent) child-leg)]
+    (second (find @(get storage-maps child-type) (get parent child-leg)))))
 
 (defn get-sibling [entry]
   (let [parent (get-parent entry)]
@@ -431,9 +424,8 @@
          (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
          ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
          (reset! root-belt-node new-belt-root)
-         ;; TODO: don't step into range node map to get hash - it's already in the peak's parent reference
          #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
-          (swap! range-nodes #(assoc % h (range-node (:hash (get-parent (get @node-map @lastP) :range)) h h new-belt-root))))
+          (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @lastP)) h h new-belt-root))))
 
        (swap! node-map #(assoc-in % [h :parent] h))
        ;; TODO: conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
@@ -867,6 +859,7 @@
     ;; (clojure.pprint/pprint @node-map)
     ;; (clojure.pprint/pprint @node-map)
     ))
+
 (defn play-algo [n oneshot-nesting?]
   (reset-all)
   (doall (repeatedly n #(algo oneshot-nesting?)))
@@ -1090,6 +1083,8 @@
 (def oneshot-algos (atom (map #(play-algo-oneshot-end %) (range 1 algo-bound))))
 (def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 algo-bound)))))
 (def manual-only-algos (atom (doall (play-algo-retain-sequence (dec algo-bound) false))))
+;; NOTE: extended range of manual-only-algos beyond algo bound
+(def manual-only-algos-large (atom (drop 1327 (doall (play-algo-retain-sequence 1337 false)))))
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def optimized-manual-algos (atom (map #(play-algo-optimized %) (range 1 algo-bound))))
 (println "post-algos:" (new java.util.Date))
@@ -1104,10 +1099,51 @@
     (binding [*read-eval* false]
       (read r))))
 
+(comment
+  (with-open [w (clojure.java.io/writer "src/cached-large.edn")]
+    (binding [*out* w]
+      (pr @manual-only-algos-large))))
+
+(let [fp "src/cached-large.edn"]
+  (if (.exists (clojure.java.io/file fp))
+    (def manual-algos-cached-large
+      (with-open [r (java.io.PushbackReader. (clojure.java.io/reader fp))]
+        (binding [*read-eval* false]
+          (read r))))
+    (throw (Exception. "cached-large.edn has not been created yet - please amend!"))))
+
 ;; while upgrading algo, test that new result matches cached
 (= manual-algos-cached
    (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
-;; => true
+;; => false
+
+;; DONE: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
+(clojure.test/deftest cache-aligned
+  (let [n 1337
+        ;; n 110
+        cached (nth manual-algos-cached-large (- (dec n) 1327))
+        ;; cached (nth manual-algos-cached (dec n))
+        fresh (play-algo n false)]
+    ;; test that all keys are present
+    (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
+    ;; test that all non-map values match
+    (clojure.test/are [k] (= (k cached) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node :joe)
+    ;; test that all maps match
+    (letfn [(values [m k]
+              (into #{} (vals (k m))))
+            (diff [k]
+              [(clojure.set/difference
+                (values cached k)
+                (values fresh k))
+               (clojure.set/difference
+                (values fresh k)
+                (values cached k))])]
+      (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
+        :belt-nodes :range-nodes :node-map))))
+
+(clojure.test/run-test cache-aligned)
+;; Ran 1 tests containing 17 assertions.
+;; 0 failures, 0 errors.
 
 (= manual-algos-cached
    (map #(update % :node-array (comp rest rest))) (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
@@ -1197,6 +1233,24 @@
   (def algo-1278 (play-algo-oneshot-end 1278))
   (def algo-1279 (play-algo-oneshot-end 1279)))
 (println "post-big-algos:" (new java.util.Date))
+
+(def algo-100 (play-algo 100 false))
+
+(prof/serve-files 8080)
+
+;; profile aggregate time spent for full tree
+(prof/profile ((play-algo 5000 false)))
+
+;; profile aggregate time spent for last step of tree
+(prof/profile (dotimes [_ 10000]
+                (letfn [(reset-from-1222-and-play []
+                          (do (state/reset-atoms-from-cached! algo-1222)
+                              (algo false)))
+                        (reset-from-100-and-play []
+                          (do (state/reset-atoms-from-cached! algo-100)
+                              (algo false)))]
+                  (reset-from-1222-and-play)
+                  (reset-from-100-and-play))))
 
 ;; test: all peak nodes are connected and can be reached from one another
 #_{:clj-kondo/ignore [:missing-else-branch]}

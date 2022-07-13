@@ -1,4 +1,10 @@
 {:deps
  {rhizome/rhizome {:mvn/version "0.2.9"}
   macroz/tangle {:mvn/version "0.2.2"}
-  org.clojure/test.check {:mvn/version "1.1.0"}}}
+  org.clojure/test.check {:mvn/version "1.1.0"}
+  com.clojure-goes-fast/clj-async-profiler {:mvn/version "0.5.1"}}
+ :aliases {:profiling
+           {:jvm-opts
+            ["-Djdk.attach.allowAttachSelf"
+             "-XX:+UnlockDiagnosticVMOptions"
+             "-XX:+DebugNonSafepoints"]}}}
