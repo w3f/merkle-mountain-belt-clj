@@ -1,6 +1,7 @@
 (ns visualization-mmr
   (:require
    [clojure.set :as set]
+   [clojure.test :as test]
    [core :refer [copath-nodes decorate-node is-peak? mmr-from-leafcount
                  mmr-leafcount mmr-max-depth path]]
    [primitives.core :refer [children has-children?]]
@@ -22,6 +23,16 @@
   (if (and (has-children? root) (not (is-peak? root)))
     (cons root (get-ranges (:core/right root)))
     []))
+
+(test/deftest peaks-and-ranges-distinct
+  (clojure.test/is (= #{#{}}
+                      (into #{} (map (fn [n] (apply set/intersection (map #(into #{} %) ((juxt get-peaks get-ranges) (mmr-from-leafcount n)))))
+                                     (range 100)))))
+  )
+
+(test/run-test peaks-and-ranges-distinct)
+;; Ran 1 tests containing 1 assertions.
+;; 0 failures, 0 errors.
 
 (defn l2r-mmr-from-r2l-mmr [mmr]
   (let [root-indices (atom (reverse (map :core/index (get-ranges mmr))))]

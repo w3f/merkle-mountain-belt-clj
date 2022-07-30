@@ -285,11 +285,12 @@
 (defn path [mmr leaf]
   (nth (paths mmr) (dec leaf)))
 
-(defn copath [mmr leaf]
-  (map #(get {:core/left :core/right
-              :core/right :core/left}
-             %)
-       (path mmr leaf)))
+(comment
+  (defn copath [mmr leaf]
+    (map #(get {:core/left :core/right
+                :core/right :core/left}
+               %)
+         (path mmr leaf))))
 
 (defn path-nodes [root path]
   (if (has-children? root)

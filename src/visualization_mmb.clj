@@ -101,7 +101,7 @@
   (storage/run n)
   (graph starting-node bagged?))
 
-(graph "p-1")
+(graph "p-1" true)
 (comment (primitives.storage/path (primitives.storage/name-index "p-1")))
 
 (concat
@@ -114,15 +114,16 @@
    (map primitives.storage/node-name (primitives.storage/parent-less-nodes)))))
 
 (->
- (construct-graph 10 "p-1")
+ (construct-graph 9 1 false)
  tangle-dot
  (tangle/dot->image "png")
  javax.imageio.ImageIO/read
- viz/view-image)
+ viz/view-image
+ )
 
 (let [n 1337]
   (->>
-   (linked-peaks/graph n false)
+   (linked-peaks/graph n nil false true true true)
    tangle-dot
    (tangle/dot->svg)
    (spit (str "visualizations/ephemeral-nodes-" n ".svg"))))
@@ -153,9 +154,9 @@
 @state/belt-nodes
 @state/range-nodes
 
-(tangle-direct-view (graph "p-1"))
-(tangle-direct-save (graph "p-1") "p-1")
-(second (graph "p-1"))
+(tangle-direct-view (construct-graph 11 nil "p-1"))
+(tangle-direct-save (graph nil "p-1") "p-1")
+(second (graph nil "p-1"))
 
 (concat
  (apply concat
@@ -205,8 +206,6 @@
          {:node {:shape :oval}
           :node->id (fn [n] (:id n))
           :node->descriptor (fn [n] (when (map? n) n))}]))
-
-(graph "p-1")
 
 (do
   (storage/run (inc 100))

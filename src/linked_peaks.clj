@@ -20,6 +20,8 @@
 (def run-tests (atom false))
 (defn toggle-tests [] (swap! run-tests #(not %)))
 
+(def profile? (atom false))
+
 ;; generic tooling
 (def global-debugging (atom false))
 (defn toggle-debugging [] (swap! global-debugging #(not %)))
@@ -425,7 +427,7 @@
          ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
          (reset! root-belt-node new-belt-root)
          #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
-          (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @lastP)) h h new-belt-root))))
+         (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @lastP)) h h new-belt-root))))
 
        (swap! node-map #(assoc-in % [h :parent] h))
        ;; TODO: conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
@@ -1239,21 +1241,29 @@
 
 (def algo-100 (play-algo 100 false))
 
-(prof/serve-files 8080)
+(if @profile? (prof/serve-files 8080)
 
-;; profile aggregate time spent for full tree
-(prof/profile (play-algo 5000 false))
+    (do
+      ;; profile aggregate time spent for full tree
+      (prof/profile (play-algo 5000 false))
 
-;; profile aggregate time spent for last step of tree
-(prof/profile (dotimes [_ 10000]
-                (letfn [(reset-from-1222-and-play []
-                          (do (state/reset-atoms-from-cached! algo-1222)
-                              (algo false)))
-                        (reset-from-100-and-play []
-                          (do (state/reset-atoms-from-cached! algo-100)
-                              (algo false)))]
-                  (reset-from-1222-and-play)
-                  (reset-from-100-and-play))))
+      ;; profile aggregate time spent for last step of tree
+      (prof/profile (dotimes [_ 10000]
+                      (letfn [(reset-from-1222-and-play []
+                                (do (state/reset-atoms-from-cached! algo-1222)
+                                    (algo false)))
+                              (reset-from-100-and-play []
+                                (do (state/reset-atoms-from-cached! algo-100)
+                                    (algo false)))]
+                        (reset-from-1222-and-play)
+                        (reset-from-100-and-play))))
+
+      (do (state/reset-atoms-from-cached! algo-1222)
+          (algo false)
+          (= algo-1223 (state/current-atom-states)))
+
+      (prof/profile (concat @node-array))))
+
 
 ;; test: all peak nodes are connected and can be reached from one another
 #_{:clj-kondo/ignore [:missing-else-branch]}
