@@ -47,6 +47,9 @@
                         (str name))
                       name))))
 
+(defn decorate-position [node]
+  (assoc node :pos ((fn [[x y]] (str x "," y "!")) (position node))))
+
 (force-name-parsing
  (primitives.storage/range-node-edges
   (map #(name %) (primitives.storage/parent-less-nodes))))
