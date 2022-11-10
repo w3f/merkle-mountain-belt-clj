@@ -133,7 +133,7 @@
 
 (let [n 17]
   (->
-   (linked-peaks/graph n 16 false true true true)
+   (linked-peaks/graph n nil false true true true)
    tangle-dot
    (tangle/dot->image "png")
    javax.imageio.ImageIO/read
@@ -141,13 +141,13 @@
    )
   )
 
-(let [bagging? true
+(let [belting? true
       hide-helper-nodes? true
       fixed-pos? true
-      leaf-to-prove 3]
+      leaf-to-prove nil]
   (map (fn [n] (->
-               (linked-peaks/graph n leaf-to-prove false bagging? hide-helper-nodes? fixed-pos?)
-               (tangle-direct-save (str (if hide-helper-nodes? "" "verbose-") (if bagging? "f-" "u-") "mmb-n-" n))
+               (linked-peaks/graph n leaf-to-prove false belting? hide-helper-nodes? fixed-pos?)
+               (tangle-direct-save (str (if hide-helper-nodes? "" "verbose-") (if belting? "" "u-") "mmb-n-" n))
                ))
        (range 1 64)))
 
@@ -210,6 +210,7 @@
           :node->id (fn [n] (:id n))
           :node->descriptor (fn [n] (when (map? n) n))}]))
 
+;; this is completely broken
 (do
   (storage/run (inc 100))
   ((juxt

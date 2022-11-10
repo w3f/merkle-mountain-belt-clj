@@ -1530,7 +1530,7 @@
                         (count (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))))
               -1))
 
-(defn node-plus-edge [node bagging? hide-helper-nodes?]
+(defn node-plus-edge [node belting? hide-helper-nodes?]
   (letfn [(id [node]
             (str (:hash node) (:type node)))
           (label [node]
@@ -1572,7 +1572,7 @@
                                   })
                    "yellow")
         }
-       (if (and (parent node) (or bagging? (not (contains? #{:belt :range} (:type (get-parent node)))))) [(id (parent node)) (id node)] [(id node) (id node)])
+       (if (and (parent node) (or belting? (not (contains? #{:belt :range} (:type (get-parent node)))))) [(id (parent node)) (id node)] [(id node) (id node)])
        ])))
 
 (defn co-path-ids [node]
@@ -1583,13 +1583,13 @@
                          (co-path-ephemeral (get-sibling (get-node (last (co-path-internal node [])) :internal)) []))))
     ))
 
-(defn- nodes-edges [bagging? hide-helper-nodes?]
+(defn- nodes-edges [belting? hide-helper-nodes?]
   (apply mapv vector
-         (map #(node-plus-edge % bagging? hide-helper-nodes?)
+         (map #(node-plus-edge % belting? hide-helper-nodes?)
               ;; (filter #(not= #{} (:hash %))
               ;; (filter #(not= :internal (:type %))
               (filter (if hide-helper-nodes?
-                        (if bagging?
+                        (if belting?
                           #(not
                             (or
                              (= #{} (:hash %))
@@ -1599,7 +1599,7 @@
                              (= #{} (:hash %))
                              (contains? #{:belt :range} (:type %))
                              (intermediary-node? %))))
-                        (if bagging?
+                        (if belting?
                           (fn [_] true)
                           #(not (or
                                  (= #{} (:hash %))
@@ -1621,7 +1621,7 @@
               (assoc % :color (:default style)))) nodes)))
 
 ;; TODO: construct list of edges
-(defn graph [n leaf-to-prove oneshot? bagging? hide-helper-nodes? fixed-pos?]
+(defn graph [n leaf-to-prove oneshot? belting? hide-helper-nodes? fixed-pos?]
   (if oneshot?
     (play-algo-oneshot-end n)
     (play-algo n oneshot?))
@@ -1632,7 +1632,7 @@
         ;; peaks @node-map
         ;; edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
         ;; nodes (into #{} (apply concat edges))
-        [nodes edges] (nodes-edges bagging? hide-helper-nodes?)
+        [nodes edges] (nodes-edges belting? hide-helper-nodes?)
         ]
     ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))
     [ ;; nodes
