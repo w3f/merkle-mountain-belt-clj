@@ -9,11 +9,12 @@
    [clojure.walk]
    [primitives.core]
    [primitives.storage :refer [leaf-location]]
-   [primitives.visualization :refer [truncate-#set-display]]
+   [primitives.visualization :refer [style truncate-#set-display]]
    [state
     :refer
     [belt-nodes current-atom-states lastP leaf-count mergeable-stack
-     node-array node-map pointers range-nodes root-belt-node]]))
+     node-array node-map pointers range-nodes root-belt-node]]
+   [primitives.core :as primitives]))
 
 (println "start:" (new java.util.Date))
 
@@ -1564,10 +1565,10 @@
         :label (label node)
         :pos (str (posx node) "," posy "!")
         :color (or ((:type node) {
-                                  :internal (if (= 0 (:height node)) "lightblue" "grey")
-                                  :peak "red"
-                                  :range "green"
-                                  :belt "brown"
+                                  :internal (if (= 0 (:height node)) (:leaf style) (:default style))
+                                  :peak (:peak style)
+                                  :range (:range style)
+                                  :belt (:belt style)
                                   })
                    "yellow")
         }
@@ -1608,14 +1609,16 @@
 
 (defn id-trimmed [id] (first (clojure.string/split id #":")))
 
-(defn decorate-copath [nodes leaf]
+(defn decorate-copath
+  "decorates copath of a leaf. resets coloring of all nodes not in copath to grey."
+  [nodes leaf]
   (let [ids (co-path-ids (leaf-location leaf))]
     ;; (map (if (contains?)))
     (map #(if (= (id-trimmed (:id %)) (str #{leaf}))
-            (assoc % :color "green")
+            (assoc % :color (:leaf style))
             (if (contains? (into #{} (map id-trimmed ids)) (id-trimmed (:id %)))
-              (assoc % :color "red")
-              (assoc % :color "grey"))) nodes)))
+              (assoc % :color (:copath style))
+              (assoc % :color (:default style)))) nodes)))
 
 ;; TODO: construct list of edges
 (defn graph [n leaf-to-prove oneshot? bagging? hide-helper-nodes? fixed-pos?]
@@ -1641,6 +1644,9 @@
      ;; options
      {:graph {:rankdir (if fixed-pos? :BT :TB)
               :label (str "n=" @leaf-count)
+              :bgcolor (:background style),
+              :fontcolor (:foreground style),
+              :fontname (:font style),
               :layout (if fixed-pos? :neato :dot)
               }
       :node {:shape :egg}

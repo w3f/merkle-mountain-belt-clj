@@ -5,7 +5,7 @@
    [core :refer [copath-nodes decorate-node is-peak? mmr-from-leafcount
                  mmr-leafcount mmr-max-depth path]]
    [primitives.core :refer [children has-children?]]
-   [primitives.visualization :refer [tangle-direct-save truncate-#set-display]]
+   [primitives.visualization :refer [style tangle-direct-dot tangle-direct-save truncate-#set-display]]
    [rhizome.viz :as viz]
    [tangle.core :as tangle]))
 
@@ -50,7 +50,7 @@
                 )
         nodes (atom nil)
         edges (atom nil)
-        path (path mmr leaf-to-prove)
+        path (if leaf-to-prove (path mmr leaf-to-prove) nil)
         copath-indices (if leaf-to-prove
                          (into #{} (map :core/index (copath-nodes mmr path)))
                          nil)]
@@ -62,11 +62,11 @@
                                                     :id (:core/index node)
                                                     ;; :fillcolor ((:core/type node) {:core/node "grey"})
                                                     :color (if leaf-to-prove
-                                                             "grey"
-                                                             (or ((:core/type node) {:core/node "grey"
-                                                                                     :core/leaf "lightblue"
-                                                                                     :core/peak "red"})
-                                                                 "green"))
+                                                             (:default style)
+                                                             (or ((:core/type node) {:core/node (:default style)
+                                                                                     :core/leaf (:leaf style)
+                                                                                     :core/peak (:peak style)})
+                                                                 (:range style)))
                                                     :label (:core/value node)
                                                     :pos (str (float (mean-posx node))
                                                               "," (mmr-max-depth node) "!")
@@ -81,7 +81,11 @@
       [
        ;; nodes
        (if leaf-to-prove
-         (map #(decorate-node % #{(:core/index (get-in mmr path))} {:color "green"}) (map #(decorate-node % copath-indices {:color "red"}) @nodes))
+         (map
+          ;; decorate nodes on path
+          #(decorate-node % #{(:core/index (get-in mmr path))} {:color (:path style)})
+          ;; decorate nodes on copath
+          (map #(decorate-node % copath-indices {:color (:copath style)}) @nodes))
          @nodes)
 
        ;; edges
@@ -93,6 +97,10 @@
         :node->descriptor (fn [n] (when (map? n) n))
         :graph {:rankdir :BT,
                 :label (str "n=" (mmr-leafcount mmr)),
+                ;; :bgcolor "transparent",
+                :bgcolor (:background style),
+                :fontcolor (:foreground style),
+                :fontname (:font style),
                 :layout :neato}}
        ])
     ))
