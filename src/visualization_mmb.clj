@@ -25,15 +25,14 @@
     [(:id storage-entry) 0]
     (reduce
      (fn [[x0 y0] [x1 y1]] [(float (/ (+ x0 x1) 2)) (inc (/ (+ y0 y1) 2))])
-     (map (comp position #(nth (primitives.storage/node-maps @primitives.storage/storage-array) %)) (children (:index storage-entry))))
-    ))
+     (map (comp position #(nth (primitives.storage/node-maps @primitives.storage/storage-array) %)) (children (:index storage-entry))))))
 
 (defn name [storage-entry]
   (if (integer? (:id storage-entry))
     (:id storage-entry)
     (let [[left right] (map
-                    (comp name #(nth (primitives.storage/node-maps @primitives.storage/storage-array) %))
-                    (children (:index storage-entry)))]
+                        (comp name #(nth (primitives.storage/node-maps @primitives.storage/storage-array) %))
+                        (children (:index storage-entry)))]
       (if (integer? left)
         #{left right}
         (clojure.set/union left right)))))
@@ -60,8 +59,7 @@
                                         (primitives.storage/range-node-edges
                                          (map primitives.storage/node-name (primitives.storage/parent-less-nodes))))]
     ;; [range-node-edges range-nodes]
-    [
-     ;; nodes
+    [;; nodes
      (->
       ;; nodes
       (concat
@@ -122,8 +120,7 @@
  tangle-dot
  (tangle/dot->image "png")
  javax.imageio.ImageIO/read
- viz/view-image
- )
+ viz/view-image)
 
 (let [n 1337]
   (->>
