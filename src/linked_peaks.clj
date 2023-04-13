@@ -427,7 +427,7 @@
          ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
          (reset! root-belt-node new-belt-root)
          #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
-         (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @lastP)) h h new-belt-root))))
+          (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @lastP)) h h new-belt-root))))
 
        (swap! node-map #(assoc-in % [h :parent] h))
        ;; TODO: conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
