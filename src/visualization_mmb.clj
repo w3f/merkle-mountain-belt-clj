@@ -5,8 +5,9 @@
    [core]
    [linked-peaks]
    [primitives.storage :refer [children]]
-   [primitives.visualization :refer [decorate-edges decorate-nodes
-                                     tangle-direct-save tangle-direct-view tangle-dot
+   [primitives.visualization :refer [decorate-edges decorate-nodes style
+                                     tangle-direct-dot tangle-direct-save
+                                     tangle-direct-view tangle-dot
                                      truncate-#set-display]]
    [rhizome.viz :as viz]
    [state]

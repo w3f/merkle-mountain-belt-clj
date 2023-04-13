@@ -13,8 +13,7 @@
    [state
     :refer
     [belt-nodes current-atom-states lastP leaf-count mergeable-stack
-     node-array node-map pointers range-nodes root-belt-node]]
-   [primitives.core :as primitives]))
+     node-array node-map pointers range-nodes root-belt-node]]))
 
 (println "start:" (new java.util.Date))
 

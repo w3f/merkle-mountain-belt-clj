@@ -203,7 +203,6 @@
           (leaf (take-index) (take-leaf-index))
           (range (dec leafcount))))
 
-
 (defn range-node? [node]
   (not=
    (mmr-max-depth node)
