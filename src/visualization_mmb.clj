@@ -135,9 +135,7 @@
    tangle-dot
    (tangle/dot->image "png")
    javax.imageio.ImageIO/read
-   viz/view-image
-   )
-  )
+   viz/view-image))
 
 (let [belting? true
       hide-helper-nodes? true
@@ -199,7 +197,7 @@
 (println
  (apply tangle/graph->dot
         [;; nodes
-         (reverse (into [] (flatten core/belted-edges)))
+         (reverse (into [] (flatten (core/belted-edges))))
 
          ;; edges
          core/belted-edges

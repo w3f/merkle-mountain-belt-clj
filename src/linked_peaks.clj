@@ -146,7 +146,7 @@
 (comment
   (count (merge
           #_{:clj-kondo/ignore [:unresolved-symbol]}
-          (oneshot-nesting-from-fresh 1222)
+          (oneshot-nesting-from-fresh 1222 false)
           {:mergeable-stack (atom @mergeable-stack)
            :leaf-count (atom @leaf-count)
            :lastP (atom @lastP)})))
@@ -1264,7 +1264,6 @@
 
       (prof/profile (concat @node-array))))
 
-
 ;; test: all peak nodes are connected and can be reached from one another
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
@@ -1519,15 +1518,15 @@
 
 (defn posx [node]
   ;; #dbg
-            (if (not= #{} (:hash node))
-              (if (contains? #{:internal :peak} (:type node))
+  (if (not= #{} (:hash node))
+    (if (contains? #{:internal :peak} (:type node))
                 ;; if internal or peak, calculate mean position from sum of leaves
-                (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
+      (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
                 ;; if ephemeral calculate as mean of children
-                (float (/
-                        (reduce + (map posx (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))
-                        (count (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))))
-              -1))
+      (float (/
+              (reduce + (map posx (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))
+              (count (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))))
+    -1))
 
 (defn node-plus-edge [node belting? hide-helper-nodes?]
   (letfn [(id [node]
@@ -1540,47 +1539,38 @@
           (height [node]
             (or (:height node)
                 (if (= #{} (:hash node))
-                  ((:type node) {
-                                 :belt (dec (height (get-parent node)))
+                  ((:type node) {:belt (dec (height (get-parent node)))
                                  :range 1
-                                 :internal 0
-                                 }))
+                                 :internal 0}))
                 (inc (max (or #_{:clj-kondo/ignore [:missing-else-branch]}
-                              (if (not= #{} (:left node))
-                                (height (if (or (not= :range (:type node))
-                                                (= (:hash node) (:parent (get-child node :left)))) (get-child node :left)
-                                            (get-child node :right)))) 0)
+                           (if (not= #{} (:left node))
+                             (height (if (or (not= :range (:type node))
+                                             (= (:hash node) (:parent (get-child node :left)))) (get-child node :left)
+                                         (get-child node :right)))) 0)
                           (or (- (height (if hide-helper-nodes?
                                            (get-real-right-child node)
                                            (get-child node :right)))
                                  (if (and hide-helper-nodes?
-                                          (= (:right node) (:hash node))) 1 0)
-                                 ) 0)))))
-          ]
+                                          (= (:right node) (:hash node))) 1 0)) 0)))))]
     (let [height (height node)
           posy (if (not= ##Inf height) height 0)
           parent (if hide-helper-nodes? get-real-ancestor get-parent)]
       [{:id (id node)
         :label (label node)
         :pos (str (posx node) "," posy "!")
-        :color (or ((:type node) {
-                                  :internal (if (= 0 (:height node)) (:leaf style) (:default style))
+        :color (or ((:type node) {:internal (if (= 0 (:height node)) (:leaf style) (:default style))
                                   :peak (:peak style)
                                   :range (:range style)
-                                  :belt (:belt style)
-                                  })
-                   "yellow")
-        }
-       (if (and (parent node) (or belting? (not (contains? #{:belt :range} (:type (get-parent node)))))) [(id (parent node)) (id node)] [(id node) (id node)])
-       ])))
+                                  :belt (:belt style)})
+                   "yellow")}
+       (if (and (parent node) (or belting? (not (contains? #{:belt :range} (:type (get-parent node)))))) [(id (parent node)) (id node)] [(id node) (id node)])])))
 
 (defn co-path-ids [node]
   (letfn [(id [node]
             (str (:hash node) (:type node)))]
     (map id (concat (map (fn [hash] {:hash hash :type :internal}) (co-path-internal node []))
                     (map (fn [hash] {:hash hash :type (lowest-type-rank hash)})
-                         (co-path-ephemeral (get-sibling (get-node (last (co-path-internal node [])) :internal)) []))))
-    ))
+                         (co-path-ephemeral (get-sibling (get-node (last (co-path-internal node [])) :internal)) []))))))
 
 (defn- nodes-edges [belting? hide-helper-nodes?]
   (apply mapv vector
@@ -1602,8 +1592,7 @@
                           (fn [_] true)
                           #(not (or
                                  (= #{} (:hash %))
-                                 (contains? #{:belt :range} (:type %)))))
-                        )
+                                 (contains? #{:belt :range} (:type %))))))
                       (apply concat (map vals [@node-map @range-nodes @belt-nodes]))))))
 
 (defn id-trimmed [id] (first (clojure.string/split id #":")))
@@ -1624,18 +1613,16 @@
   (if oneshot?
     (play-algo-oneshot-end n)
     (play-algo n oneshot?))
-  (let [
-        ;; peaks (select-keys
+  (let [;; peaks (select-keys
         ;;        @node-map
         ;;        (filter (fn [k] (= :peak (:type (get @node-map k)))) (keys @node-map)))
         ;; peaks @node-map
         ;; edges (apply concat (map (comp truncate-#set-display edges-to-root) (vals peaks)))
         ;; nodes (into #{} (apply concat edges))
-        [nodes edges] (nodes-edges belting? hide-helper-nodes?)
-        ]
+        [nodes edges] (nodes-edges belting? hide-helper-nodes?)]
     ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))
-    [ ;; nodes
-     (if leaf-to-prove
+    [;; nodes
+     (if (and leaf-to-prove (< leaf-to-prove n))
        (decorate-copath nodes leaf-to-prove)
        nodes)
      ;; edges
@@ -1646,8 +1633,7 @@
               :bgcolor (:background style),
               :fontcolor (:foreground style),
               :fontname (:font style),
-              :layout (if fixed-pos? :neato :dot)
-              }
+              :layout (if fixed-pos? :neato :dot)}
       :node {:shape :egg}
       :node->id (fn [n] (:id n))
       :node->descriptor (fn [n] (when (map? n) n))}]))
