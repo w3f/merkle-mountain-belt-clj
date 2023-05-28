@@ -13,7 +13,8 @@
    [state
     :refer
     [belt-nodes current-atom-states lastP leaf-count mergeable-stack
-     node-array node-map pointers range-nodes root-belt-node]]))
+     node-array node-map pointers range-nodes root-belt-node]]
+   [clojure.walk :as walk]))
 
 (println "start:" (new java.util.Date))
 
@@ -126,7 +127,7 @@
   (reset! mergeable-stack [])
   (reset! leaf-count 0)
   (reset! lastP #{})
-  (reset! belt-nodes {#{} (belt-node nil #{} #{} #{0})})
+  (reset! belt-nodes {#{} (belt-node nil #{} #{} #{1})})
   (reset! root-belt-node #{})
   (reset! range-nodes {#{} (range-node nil #{} #{} #{})}))
 
@@ -966,7 +967,7 @@
      (parent-child-mutual-acknowledgement node (get-child node :right)))))
 
 (play-algo 1337 false)
-(let [node (get @state/range-nodes #{1336})
+(let [node (get @state/range-nodes #{1337})
       ;; node (get @state/range-nodes #{})
       ;; node (get @state/range-nodes (into #{} (range 0 1024)))
       ]
@@ -1122,27 +1123,39 @@
    (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
 ;; => false
 
+;; DONE: should check that reason cached algos don't match is just that I changed the indexing to start at 1
+;; simplest is to revert that change, verify all tests pass, and the bump it & update cache
+
+;; take a nested data structure, and replace every set with its elements mapped to their successors. Also turn all lists into vectors.
+(defn bump-indexing-to-successor-and-vectorize [form]
+  (walk/postwalk #(if (set? %)
+                    (into #{} (map inc %))
+                    (if (list? %) (into [] %) %)) form))
+
+(comment (bump-indexing-to-successor-and-vectorize [1 2 #{3 8 0}]))
+
 ;; DONE: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
 (clojure.test/deftest cache-aligned
   (let [n 1337
         ;; n 110
         cached (nth manual-algos-cached-large (- (dec n) 1327))
+        cached-index-bumped (bump-indexing-to-successor-and-vectorize cached)
         ;; cached (nth manual-algos-cached (dec n))
         fresh (play-algo n false)]
     ;; test that all keys are present
     (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
     ;; test that all non-map values match
-    (clojure.test/are [k] (= (k cached) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node :joe)
+    (clojure.test/are [k] (= (k cached-index-bumped) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
     ;; test that all maps match
     (letfn [(values [m k]
               (into #{} (vals (k m))))
             (diff [k]
               [(clojure.set/difference
-                (values cached k)
+                (values cached-index-bumped k)
                 (values fresh k))
                (clojure.set/difference
                 (values fresh k)
-                (values cached k))])]
+                (values cached-index-bumped k))])]
       (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
         :belt-nodes :range-nodes :node-map))))
 
@@ -1150,20 +1163,20 @@
 ;; Ran 1 tests containing 17 assertions.
 ;; 0 failures, 0 errors.
 
-(= manual-algos-cached
-   (map #(update % :node-array (comp rest rest))) (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
+(= (bump-indexing-to-successor-and-vectorize manual-algos-cached)
+   (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
 
-(map
- (fn [n] (= (nth manual-algos-cached (dec n))
-            (play-algo n false))) (range 1 (inc (count manual-algos-cached))))
+(every? true? (map
+               (fn [n] (= (nth (bump-indexing-to-successor-and-vectorize manual-algos-cached) (dec n))
+                          (play-algo n false))) (range 1 (inc (count manual-algos-cached)))))
 
 ;; test that everything is exactly the same
 (=
- ;; @oneshot-algos
+ @oneshot-algos
  @oneshot-only-algos
  @manual-algos
  @manual-only-algos
- ;; @optimized-manual-algos
+ @optimized-manual-algos
  (map (fn [n] (play-algo-oneshot-end n)) (range 1 algo-bound))
  (map (fn [n] (play-algo n false)) (range 1 algo-bound)))
 
@@ -1269,11 +1282,11 @@
 (if @run-tests
   (let [nodes (:node-map algo-1222)
         peaks (filter #(= :peak (:type %)) (vals nodes))
-        left-most (filter #(= #{} (:left %)) peaks)
+        left-most (filter #(nil? (:left %)) peaks)
         right-most (filter #(nil? (:right %)) peaks)
         chain-from-left (take-while some? (iterate #(get nodes (:right %)) (first left-most)))
-        ;; TODO: might change phantom "peak" to be an actual peak - then don't need the silly condition over here
-        chain-from-right (take-while #(and (some? %) (not= #{} (:hash %))) (iterate #(get nodes (:left %)) (first right-most)))]
+        ;; DONE: might change phantom "peak" to be an actual peak - then don't need the silly condition over here
+        chain-from-right (take-while some? (iterate #(get nodes (:left %)) (first right-most)))]
     {:only-peaks-and-all-peaks
      [;; check that only one node lacks a :left or a :right
       (every? #(= 1 (count %)) [left-most right-most])
@@ -1283,11 +1296,12 @@
       (every? #(= :peak (:type %)) chain-from-left)
       (every? #(= :peak (:type %)) chain-from-right)
 
-      (count chain-from-left)
-      (count chain-from-right)
-
       ;; check that every chain contains all peaks
-      (every? #(= (count peaks) (count %)) [chain-from-left chain-from-right])]
+      (every? #(= (count peaks) (count %)) [chain-from-left chain-from-right])
+      (=
+       (into #{} peaks)
+       (into #{} chain-from-left)
+       (into #{} chain-from-right))]
      :left-most (map :hash left-most)
      :right-most (map :hash right-most)}))
 
