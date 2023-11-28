@@ -27,6 +27,7 @@
      (fn [[x0 y0] [x1 y1]] [(float (/ (+ x0 x1) 2)) (inc (/ (+ y0 y1) 2))])
      (map (comp position #(nth (primitives.storage/node-maps @primitives.storage/storage-array) %)) (children (:index storage-entry))))))
 
+;; TODO: seems that I added this to replace primitives.storage/node-name
 (defn name [storage-entry]
   (if (integer? (:id storage-entry))
     (:id storage-entry)
@@ -52,7 +53,7 @@
 
 (force-name-parsing
  (primitives.storage/range-node-edges
-  (map #(name %) (primitives.storage/parent-less-nodes))))
+  (map primitives.storage/node-name (primitives.storage/parent-less-nodes))))
 
 (defn graph [starting-node bagged?]
   (let [[range-node-edges range-nodes] (force-name-parsing

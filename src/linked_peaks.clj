@@ -18,7 +18,7 @@
 
 (println "start:" (new java.util.Date))
 
-(def run-tests (atom false))
+(defonce run-tests (atom false))
 (defn toggle-tests [] (swap! run-tests #(not %)))
 
 (def profile? (atom false))
@@ -986,25 +986,25 @@
   2. verify all ancestry relationships"
   []
   (every? (fn [[k v]] (and
-                       (= k (if (and
-                                 ;; first, verify that left leaf is not nil
-                                 (some? (:left v))
-                                 ;; then, verify that left & right "children" are even in the same range
-                                 (let [left-child (get-child v :left)]
-                                   (if (= :peak (:type left-child))
-                                     (distinct-ranges? left-child (get-child v :right))
-                                     ;; else
-                                     (if (= :range (:type left-child))
-                                       (not= v (get-parent left-child))
-                                       ;; if parent neither range nor belt, throw exception
-                                       (throw (Exception. "unhandled type of left child"))))))
-                              ;; if in distinct ranges, then left child does not get included in parent range node's "hash"
-                              ;; TODO: stricter condition for distinct ranges of two range nodes
-                              (:right v)
-                              ;; else, "hash" both
-                              (clojure.set/union (or (:left v) #{}) (:right v))))
-                       (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))
-                       (verify-all-ancestry v)))
+                      (= k (if (and
+                                ;; first, verify that left leaf is not nil
+                                (some? (:left v))
+                                ;; then, verify that left & right "children" are even in the same range
+                                (let [left-child (get-child v :left)]
+                                  (if (= :peak (:type left-child))
+                                    (distinct-ranges? left-child (get-child v :right))
+                                    ;; else
+                                    (if (= :range (:type left-child))
+                                      (not= v (get-parent left-child))
+                                      ;; if parent neither range nor belt, throw exception
+                                      (throw (Exception. "unhandled type of left child"))))))
+                             ;; if in distinct ranges, then left child does not get included in parent range node's "hash"
+                             ;; TODO: stricter condition for distinct ranges of two range nodes
+                             (:right v)
+                             ;; else, "hash" both
+                             (clojure.set/union (or (:left v) #{}) (:right v))))
+                      (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))
+                      (verify-all-ancestry v)))
           (:range-nodes (current-atom-states))))
 
 (defn verify-belt-node-parenting
@@ -1045,6 +1045,7 @@
   (let [n 5000]
     (reset-all)
     (last (take-while #(true? (second %))
+                      ;; verify parenting with oneshot-nesting
                       (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo true) (verify-parenting)))))))))
 ;; => 4999 (i.e. all passed)
 
@@ -1053,6 +1054,7 @@
   (let [n 5000]
     (reset-all)
     (last (take-while #(true? (second %))
+                      ;; verify parenting without oneshot-nesting
                       (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo false) (verify-parenting)))))))))
 ;; => 4999 (i.e. all passed)
 
@@ -1079,6 +1081,7 @@
   (let [n 1337]
     (= (into #{} (play-algo n false))
        (into #{} (play-algo-oneshot-end n))))
+  ;; does one-shot-end match normal run?
   ;; => true
   )
 
@@ -1254,28 +1257,29 @@
 
 (def algo-100 (play-algo 100 false))
 
-(if @profile? (prof/serve-files 8080)
+(if @profile?
+  (do
+    (prof/serve-files 8080)
+    ;; profile aggregate time spent for full tree
+    (prof/profile (play-algo 5000 false))
 
-    (do
-      ;; profile aggregate time spent for full tree
-      (prof/profile (play-algo 5000 false))
+    ;; profile aggregate time spent for last step of tree
+    (prof/profile (dotimes [_ 10000]
+                    (letfn [(reset-from-1222-and-play []
+                              (do (state/reset-atoms-from-cached! algo-1222)
+                                  (algo false)))
+                            (reset-from-100-and-play []
+                              (do (state/reset-atoms-from-cached! algo-100)
+                                  (algo false)))]
+                      (reset-from-1222-and-play)
+                      (reset-from-100-and-play))))
 
-      ;; profile aggregate time spent for last step of tree
-      (prof/profile (dotimes [_ 10000]
-                      (letfn [(reset-from-1222-and-play []
-                                (do (state/reset-atoms-from-cached! algo-1222)
-                                    (algo false)))
-                              (reset-from-100-and-play []
-                                (do (state/reset-atoms-from-cached! algo-100)
-                                    (algo false)))]
-                        (reset-from-1222-and-play)
-                        (reset-from-100-and-play))))
+    (do (state/reset-atoms-from-cached! algo-1222)
+        (algo false)
+        (= algo-1223 (state/current-atom-states)))
 
-      (do (state/reset-atoms-from-cached! algo-1222)
-          (algo false)
-          (= algo-1223 (state/current-atom-states)))
-
-      (prof/profile (concat @node-array))))
+    (prof/profile (concat @node-array)))
+  nil)
 
 ;; test: all peak nodes are connected and can be reached from one another
 #_{:clj-kondo/ignore [:missing-else-branch]}
@@ -1636,6 +1640,7 @@
         [nodes edges] (nodes-edges belting? hide-helper-nodes?)]
     ;; (truncate-#set-display (edges-to-root (first (vals peaks)) []))
     [;; nodes
+     ;; decorate the copath if there is a leaf to prove and the leaf is in the tree
      (if (and leaf-to-prove (< leaf-to-prove n))
        (decorate-copath nodes leaf-to-prove)
        nodes)
