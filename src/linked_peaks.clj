@@ -1138,27 +1138,29 @@
 (comment (bump-indexing-to-successor-and-vectorize [1 2 #{3 8 0}]))
 
 (clojure.test/deftest cache-aligned
-  (let [ ;; n 1337
-        n 110
-        cached (last manual-algos-cached)
+  (let [n                   110
+        ;; NOTE: this will only work after migration (else, use cached-index-bumped)
+        cached              (last manual-algos-cached)
         ;; NOTE: this will only work during migration
         cached-index-bumped (bump-indexing-to-successor-and-vectorize cached)
         ;; cached (nth manual-algos-cached (dec n))
-        fresh (play-algo n false)]
+        cached-reference    cached
+        ;; cached-reference cached-index-bumped
+        fresh               (play-algo n false)]
     ;; test that all keys are present
     (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
     ;; test that all non-map values match
-    (clojure.test/are [k] (= (k cached-index-bumped) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
+    (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
     ;; test that all maps match
     (letfn [(values [m k]
               (into #{} (vals (k m))))
             (diff [k]
               [(clojure.set/difference
-                (values cached-index-bumped k)
+                (values cached-reference k)
                 (values fresh k))
                (clojure.set/difference
                 (values fresh k)
-                (values cached-index-bumped k))])]
+                (values cached-reference k))])]
       (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
         :belt-nodes :range-nodes :node-map))))
 
@@ -1169,26 +1171,28 @@
 ;; DONE: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
 (clojure.test/deftest cache-aligned-large
   (let [n 1337
-        ;; n 110
+        ;; NOTE: this will only work after migration (else, use cached-index-bumped)
         cached (nth manual-algos-cached-large (- (dec n) 1327))
         ;; NOTE: this will only work during migration
         cached-index-bumped (bump-indexing-to-successor-and-vectorize cached)
         ;; cached (nth manual-algos-cached (dec n))
+        cached-reference cached
+        ;; cached-reference cached-index-bumped
         fresh (play-algo n false)]
     ;; test that all keys are present
     (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
     ;; test that all non-map values match
-    (clojure.test/are [k] (= (k cached-index-bumped) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
+    (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
     ;; test that all maps match
     (letfn [(values [m k]
               (into #{} (vals (k m))))
             (diff [k]
               [(clojure.set/difference
-                (values cached-index-bumped k)
+                (values cached-reference k)
                 (values fresh k))
                (clojure.set/difference
                 (values fresh k)
-                (values cached-index-bumped k))])]
+                (values cached-reference k))])]
       (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
         :belt-nodes :range-nodes :node-map))))
 
