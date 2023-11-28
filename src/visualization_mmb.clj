@@ -95,8 +95,10 @@
       :node->descriptor (fn [n] (when (map? n) n))
       :graph {:rankdir :BT,
               :label (str "n=" @primitives.storage/leaf-count),
-              :layout :neato}
-      }
+              :bgcolor (:background style),
+              :fontcolor (:foreground style),
+              :fontname (:font style),
+              :layout :neato}}
      ;; {}
      ]))
 
@@ -230,6 +232,9 @@
      :node->descriptor (fn [n] (when (map? n) n))
      :graph {:rankdir :BT,
              :label (str "n=" @primitives.storage/leaf-count),
+             :bgcolor (:background style),
+             :fontcolor (:foreground style),
+             :fontname (:font style),
              :layout :neato}}]))
 
 (map core/merge-positions (map #(update % :posx (fn [old] (* 1.8 old))) core/test-nodes-decorated))
