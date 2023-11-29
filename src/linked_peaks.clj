@@ -1200,12 +1200,17 @@
 ;; Ran 1 tests containing 16 assertions.
 ;; 0 failures, 0 errors.
 
-(= (bump-indexing-to-successor-and-vectorize manual-algos-cached)
-   (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
+(let [
+      reference manual-algos-cached
+      ;; reference (bump-indexing-to-successor-and-vectorize manual-algos-cached)
+      ]
+  (and (= reference
+          (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
 
-(every? true? (map
-               (fn [n] (= (nth (bump-indexing-to-successor-and-vectorize manual-algos-cached) (dec n))
-                          (play-algo n false))) (range 1 (inc (count manual-algos-cached)))))
+       (every? true? (map
+                      (fn [n] (= (nth reference (dec n))
+                                (play-algo n false))) (range 1 (inc (count manual-algos-cached)))))))
+;; => true
 
 ;; test that everything is exactly the same
 (=
@@ -1216,6 +1221,7 @@
  @optimized-manual-algos
  (map (fn [n] (play-algo-oneshot-end n)) (range 1 algo-bound))
  (map (fn [n] (play-algo n false)) (range 1 algo-bound)))
+;; => true
 
 (doall (map #(play-algo-manual-end %) (range 1 3)))
 
@@ -1279,6 +1285,7 @@
                 j (primitives.storage/p-adic-order 2 (inc %))]
             (nth b-reverse j))
          (range 1500)))
+;; => true
 
 (println "pre-big-algos:" (new java.util.Date))
 (def algo-1222 (play-algo-oneshot-end 1222))
@@ -1342,6 +1349,11 @@
        (into #{} chain-from-right))]
      :left-most (map :hash left-most)
      :right-most (map :hash right-most)}))
+;; => {
+;; :only-peaks-and-all-peaks = [ true true true true true ... ]
+;; :left-most = ( #{} )
+;; :right-most = ( #{ 1221 1222 } )
+;; }
 
 (defn oneshot-nesting-from-cached [cached singleton-ranges?]
   (state/reset-atoms-from-cached! cached)
