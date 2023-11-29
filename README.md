@@ -7,6 +7,7 @@ Currently, the codebase is split as follows:
 - `storage.clj` the persistent storage backend and the associated pointer arithmetic
 - `core.clj` contains the one-shot MMB construction method (both single- and double-bagging variants), as well as MMR construction methods
 - `linked-peaks.clj` contains the incremental append operation
-- `visualization.clj` contains the visualization of MMRs and MMBs
+- `visualization_mmr.clj` contains the visualization of MMRs
+- `visualization_mmb.clj` contains the visualization of MMBs
 
 Feedback and contributions welcome :)
