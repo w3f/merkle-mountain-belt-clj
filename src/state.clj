@@ -40,3 +40,7 @@
    :belt-nodes @belt-nodes
    :root-belt-node @root-belt-node
    :range-nodes @range-nodes})
+
+;; TODO: maybe add the index to the nodes when creating them
+(defn name-lookup [name]
+  (first (filter #(= name (nth @node-array %)) (range (count @node-array)))))

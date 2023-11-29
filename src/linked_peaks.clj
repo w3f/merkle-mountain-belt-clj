@@ -102,6 +102,7 @@
    :hash hash
    :parent parent
    :type :belt})
+
 (def nil-leaf (internal-node nil ##Inf #{} #{}))
 
 (defn pop-mergeable-stack []
@@ -542,9 +543,25 @@
   (state/reset-atoms-from-cached! state)
   {:node (nth @node-array index) :co-path (co-path-internal index [])})
 
-(defn membership-proof [leaf state]
+(defn membership-proof-leaf [leaf state]
   (let [leaf-index (primitives.storage/leaf-location leaf)]
     (membership-proof-node leaf-index state)))
+
+(comment
+  (do (play-algo 30 false) (membership-proof-node (state/name-lookup #{7}) (state/current-atom-states)))
+  {:node #{7}, :co-path (#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}
+  )
+
+#_{:clj-kondo/ignore [:unresolved-symbol]}
+(clojure.test/deftest test-membership-proof
+  (clojure.test/are [n m] (let [node-name (state/name-lookup (:node m))]
+                            (play-algo n true)
+                            (= (membership-proof-node node-name (state/current-atom-states)) m))
+      11 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11})}
+      20 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11 12 13 14 15 16} #{17 18 19 20})}
+      30 {:node #{7}, :co-path '(#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}
+      ))
+(clojure.test/run-test test-membership-proof)
 
 (comment
   #_{:clj-kondo/ignore [:unresolved-symbol]}
