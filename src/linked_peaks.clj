@@ -534,6 +534,20 @@
                                                                                  ))
          accumulator))))
 
+(defn co-path-multi
+  "Takes two ordered leaves and produces a co-path within the lca of them. Returns
+  co-path and lca."
+  [leaf-a leaf-b]
+  (let [lca (primitives.storage/lowest-common-ancestor-leaves [leaf-a leaf-b])
+        [left-child right-child] (primitives.storage/children lca)]
+    [[(co-path-internal (primitives.storage/leaf-location leaf-a) [] left-child false)
+      (co-path-internal (primitives.storage/leaf-location leaf-b) [] right-child false)]
+     (nth @node-array lca)
+     ]
+    ))
+
+(co-path-multi 1 4)
+
 ;; check that co-path is correct: ensure that we have no intersection of any of the "hashes" in the co-path
 (map
  (fn [leaf-number]

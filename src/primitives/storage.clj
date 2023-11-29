@@ -95,8 +95,7 @@
         lowest-leaf (apply min leaves)
         ]
     (nth (iterate parent-index (leaf-location lowest-leaf)) (primitives.core/next-power-of-two (bit-xor (dec lowest-leaf) (dec highest-leaf))))
-    )
-  )
+    ))
 ;; defined using `peak-positions-final`
 (defn parent-less-nodes-internal
   "get peaks for leaf-count `n`"
