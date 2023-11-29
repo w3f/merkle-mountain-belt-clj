@@ -6,13 +6,17 @@
 (defonce parent-less-nodes-atom (atom #{}))
 (defonce parent-less-nodes-cache (atom #{}))
 
-(defn node-name [index]
+(defn node-name
+  "returns the name of the node with index `index`"
+  [index]
   (nth @storage-array index))
 
-(defn node-name-maps [storage]
+(defn node-name-maps
+  "returns a map of indices and node names"
+  [storage]
   (map (fn [index] {:index index :id (if (string? (nth storage index))
-                                       (node-name (nth storage index))
-                                       (nth storage index))}) (range (count storage))))
+                                      (node-name (nth storage index))
+                                      (nth storage index))}) (range (count storage))))
 (defn node-maps
   ;; creates maps with `:id` as the storage entry and `:index` as the index with the collection
   [storage]

@@ -517,6 +517,9 @@
 
 (defn co-path-internal
   ([index accumulator]
+   ;; if the node's parent's index is less than the number of nodes in the node
+   ;; array, then the parent node is in the node array, hence we can use the
+   ;; node array to get the sibling
    (if (< (primitives.storage/parent-index index) (count @node-array))
      (co-path-internal (primitives.storage/parent-index index) (concat accumulator [(nth @node-array (sibling-index index))]))
      ;; #dbg
