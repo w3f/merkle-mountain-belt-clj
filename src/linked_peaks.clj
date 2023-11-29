@@ -1717,82 +1717,96 @@
 
 ;; tests
 
-(clojure.test/deftest cache-aligned
-  (let [n                   110
-        ;; NOTE: this will only work after migration (else, use cached-index-bumped)
-        cached              (last manual-algos-cached)
-        ;; NOTE: this will only work during migration
-        cached-index-bumped (bump-indexing-to-successor-and-vectorize cached)
-        ;; cached (nth manual-algos-cached (dec n))
-        cached-reference    cached
-        ;; cached-reference cached-index-bumped
-        fresh               (play-algo n false)]
-    ;; test that all keys are present
-    (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
-    ;; test that all non-map values match
-    (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
-    ;; test that all maps match
-    (letfn [(values [m k]
-              (into #{} (vals (k m))))
-            (diff [k]
-              [(clojure.set/difference
-                (values cached-reference k)
-                (values fresh k))
-               (clojure.set/difference
-                (values fresh k)
-                (values cached-reference k))])]
-      (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
-        :belt-nodes :range-nodes :node-map))))
-
-(clojure.test/run-test cache-aligned)
+(do (clojure.test/deftest cache-aligned
+      (let [n                   110
+            ;; NOTE: this will only work after migration (else, use cached-index-bumped)
+            cached              (last manual-algos-cached)
+            ;; NOTE: this will only work during migration
+            cached-index-bumped (bump-indexing-to-successor-and-vectorize cached)
+            ;; cached (nth manual-algos-cached (dec n))
+            cached-reference    cached
+            ;; cached-reference cached-index-bumped
+            fresh               (play-algo n false)]
+        ;; test that all keys are present
+        (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
+        ;; test that all non-map values match
+        (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
+        ;; test that all maps match
+        (letfn [(values [m k]
+                  (into #{} (vals (k m))))
+                (diff [k]
+                  [(clojure.set/difference
+                    (values cached-reference k)
+                    (values fresh k))
+                   (clojure.set/difference
+                    (values fresh k)
+                    (values cached-reference k))])]
+          (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
+            :belt-nodes :range-nodes :node-map))))
+    (clojure.test/run-test cache-aligned))
 ;; Ran 1 tests containing 16 assertions.
 ;; 0 failures, 0 errors.
 
 ;; DONE: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
-(clojure.test/deftest cache-aligned-large
-  (let [n 1337
-        ;; NOTE: this will only work after migration (else, use cached-index-bumped)
-        cached (nth manual-algos-cached-large (- (dec n) 1327))
-        ;; NOTE: this will only work during migration
-        cached-index-bumped (bump-indexing-to-successor-and-vectorize cached)
-        ;; cached (nth manual-algos-cached (dec n))
-        cached-reference cached
-        ;; cached-reference cached-index-bumped
-        fresh (play-algo n false)]
-    ;; test that all keys are present
-    (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
-    ;; test that all non-map values match
-    (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
-    ;; test that all maps match
-    (letfn [(values [m k]
-              (into #{} (vals (k m))))
-            (diff [k]
-              [(clojure.set/difference
-                (values cached-reference k)
-                (values fresh k))
-               (clojure.set/difference
-                (values fresh k)
-                (values cached-reference k))])]
-      (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
-        :belt-nodes :range-nodes :node-map))))
-
-(clojure.test/run-test cache-aligned-large)
+(do (clojure.test/deftest cache-aligned-large
+      (let [n 1337
+            ;; NOTE: this will only work after migration (else, use cached-index-bumped)
+            cached (nth manual-algos-cached-large (- (dec n) 1327))
+            ;; NOTE: this will only work during migration
+            cached-index-bumped (bump-indexing-to-successor-and-vectorize cached)
+            ;; cached (nth manual-algos-cached (dec n))
+            cached-reference cached
+            ;; cached-reference cached-index-bumped
+            fresh (play-algo n false)]
+        ;; test that all keys are present
+        (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
+        ;; test that all non-map values match
+        (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
+        ;; test that all maps match
+        (letfn [(values [m k]
+                  (into #{} (vals (k m))))
+                (diff [k]
+                  [(clojure.set/difference
+                    (values cached-reference k)
+                    (values fresh k))
+                   (clojure.set/difference
+                    (values fresh k)
+                    (values cached-reference k))])]
+          (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
+            :belt-nodes :range-nodes :node-map))))
+    (clojure.test/run-test cache-aligned-large))
 ;; Ran 1 tests containing 16 assertions.
 ;; 0 failures, 0 errors.
 
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
-(clojure.test/deftest test-membership-proof
-  (clojure.test/are [n m] (let [node-index (state/name-lookup (:node m))]
-                            (play-algo n true)
-                            ;; test both that membership proof has expected shape and passes verification routine
-                            (and (= (membership-proof-node node-index (state/current-atom-states)) m)
-                                 (verify-membership m @state/root-belt-node)
-                                 ))
-      11 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11})}
-      20 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11 12 13 14 15 16} #{17 18 19 20})}
-      30 {:node #{7}, :co-path '(#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}
-      ))
-(clojure.test/run-test test-membership-proof)
+(do (clojure.test/deftest test-membership-proof
+      (clojure.test/are [n m] (let [node-index (state/name-lookup (:node m))]
+                                (play-algo n true)
+                                ;; test both that membership proof has expected shape and passes verification routine
+                                (and (= (membership-proof-node node-index (state/current-atom-states)) m)
+                                     (verify-membership m @state/root-belt-node)
+                                     ))
+        11 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11})}
+        20 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11 12 13 14 15 16} #{17 18 19 20})}
+        30 {:node #{7}, :co-path '(#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}
+        ))
+    (clojure.test/run-test test-membership-proof))
 ;; Ran 1 tests containing 3 assertions.
 ;; 0 failures, 0 errors.
+
+(do
+  (clojure.test/deftest test-lca
+    (clojure.test/are [leaves lca]
+        (= lca (nth @node-array (primitives.storage/lowest-common-ancestor-leaves leaves)))
+        [1 2 3] #{1 2 3 4}
+        [1 3] #{1 2 3 4}
+        [5 6] #{5 6}
+        [5 7] #{5 6 7 8}
+        [5 10] #{1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16}
+        [9 10] #{9 10}
+        )
+    )
+  (clojure.test/run-test test-lca))
+
+(nth @node-array (primitives.storage/lowest-common-ancestor-leaves [5 10]))

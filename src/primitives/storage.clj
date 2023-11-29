@@ -85,9 +85,21 @@
 (defn parent-index [child-index]
   (+ child-index (mod child-index (int (Math/pow 2 (+ (primitives.storage/p-adic-order 2 child-index) 2))))))
 
+
+;; O(log2(n)) (barring sort) algo for lowest-common-ancestor of a collection of `leaves`
+(defn lowest-common-ancestor-leaves [leaves]
+  ;; TODO: remove sort: assume presorted
+  ;; find lowest power of two `n` larger than leaf-b
+  ;; then recurse `parent-index` on leaf-a `n` times to find said ancestor
+  (let [highest-leaf (apply max leaves)
+        lowest-leaf (apply min leaves)
+        ]
+    (nth (iterate parent-index (leaf-location lowest-leaf)) (primitives.core/next-power-of-two (bit-xor (dec lowest-leaf) (dec highest-leaf))))
+    )
+  )
 ;; defined using `peak-positions-final`
 (defn parent-less-nodes-internal
-  "get peaks for current leaf-count or `n`"
+  "get peaks for leaf-count `n`"
   [n]
   (let [array-size (+ 2 (* 2 n))]
     (reduce #(let [adic (int (Math/pow 2 %2))

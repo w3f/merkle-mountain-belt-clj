@@ -29,6 +29,13 @@
               #(+ % (nth reversed-bits %))
               (range (dec (count bits)))))))
 
+(defn next-power-of-two
+  [n]
+  (if (zero? n)
+    1
+    (let [bit-pos (Integer/numberOfLeadingZeros n)]
+      (- 32 bit-pos))))
+
 ;; test for n=1221
 (comment
   (S-n 1221)
