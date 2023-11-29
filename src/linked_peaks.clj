@@ -516,27 +516,28 @@
   (primitives.storage/children (primitives.storage/parent-index (+ (* 2 n) 4))))
 
 (defn co-path-internal
-  ([index accumulator]
+  ([index accumulator max-index ephemeral?]
    ;; if the node's parent's index is less than the number of nodes in the node
    ;; array, then the parent node is in the node array, hence we can use the
    ;; node array to get the sibling
-   (if (< (primitives.storage/parent-index index) (count @node-array))
-     (co-path-internal (primitives.storage/parent-index index) (concat accumulator [(nth @node-array (sibling-index index))]))
+   (if (<= (primitives.storage/parent-index index) max-index)
+     (co-path-internal (primitives.storage/parent-index index) (concat accumulator [(nth @node-array (sibling-index index))]) max-index ephemeral?)
      ;; #dbg
      ;; #dbg
-     (co-path-ephemeral (get @node-map (nth @node-array index)) (let [sibling-index (sibling-index index)]
-                                                                  (if (< sibling-index (count @node-array))
-                                                                    ;; #dbg
-                                                                    (concat accumulator [(nth @node-array sibling-index)])
-                                                                    accumulator)
-                                                                  accumulator
-                                                                  ;; (concat accumulator [(nth @node-array sibling-index)])
-                                                                  )))))
+     (if ephemeral? (co-path-ephemeral (get @node-map (nth @node-array index)) (let [sibling-index (sibling-index index)]
+                                                                                 (if (< sibling-index (count @node-array))
+                                                                                   ;; #dbg
+                                                                                   (concat accumulator [(nth @node-array sibling-index)])
+                                                                                   accumulator)
+                                                                                 accumulator
+                                                                                 ;; (concat accumulator [(nth @node-array sibling-index)])
+                                                                                 ))
+         accumulator))))
 
 ;; check that co-path is correct: ensure that we have no intersection of any of the "hashes" in the co-path
 (map
  (fn [leaf-number]
-   (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [])]
+   (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)]
      (=
       (reduce (fn [acc v] (+ acc (count v))) 0 co-path)
       (count (into #{} (apply concat co-path))))))
@@ -544,7 +545,7 @@
 
 (defn membership-proof-node [index state]
   (state/reset-atoms-from-cached! state)
-  {:node (nth @node-array index) :co-path (co-path-internal index [])})
+  {:node (nth @node-array index) :co-path (co-path-internal index [] (count @node-array) true)})
 
 (defn membership-proof-leaf [leaf state]
   (let [leaf-index (primitives.storage/leaf-location leaf)]
@@ -592,7 +593,7 @@
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
   ((fn [leaf-number]
-     (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [])]
+     (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)]
        [(reduce (fn [acc v] (+ acc (count v))) 0 co-path)
         (count (into #{} (apply concat co-path)))]))
    65))
@@ -1581,7 +1582,7 @@
 (defn co-path-ids [node]
   (letfn [(id [node]
             (str (:hash node) (:type node)))]
-    (map id (concat (map (fn [hash] {:hash hash :type :internal}) (co-path-internal node []))
+    (map id (concat (map (fn [hash] {:hash hash :type :internal}) (co-path-internal node [] (count @node-array) true))
                     (map (fn [hash] {:hash hash :type (lowest-type-rank hash)})
                          (co-path-ephemeral (get-sibling (get-node (last (co-path-internal node [])) :internal)) []))))))
 
@@ -1653,7 +1654,7 @@
       :node->descriptor (fn [n] (when (map? n) n))}]))
 
 (comment
-  (co-path-internal (primitives.storage/leaf-location 65) []))
+  (co-path-internal (primitives.storage/leaf-location 65) [] (count @node-array) true))
 
 ;; leafs are all correctly stored
 ;; TODO: set storage-array to match node-array's leaf-count
@@ -1778,6 +1779,19 @@
 ;; Ran 1 tests containing 16 assertions.
 ;; 0 failures, 0 errors.
 
+
+#_{:clj-kondo/ignore [:unresolved-symbol]}
+(do (clojure.test/deftest test-co-path
+      (clojure.test/are [n m] (let [node-index (state/name-lookup (:node m))]
+                                (play-algo n true)
+                                (= (co-path-internal node-index [] (state/name-lookup (:max-node m)) false) (:co-path m)))
+        30 {:node #{1 2}, :max-node #{1 2 3 4} :co-path '(#{3 4})}
+        30 {:node #{1 2}, :max-node #{1 2 3 4 5 6 7 8} :co-path '(#{3 4} #{5 6 7 8})}
+        30 {:node #{9}, :max-node #{9 10 11 12} :co-path '(#{10} #{11 12})}
+        ))
+    (clojure.test/run-test test-co-path))
+;; Ran 1 tests containing 3 assertions.
+;; 0 failures, 0 errors.
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (do (clojure.test/deftest test-membership-proof
