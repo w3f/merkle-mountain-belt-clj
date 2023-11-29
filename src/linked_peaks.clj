@@ -538,10 +538,13 @@
       (count (into #{} (apply concat co-path))))))
  (range 1 @leaf-count))
 
-(defn membership-proof [leaf state]
+(defn membership-proof-node [index state]
   (state/reset-atoms-from-cached! state)
+  {:node (nth @node-array index) :co-path (co-path-internal index [])})
+
+(defn membership-proof [leaf state]
   (let [leaf-index (primitives.storage/leaf-location leaf)]
-    {:leaf (nth @node-array leaf-index) :co-path (co-path-internal leaf-index [])}))
+    (membership-proof-node leaf-index state)))
 
 (comment
   #_{:clj-kondo/ignore [:unresolved-symbol]}
