@@ -554,9 +554,12 @@
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (clojure.test/deftest test-membership-proof
-  (clojure.test/are [n m] (let [node-name (state/name-lookup (:node m))]
+  (clojure.test/are [n m] (let [node-index (state/name-lookup (:node m))]
                             (play-algo n true)
-                            (= (membership-proof-node node-name (state/current-atom-states)) m))
+                            ;; test both that membership proof has expected shape and passes verification routine
+                            (and (= (membership-proof-node node-index (state/current-atom-states)) m)
+                                 (verify-membership m @state/root-belt-node)
+                                 ))
       11 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11})}
       20 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11 12 13 14 15 16} #{17 18 19 20})}
       30 {:node #{7}, :co-path '(#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}
@@ -573,7 +576,7 @@
                            (clojure.set/union acc v)
                            ;; TODO: replace exception with returning eqvlt of result
                            (throw (Exception. "invalid membership proof"))))
-             (:leaf membership-proof)
+             (:node membership-proof)
              (:co-path membership-proof))
      root-belt-node))
 
@@ -584,7 +587,7 @@
     (empty?
      (filter
       #(not (verify-membership
-             (membership-proof % state)
+             (membership-proof-leaf % state)
              (:root-belt-node state)))
       (range 1 101)))))
 
@@ -594,7 +597,7 @@
   (let [state (state/current-atom-states)]
     (not
      (verify-membership
-      (membership-proof 59 state)
+      (membership-proof-leaf 59 state)
       (clojure.set/union (:root-belt-node state) #{100})))))
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
