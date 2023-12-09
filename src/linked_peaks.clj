@@ -534,28 +534,46 @@
                                                                                  ))
          accumulator))))
 
-(defn co-path-multi
+(comment (play-algo 20 false))
+(comment (co-path-internal (primitives.storage/leaf-location 3) [] (state/name-lookup #{1 2 3 4}) false))
+
+;; TODO: test
+(defn co-path-two
   "Takes two ordered leaves and produces a co-path within the lca of them. Returns
   co-path and lca."
-  [leaf-a leaf-b]
+  [[leaf-a leaf-b]]
   (let [lca (primitives.storage/lowest-common-ancestor-leaves [leaf-a leaf-b])
         [left-child right-child] (primitives.storage/children lca)]
-    [[(co-path-internal (primitives.storage/leaf-location leaf-a) [] left-child false)
-      (co-path-internal (primitives.storage/leaf-location leaf-b) [] right-child false)]
-     (nth @node-array lca)
-     ]
+    {:copath {:left (co-path-internal (primitives.storage/leaf-location leaf-a) [] left-child false)
+              :right (co-path-internal (primitives.storage/leaf-location leaf-b) [] right-child false)}
+     :lca {:name (nth @node-array lca)
+           :index lca}}
     ))
 
-(co-path-multi 1 4)
+;; TODO: finish stub
+(defn co-path-multi
+  "Takes three ordered leaves and produces a co-path within the lca of them. Returns
+  nested co-paths and lcas."
+  [[leaf-a leaf-b leaf-c]]
+  (let [lca (primitives.storage/lowest-common-ancestor-leaves [leaf-a leaf-b])
+        [left-child right-child] (primitives.storage/children lca)]
+    {:copath {:left (co-path-internal (primitives.storage/leaf-location leaf-a) [] left-child false)
+              :right (if (< lca (primitives.storage/leaf-location leaf-c))
+                   ;; if leaf-c is outside of lca, then proceed as usual
+                   (co-path-internal (primitives.storage/leaf-location leaf-b) [] right-child false)
+                   ;; else, return
+                   (co-path-two [leaf-b leaf-c])
+                   )}
+     :lca {:name (nth @node-array lca)
+           :index lca}}
+    ))
 
-;; check that co-path is correct: ensure that we have no intersection of any of the "hashes" in the co-path
-(map
- (fn [leaf-number]
-   (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)]
-     (=
-      (reduce (fn [acc v] (+ acc (count v))) 0 co-path)
-      (count (into #{} (apply concat co-path))))))
- (range 1 @leaf-count))
+(comment (co-path-two [1 9])
+         (co-path-two [1 2])
+         (co-path-two [2 3])
+         (co-path-multi [1 3 4])
+         (co-path-multi [1 2 3])
+         )
 
 (defn membership-proof-node [index state]
   (state/reset-atoms-from-cached! state)
@@ -1598,7 +1616,7 @@
             (str (:hash node) (:type node)))]
     (map id (concat (map (fn [hash] {:hash hash :type :internal}) (co-path-internal node [] (count @node-array) true))
                     (map (fn [hash] {:hash hash :type (lowest-type-rank hash)})
-                         (co-path-ephemeral (get-sibling (get-node (last (co-path-internal node [])) :internal)) []))))))
+                         (co-path-ephemeral (get-sibling (get-node (last (co-path-internal node [] (count @node-array) true)) :internal)) []))))))
 
 (defn- nodes-edges [belting? hide-helper-nodes?]
   (apply mapv vector
@@ -1837,4 +1855,25 @@
     )
   (clojure.test/run-test test-lca))
 
-(nth @node-array (primitives.storage/lowest-common-ancestor-leaves [5 10]))
+;; check that co-path is correct:
+;; ensure that we have no intersection of any of the "hashes" in the co-path, and that all leaves are "hashed in" : \sum_{i=1}^n |co-path_i| = |union_{i=1}^n co-path_i| = |leaves| - 1
+(do (clojure.test/deftest co-path-valid
+      (letfn [(co-path-intersection [leaf-number]
+                (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)]
+                  (=
+                        (reduce (fn [acc v] (+ acc (count v))) 0 co-path)
+                        (count (into #{} (apply concat co-path)))
+                        (dec @leaf-count))
+                       ))]
+        (clojure.test/are [n]
+            (do (play-algo n false)
+                (every? true? (map
+                               (fn [leaf-number]
+                                 (co-path-intersection leaf-number))
+                               (range 1 @leaf-count))))
+          10
+          50
+          100
+          ))
+      )
+    (clojure.test/run-test co-path-valid))
