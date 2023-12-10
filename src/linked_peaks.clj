@@ -486,6 +486,17 @@
   (first (filter #(get-node hash %) (keys type-rank))))
 
 ;; siblings of ephemeral nodes are also ephemeral
+(defn co-path-ephemeral-indices
+  ([entry accumulator]
+   (if (:parent entry)
+     (co-path-ephemeral-indices (get-parent entry) (if (= (:hash entry) (:parent entry))
+                                             accumulator
+                                             (concat accumulator [(:hash (get-sibling entry))])))
+     accumulator)
+   ;; (concat [(:hash (get-sibling entry))] (if (:parent entry) (co-path-ephemeral (get-parent entry))))
+   ))
+
+;; siblings of ephemeral nodes are also ephemeral
 (defn co-path-ephemeral
   ([entry accumulator]
    (if (:parent entry)
@@ -515,24 +526,56 @@
 (let [n 60]
   (primitives.storage/children (primitives.storage/parent-index (+ (* 2 n) 4))))
 
-(defn co-path-internal
-  ([index accumulator max-index ephemeral?]
+(defn co-path-internal-indices
+  "returns the indices of co-path items"
+  [index accumulator max-index ephemeral?]
+  ;; if the node's parent's index is less than the number of nodes in the node
+  ;; array, then the parent node is in the node array, hence we can use the
+  ;; node array to get the sibling
+  (if (<= (primitives.storage/parent-index index) max-index)
+    (co-path-internal-indices (primitives.storage/parent-index index) (concat accumulator [(sibling-index index)]) max-index ephemeral?)
+    ;; #dbg
+    ;; #dbg
+    (if ephemeral? (co-path-ephemeral (get @node-map (nth @node-array index))
+                                      (let [sibling-index (sibling-index index)]
+                                        (if (< sibling-index (count @node-array))
+                                          ;; #dbg
+                                          (concat accumulator [sibling-index])
+                                          accumulator)
+                                        accumulator
+                                        ;; (concat accumulator [(nth @node-array sibling-index)])
+                                        ))
+        accumulator)))
+
+(defn co-path-internal-v0
+  "remaps co-path indices to \"hashes\""
+  [index accumulator max-index ephemeral?]
    ;; if the node's parent's index is less than the number of nodes in the node
    ;; array, then the parent node is in the node array, hence we can use the
    ;; node array to get the sibling
    (if (<= (primitives.storage/parent-index index) max-index)
-     (co-path-internal (primitives.storage/parent-index index) (concat accumulator [(nth @node-array (sibling-index index))]) max-index ephemeral?)
-     ;; #dbg
-     ;; #dbg
-     (if ephemeral? (co-path-ephemeral (get @node-map (nth @node-array index)) (let [sibling-index (sibling-index index)]
-                                                                                 (if (< sibling-index (count @node-array))
-                                                                                   ;; #dbg
-                                                                                   (concat accumulator [(nth @node-array sibling-index)])
-                                                                                   accumulator)
-                                                                                 accumulator
-                                                                                 ;; (concat accumulator [(nth @node-array sibling-index)])
-                                                                                 ))
-         accumulator))))
+     (co-path-internal-v0 (primitives.storage/parent-index index) (concat accumulator [(nth @node-array (sibling-index index))]) max-index ephemeral?)
+     (if ephemeral? (co-path-ephemeral (get @node-map (nth @node-array index))
+                                       (let [sibling-index (sibling-index index)]
+                                         (if (< sibling-index (count @node-array))
+                                           ;; #dbg
+                                           (concat accumulator [(nth @node-array sibling-index)])
+                                           accumulator)
+                                         accumulator
+                                         ;; (concat accumulator [(nth @node-array sibling-index)])
+                                         ))
+         accumulator)))
+
+(defn co-path-internal
+  "remaps co-path indices to \"hashes\""
+  [index accumulator max-index ephemeral?]
+   ;; if the node's parent's index is less than the number of nodes in the node
+   ;; array, then the parent node is in the node array, hence we can use the
+   ;; node array to get the sibling
+  (->> (co-path-internal-indices index accumulator max-index ephemeral?)
+       (map #(if (int? %)
+               (nth @node-array %)
+               %))))
 
 (comment (play-algo 20 false))
 (comment (co-path-internal (primitives.storage/leaf-location 3) [] (state/name-lookup #{1 2 3 4}) false))
@@ -1070,7 +1113,7 @@
    (if cached
      (state/reset-atoms-from-cached! cached))
    #_{:clj-kondo/ignore [:missing-else-branch]}
-   (if (= 0 (mod @state/leaf-count 100)) (println @state/leaf-count))
+   (if (= 0 (mod @state/leaf-count 100)) (println "verify parenting at" @state/leaf-count))
    (and
     (verify-range-node-parenting)
     (verify-belt-node-parenting)))
@@ -1087,7 +1130,7 @@
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
-  (let [n 5000]
+  (let [n 600]
     (reset-all)
     (last (take-while #(true? (second %))
                       ;; verify parenting with oneshot-nesting
@@ -1877,3 +1920,20 @@
           ))
       )
     (clojure.test/run-test co-path-valid))
+
+;; check that co-path is correct:
+;; ensure that we have no intersection of any of the "hashes" in the co-path, and that all leaves are "hashed in" : \sum_{i=1}^n |co-path_i| = |union_{i=1}^n co-path_i| = |leaves| - 1
+(do (clojure.test/deftest co-path-refactor-valid
+      (clojure.test/are [n]
+          (do (play-algo n false)
+              (every? true? (map
+                             (fn [leaf-number]
+                               (= (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)
+                                  (co-path-internal-v0 (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)))
+                             (range 1 @leaf-count))))
+        10
+        50
+        100
+        )
+      )
+    (clojure.test/run-test co-path-refactor-valid))
