@@ -1,6 +1,8 @@
 (ns primitives.storage
   (:require
-   primitives.core))
+   state
+   primitives.core
+   clojure.walk))
 
 (defonce storage-array (atom '[]))
 (defonce parent-less-nodes-atom (atom #{}))

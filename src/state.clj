@@ -1,4 +1,6 @@
-(ns state)
+(ns state
+  (:require
+   clojure.walk))
 
 ;; state containers
 (def lastP (atom #{}))
@@ -44,3 +46,7 @@
 ;; TODO: maybe add the index to the nodes when creating them
 (defn name-lookup [name]
   (first (filter #(= name (nth @node-array %)) (range (count @node-array)))))
+
+(defn indices-to-names [structure]
+  (clojure.walk/postwalk
+   #(if (int? %) (nth @node-array %) %) structure))

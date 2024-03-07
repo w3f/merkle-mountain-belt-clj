@@ -550,21 +550,21 @@
 (defn co-path-internal-v0
   "remaps co-path indices to \"hashes\""
   [index accumulator max-index ephemeral?]
-   ;; if the node's parent's index is less than the number of nodes in the node
-   ;; array, then the parent node is in the node array, hence we can use the
-   ;; node array to get the sibling
-   (if (<= (primitives.storage/parent-index index) max-index)
-     (co-path-internal-v0 (primitives.storage/parent-index index) (concat accumulator [(nth @node-array (sibling-index index))]) max-index ephemeral?)
-     (if ephemeral? (co-path-ephemeral (get @node-map (nth @node-array index))
-                                       (let [sibling-index (sibling-index index)]
-                                         (if (< sibling-index (count @node-array))
-                                           ;; #dbg
-                                           (concat accumulator [(nth @node-array sibling-index)])
-                                           accumulator)
-                                         accumulator
-                                         ;; (concat accumulator [(nth @node-array sibling-index)])
-                                         ))
-         accumulator)))
+  ;; if the node's parent's index is less than the number of nodes in the node
+  ;; array, then the parent node is in the node array, hence we can use the
+  ;; node array to get the sibling
+  (if (<= (primitives.storage/parent-index index) max-index)
+    (co-path-internal-v0 (primitives.storage/parent-index index) (concat accumulator [(nth @node-array (sibling-index index))]) max-index ephemeral?)
+    (if ephemeral? (co-path-ephemeral (get @node-map (nth @node-array index))
+                                      (let [sibling-index (sibling-index index)]
+                                        (if (< sibling-index (count @node-array))
+                                          ;; #dbg
+                                          (concat accumulator [(nth @node-array sibling-index)])
+                                          accumulator)
+                                        accumulator
+                                        ;; (concat accumulator [(nth @node-array sibling-index)])
+                                        ))
+        accumulator)))
 
 (defn co-path-internal
   "remaps co-path indices to \"hashes\""
@@ -572,13 +572,13 @@
    ;; if the node's parent's index is less than the number of nodes in the node
    ;; array, then the parent node is in the node array, hence we can use the
    ;; node array to get the sibling
-  (->> (co-path-internal-indices index accumulator max-index ephemeral?)
+  (->> (co-path-internal-indices index accumulator (or max-index (count @node-array)) ephemeral?)
        (map #(if (int? %)
                (nth @node-array %)
                %))))
 
-(comment (play-algo 20 false))
-(comment (co-path-internal (primitives.storage/leaf-location 3) [] (state/name-lookup #{1 2 3 4}) false))
+(comment (do (play-algo 1000 false) nil))
+(comment (co-path-internal (primitives.storage/leaf-location 3) [] (state/name-lookup #{1 2 3 4}) true))
 
 ;; TODO: test
 (defn co-path-two
@@ -626,6 +626,31 @@
   (let [leaf-index (primitives.storage/leaf-location leaf)]
     (membership-proof-node leaf-index state)))
 
+;; to test ancestry of mmb_root(n) by mmb_root(n'), need to test the following
+;; - membership proof of leaf `n'+1` in mmb_root(n)
+;; - for every left sibling inside the membership proof, if it's a parent of some former peaks, provide membership multiproof for all child-peaks
+(defn left-co-path-items
+  "extracts all the left co-path items from an `ancestry-proof`"
+  [ancestry-proof]
+  (filter (fn [co-path-element] (< (apply max co-path-element) (apply min (into [] (:node ancestry-proof)))))
+          (:co-path ancestry-proof)))
+
+(defn ancestry-proof [past-leaf-count]
+  (let [proof-n-plus-one (membership-proof-leaf (inc past-leaf-count) (state/current-atom-states))
+        left-co-path-items (left-co-path-items proof-n-plus-one)
+        past-peaks (primitives.storage/parent-less-nodes-internal past-leaf-count)
+        ]
+    {:proof-n-plus-one proof-n-plus-one
+     :left-co-path-items left-co-path-items
+     :past-peaks (state/indices-to-names past-peaks)
+     :peak-proofs (state/indices-to-names (map #(primitives.storage/descendants-with-terminals (state/name-lookup %) past-peaks) left-co-path-items))}
+    ))
+
+(comment (primitives.core/S-n 20)
+
+         (state/indices-to-names (primitives.storage/descendants-with-terminals (state/name-lookup #{1 2 3 4 5 6 7 8}) [(state/name-lookup #{7 8})]))
+
+         (state/indices-to-names (primitives.storage/descendants-with-terminals (state/name-lookup #{1 2 3 4 5 6 7 8}) [(state/name-lookup #{7 8})])))
 (comment
   (do (play-algo 30 false) (membership-proof-node (state/name-lookup #{7}) (state/current-atom-states)))
   {:node #{7}, :co-path (#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}
@@ -1301,7 +1326,9 @@
                                         (into #{} (map mapulation (vals (dissoc (:range-nodes (nth @manual-only-algos n)) #{})))))])
                 (range (min (count @oneshot-only-algos) (count @manual-only-algos))))))
 
+;; TODO: bitdepth exceeded?
 (filter #(= "new leaf forms a range alone" ((comp first second) %)) (map-indexed (fn [idx n] [idx (merge-rule n)]) (range 0 60)))
+;; -> bitlength should exceed 2-adic-order by at least 2
 
 ;; test: bj always 1
 (every? #(= "1" %)
