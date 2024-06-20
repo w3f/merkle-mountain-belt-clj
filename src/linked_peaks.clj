@@ -6,7 +6,7 @@
    [clojure.set]
    [clojure.string]
    [clojure.test]
-   [clojure.walk]
+   [clojure.walk :as walk]
    [primitives.core]
    [primitives.storage :refer [leaf-location]]
    [primitives.visualization :refer [style truncate-#set-display]]
