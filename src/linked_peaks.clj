@@ -456,6 +456,18 @@
 (let [n 60]
   (primitives.storage/children (primitives.storage/parent-index (+ (* 2 n) 4))))
 
+;; check if a sorted vector contains a given element
+(defn contains-sorted? [v e]
+  (if (empty? v) false
+      (let [mid (quot (count v) 2)]
+        (if (= (nth v mid) e)
+          true
+          (if (< (count v) 2)
+            false
+            (if (< (nth v mid) e)
+              (contains-sorted? (drop (inc mid) v) e)
+              (contains-sorted? (take mid v) e)))))))
+
 (defn co-path-internal-indices-multi
   "returns the indices of co-path items"
   [index accumulator max-index other-indices]
@@ -560,8 +572,8 @@
 
 (comment
   #_{:clj-kondo/ignore [:unresolved-symbol]}
-  (play-algo 20 false)
-  (membership-proof 10 (state/current-atom-states)))
+  (play-algo 11 false)
+  (membership-proof-leaf 4 (state/current-atom-states)))
 
 (defn verify-membership [membership-proof root-belt-node]
   (= (reduce (fn [acc v] (if (= #{} (clojure.set/intersection acc v))

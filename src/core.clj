@@ -3,7 +3,6 @@
    clojure.set
    [clojure.spec.alpha :as s]
    [clojure.spec.gen.alpha :as sgen] ;; [clojure.spec.test.alpha :as stest]
-   [clojure.walk :as walk]
    [primitives.core :refer [belt-ranges children has-children? S-n]]
    [primitives.storage]
    [rhizome.viz :as viz]
