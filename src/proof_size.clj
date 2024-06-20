@@ -1,5 +1,8 @@
 (ns proof-size
-  (:require [primitives.core :as p]))
+  (:require [primitives.core :as p]
+            [primitives.storage]
+            [clojure.test]
+            [linked-peaks :refer [co-path-internal]]))
 
 (defn range-splits [S-n]
   (first (reduce (fn [[acc last-elem but-last-elem] elem]
@@ -53,6 +56,13 @@
       :al aggregate-for-left-belt-nodes
       :agg (apply + (flatten [peak-height range-position-nested aggregate-for-left-range-nodes aggregate-for-left-belt-nodes]))})
    ))
+
+(every? true? (map (fn [m] (let [n 100
+                                expected-proof-size (proof-size n (- n m))
+                                actual-proof-size (count (co-path-internal (primitives.storage/leaf-location m) [] nil true))]
+                            (= expected-proof-size actual-proof-size)))
+                   (range 1 101)))
+
 (range-position-nested 150 (p/S-n 2000))
 
 (let [m 3
