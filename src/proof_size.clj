@@ -16,20 +16,43 @@
       current-range
       (range-position-flat m (butlast S-n) last-range-max-m (inc current-range)))))
 
+(defn nth-reverse [coll n]
+  (nth coll (- (dec (count coll)) n)))
+
 (defn range-position-nested [m S-n]
   (let [range-position (range-position-flat m S-n 0 0)
         range-splits (range-splits S-n)
         ]
     (letfn [(range-position-nested-internal [range-position range-splits acc-ranges]
               (let [last-range-length (count (peek range-splits))]
-                   (if (< range-position last-range-length)
-                     [acc-ranges range-position]
-                     (range-position-nested-internal (- range-position last-range-length) (pop range-splits) (inc acc-ranges))))
+                (if (< range-position last-range-length)
+                  [acc-ranges range-position]
+                  (range-position-nested-internal (- range-position last-range-length) (pop range-splits) (inc acc-ranges))))
               )]
       (range-position-nested-internal range-position range-splits 0)
       )
     ))
 
+(defn proof-size [n m]
+  (:agg
+   (let [S-n (p/S-n n)
+         range-splits (range-splits S-n)
+         range-position-flat (range-position-flat m S-n 0 0)
+         range-position-nested (range-position-nested m S-n)
+         peak-height (nth-reverse S-n range-position-flat)
+         aggregate-for-left-range-nodes (if (< (second range-position-nested)
+                                               (dec (count (nth-reverse range-splits (first range-position-nested)))))
+                                          1 0)
+         aggregate-for-left-belt-nodes (if (< (first range-position-nested) (dec (count range-splits)))
+                                         1 0)
+         ]
+     {:splits range-splits
+      :height peak-height
+      :r range-position-nested
+      :ar aggregate-for-left-range-nodes
+      :al aggregate-for-left-belt-nodes
+      :agg (apply + (flatten [peak-height range-position-nested aggregate-for-left-range-nodes aggregate-for-left-belt-nodes]))})
+   ))
 (range-position-nested 150 (p/S-n 2000))
 
 (let [m 3
