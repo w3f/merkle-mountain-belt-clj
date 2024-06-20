@@ -10,13 +10,12 @@
                  [[[]] 0 -1]
                  S-n)))
 
-(defn range-position [m ranges acc-ranges acc-leaves]
-  (let [range-splits ranges
-        last-range-max-m (reduce (fn [acc elem] (+ acc (Math/pow 2 elem))) 0 (peek range-splits))
-        acc-leaves (+ acc-leaves last-range-max-m)]
-    (if (<= m acc-leaves)
-      acc-ranges
-      (range-position m (pop range-splits) (inc acc-ranges) acc-leaves)
+(defn range-position-flat [m S-n acc-leaves current-range]
+  (let [last-range-max-m (+ acc-leaves (Math/pow 2 (last S-n)))]
+    (if (< m last-range-max-m)
+      current-range
+      (range-position-flat m (butlast S-n) (+ acc-leaves last-range-max-m) (inc current-range)))))
+
       )
     ))
 
