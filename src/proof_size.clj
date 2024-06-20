@@ -63,6 +63,18 @@
                             (= expected-proof-size actual-proof-size)))
                    (range 1 101)))
 
+(map (fn [n-min] (let [m (* 15 10)
+                      n-max (+ n-min 1000)]
+                  (-> (->> (pmap (fn [n] (map (fn [m] (proof-size n m))
+                                             (range 0 m))) (range n-min n-max))
+                           (flatten)
+                           (reduce +))
+                      (/ (* m (- n-max n-min)))
+                      (float)
+                      )))
+     ;; (range 1000000 30000000 1000000)
+     (range 1500000 1500001))
+
 (range-position-nested 150 (p/S-n 2000))
 
 (let [m 3
