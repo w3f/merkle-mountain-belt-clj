@@ -75,29 +75,23 @@
      ;; (range 1000000 30000000 1000000)
      (range 1500000 1500001))
 
-
 (do (clojure.test/deftest test-range-splits
-      (clojure.test/are [n m]
-          (let [S-n (p/S-n n)
-                range-splits (range-splits S-n)
-                range-position-flat (range-position-flat m S-n 0 0)
-                range-position-nested (range-position-nested m S-n)
-                surrounding-range (nth range-splits (- (dec (count range-splits)) (first range-position-nested)))]
-            ;; [range-splits
-            ;;  {:pos range-position-flat :height (nth S-n (- (dec (count S-n)) range-position-flat))}
-            ;;  {:pos range-position-nested :height (nth surrounding-range (- (dec (count surrounding-range)) (second range-position-nested)))}
-            ;;  ]
-            (=
-             (nth S-n (- (dec (count S-n)) range-position-flat))
-             (nth (nth range-splits (- (dec (count range-splits)) (first range-position-nested)))
-                  (- (dec (count surrounding-range)) (second range-position-nested))))
-            )
-          40000 300
-          3000 200
-          2000 150
-          2000 100
-          2000 50
-          2000 1
+      (clojure.test/is
+          (every? true? (map (fn [n m] (let [S-n (p/S-n n)
+                                  range-splits (range-splits S-n)
+                                  range-position-flat (range-position-flat m S-n 0 0)
+                                  range-position-nested (range-position-nested m S-n)
+                                  surrounding-range (nth range-splits (- (dec (count range-splits)) (first range-position-nested)))]
+                              ;; [range-splits
+                              ;;  {:pos range-position-flat :height (nth S-n (- (dec (count S-n)) range-position-flat))}
+                              ;;  {:pos range-position-nested :height (nth surrounding-range (- (dec (count surrounding-range)) (second range-position-nested)))}
+                              ;;  ]
+                              (=
+                               (nth S-n (- (dec (count S-n)) range-position-flat))
+                               (nth (nth range-splits (- (dec (count range-splits)) (first range-position-nested)))
+                                    (- (dec (count surrounding-range)) (second range-position-nested))))
+                              ))
+                   (take 200000 (repeat 20000000)) (range 1 200000)))
           ))
     (clojure.test/run-test test-range-splits))
 
