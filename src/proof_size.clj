@@ -2,7 +2,8 @@
   (:require [primitives.core :as p]
             [primitives.storage]
             [clojure.test]
-            [linked-peaks :refer [co-path-internal]]))
+            [state :refer [leaf-count]]
+            [linked-peaks :refer [co-path-internal algo reset-all]]))
 
 (defn range-splits [S-n]
   (first (reduce (fn [[acc last-elem but-last-elem] elem]
@@ -37,7 +38,6 @@
     ))
 
 (defn proof-size [n m]
-  (:agg
    (let [S-n (p/S-n n)
          range-splits (range-splits S-n)
          range-position-flat (range-position-flat m S-n 0 0)
@@ -49,13 +49,26 @@
          aggregate-for-left-belt-nodes (if (< (first range-position-nested) (dec (count range-splits)))
                                          1 0)
          ]
-     {:splits range-splits
-      :height peak-height
-      :r range-position-nested
-      :ar aggregate-for-left-range-nodes
-      :al aggregate-for-left-belt-nodes
-      :agg (apply + (flatten [peak-height range-position-nested aggregate-for-left-range-nodes aggregate-for-left-belt-nodes]))})
-   ))
+     ;; {:splits range-splits
+     ;;  :height peak-height
+     ;;  :r range-position-nested
+     ;;  :ar aggregate-for-left-range-nodes
+     ;;  :al aggregate-for-left-belt-nodes
+     ;;  :agg (apply + (flatten [peak-height range-position-nested aggregate-for-left-range-nodes aggregate-for-left-belt-nodes]))}
+   (apply + (flatten [peak-height range-position-nested aggregate-for-left-range-nodes aggregate-for-left-belt-nodes]))))
+
+
+;; loop for checking that proof-size calculation matches implementation
+(comment
+  (doall (repeatedly 150 #(algo false)))
+  ;; append to file
+  (doall (repeatedly 2000 #(do (algo false)
+                               (spit "leaf-count.dat" (str  [@leaf-count (every? true? (pmap (fn [m] (let [n @leaf-count
+                                                                                                          expected-proof-size (proof-size n (- n m))
+                                                                                                          actual-proof-size (count (co-path-internal (primitives.storage/leaf-location m) [] nil true))]
+                                                                                                      (= expected-proof-size actual-proof-size)))
+                                                                                             (range 1 151)))]) :append true)
+                               ))))
 
 (every? true? (map (fn [m] (let [n 100
                                 expected-proof-size (proof-size n (- n m))
