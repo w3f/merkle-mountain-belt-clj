@@ -8,6 +8,11 @@
 (defonce parent-less-nodes-atom (atom #{}))
 (defonce parent-less-nodes-cache (atom #{}))
 
+(def storage-maps {:internal state/node-map
+                   :peak state/node-map
+                   :range state/range-nodes
+                   :belt state/belt-nodes})
+
 (defn node-name
   "returns the name of the node with index `index`"
   [index]

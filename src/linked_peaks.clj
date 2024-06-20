@@ -8,13 +8,13 @@
    [clojure.test]
    [clojure.walk :as walk]
    [primitives.core]
-   [primitives.storage :refer [leaf-location]]
+   [primitives.storage :refer [leaf-location storage-maps]]
    [primitives.visualization :refer [style truncate-#set-display]]
+   [primitives.proof :refer [type-rank parent-type-contenders child-type get-parent get-child get-sibling co-path-ephemeral co-path-internal co-path-internal-v0 sibling-index]]
    [state
     :refer
     [belt-nodes current-atom-states lastP leaf-count mergeable-stack
-     node-array node-map pointers range-nodes root-belt-node]]
-   [clojure.walk :as walk]))
+     node-array node-map pointers range-nodes root-belt-node]]))
 
 (println "start:" (new java.util.Date))
 
@@ -189,11 +189,6 @@
          (algo false)
          (oneshot-nesting true))
 
-(def storage-maps {:internal node-map
-                   :peak node-map
-                   :range range-nodes
-                   :belt belt-nodes})
-
 ;; (truncate-#set-display (:belt-nodes (oneshot-nesting-from-fresh 8 true)))
 ;; (truncate-#set-display (:range-nodes (oneshot-nesting-from-fresh 8 true)))
 ;; (truncate-#set-display (:range-nodes (oneshot-nesting-from-fresh 8 true)))
@@ -312,27 +307,12 @@
 ;; (:root-belt-node (play-algo 3 false))
 ;; (:root-belt-node (play-algo 3 true))
 
-(def type-rank
-  "used for classifying possible parent/child types"
-  (zipmap
-   [:internal :peak :range :belt]
-   (range)))
-
 (defn higher-type-ranks [type]
   (filter #(< (get type-rank type) (get type-rank %)) (keys type-rank)))
 
 (comment
   (higher-type-ranks :peak) ; => (:range :belt)
   )
-
-(defn parent-type-contenders
-  [type]
-  (let [rank (get type-rank type)]
-    (if (= rank (:peak type-rank))
-      (list (get (clojure.set/map-invert type-rank) (inc rank)))
-      (if (= rank (:belt type-rank))
-        (list :belt)
-        (list type (get (clojure.set/map-invert type-rank) (inc rank)))))))
 
 ;; Test that child types match expected result
 (every? (fn [[type expected-parent-type]]
@@ -341,21 +321,6 @@
          [:peak [:range]]
          [:range [:range :belt]]
          [:belt [:belt]]])
-
-;; DONE: can simplify if use phantom belt node since
-;; then have left child always have same type as parent
-(defn child-type
-  ([type]
-   (child-type type nil))
-  ([type child-leg]
-   (let [rank (get type-rank type)]
-     (if (<= rank (:peak type-rank))
-       :internal
-       (if (= child-leg :left)
-         type
-         (if (= child-leg :right)
-           (get (clojure.set/map-invert type-rank) (dec rank))
-           (throw (Exception. "no child-leg specified"))))))))
 
 ;; Test that child types match expected result
 (every? (fn [[[type child-leg] expected-child-type]]
@@ -367,17 +332,6 @@
          [[:belt :left] :belt]
          [[:belt :right] :range]])
 
-;; DONE: refactor this since logic is somewhat clunky
-(defn get-parent
-  ([child]
-   (let [parent-type-contenders (parent-type-contenders (:type child))]
-     (first (filter #(and % (not= child %)) (map #(get @% (:parent child)) (vals (select-keys storage-maps parent-type-contenders)))))))
-  ([child expected-parent]
-   (let [parent (get-parent child)]
-     (if (= expected-parent (:type parent))
-       parent
-       (throw (Exception. (str "parent type expected: " expected-parent "\nactual parent type: " (:type parent) " " (:hash child) " " (:type child))))))))
-
 (defn get-real-ancestor [child]
   (if (= (:hash child) (:parent child))
     (get-real-ancestor (get-parent child))
@@ -385,10 +339,6 @@
 
 (comment
   (truncate-#set-display (get-parent (get @range-nodes #{96 97}))))
-
-(defn get-child [parent child-leg]
-  (let [child-type (child-type (:type parent) child-leg)]
-    (second (find @(get storage-maps child-type) (get parent child-leg)))))
 
 (defn get-children [parent]
   (map (partial get-child parent) [:left :right]))
@@ -405,12 +355,6 @@
 
 (defn intermediary-node? [node]
   (contains? (into #{} (map :hash (get-children node))) (:hash node)))
-
-(defn get-sibling [entry]
-  (let [parent (get-parent entry)]
-    (if (= (:hash entry) (:left parent))
-      (get-child parent :right)
-      (get-child parent :left))))
 
 (comment
   (get-sibling (get @node-map #{60})))
@@ -496,25 +440,11 @@
    ;; (concat [(:hash (get-sibling entry))] (if (:parent entry) (co-path-ephemeral (get-parent entry))))
    ))
 
-;; siblings of ephemeral nodes are also ephemeral
-(defn co-path-ephemeral
-  ([entry accumulator]
-   (if (:parent entry)
-     (co-path-ephemeral (get-parent entry) (if (= (:hash entry) (:parent entry))
-                                             accumulator
-                                             (concat accumulator [(:hash (get-sibling entry))])))
-     accumulator)
-   ;; (concat [(:hash (get-sibling entry))] (if (:parent entry) (co-path-ephemeral (get-parent entry))))
-   ))
-
 (comment
   (truncate-#set-display (get-parent (get-parent (get-parent (get-parent (get @node-map (:right (get @node-map #{})))))))))
 
 ;; (some? (play-algo 100 false))
-(co-path-ephemeral (get @node-map (:right (get @node-map #{}))) [])
-
-(defn sibling-index [n-index]
-  (first (filter #(not= n-index %) (primitives.storage/children (primitives.storage/parent-index n-index)))))
+(comment (co-path-ephemeral (get @node-map (:right (get @node-map #{}))) []))
 
 ;; (defn get-sibling-storage [])
 ;; (primitives.storage/children (primitives.storage/parent-index (primitives.storage/parent-index (primitives.storage/leaf-location 59))))
@@ -526,59 +456,31 @@
 (let [n 60]
   (primitives.storage/children (primitives.storage/parent-index (+ (* 2 n) 4))))
 
-(defn co-path-internal-indices
+(defn co-path-internal-indices-multi
   "returns the indices of co-path items"
-  [index accumulator max-index ephemeral?]
+  [index accumulator max-index other-indices]
   ;; if the node's parent's index is less than the number of nodes in the node
   ;; array, then the parent node is in the node array, hence we can use the
   ;; node array to get the sibling
   (if (<= (primitives.storage/parent-index index) max-index)
-    (co-path-internal-indices (primitives.storage/parent-index index) (concat accumulator [(sibling-index index)]) max-index ephemeral?)
+    (let [sibling-descendants (primitives.storage/descendants (sibling-index index))
+          sibling-sub-indices (filter #(contains-sorted? (flatten sibling-descendants) %) other-indices)
+          non-sibling-sub-indices (filter #(not (contains-sorted? sibling-sub-indices %)) other-indices)]
+      (co-path-internal-indices-multi (primitives.storage/parent-index index)
+                                      [index (if (seq accumulator) accumulator)
+                                       (if (seq sibling-sub-indices)
+                                         (co-path-internal-indices-multi (first sibling-sub-indices) [] (primitives.storage/parent-index index) (rest sibling-sub-indices))
+                                         [(sibling-index index)])]
+                                      max-index
+                                      non-sibling-sub-indices))
+    accumulator
     ;; #dbg
     ;; #dbg
-    (if ephemeral? (co-path-ephemeral (get @node-map (nth @node-array index))
-                                      (let [sibling-index (sibling-index index)]
-                                        (if (< sibling-index (count @node-array))
-                                          ;; #dbg
-                                          (concat accumulator [sibling-index])
-                                          accumulator)
-                                        accumulator
-                                        ;; (concat accumulator [(nth @node-array sibling-index)])
-                                        ))
-        accumulator)))
+    ))
 
-(defn co-path-internal-v0
-  "remaps co-path indices to \"hashes\""
-  [index accumulator max-index ephemeral?]
-  ;; if the node's parent's index is less than the number of nodes in the node
-  ;; array, then the parent node is in the node array, hence we can use the
-  ;; node array to get the sibling
-  (if (<= (primitives.storage/parent-index index) max-index)
-    (co-path-internal-v0 (primitives.storage/parent-index index) (concat accumulator [(nth @node-array (sibling-index index))]) max-index ephemeral?)
-    (if ephemeral? (co-path-ephemeral (get @node-map (nth @node-array index))
-                                      (let [sibling-index (sibling-index index)]
-                                        (if (< sibling-index (count @node-array))
-                                          ;; #dbg
-                                          (concat accumulator [(nth @node-array sibling-index)])
-                                          accumulator)
-                                        accumulator
-                                        ;; (concat accumulator [(nth @node-array sibling-index)])
-                                        ))
-        accumulator)))
 
-(defn co-path-internal
-  "remaps co-path indices to \"hashes\""
-  [index accumulator max-index ephemeral?]
-   ;; if the node's parent's index is less than the number of nodes in the node
-   ;; array, then the parent node is in the node array, hence we can use the
-   ;; node array to get the sibling
-  (->> (co-path-internal-indices index accumulator (or max-index (count @node-array)) ephemeral?)
-       (map #(if (int? %)
-               (nth @node-array %)
-               %))))
 
 (comment (do (play-algo 1000 false) nil))
-(comment (co-path-internal (primitives.storage/leaf-location 3) [] (state/name-lookup #{1 2 3 4}) true))
 
 ;; TODO: test
 (defn co-path-two

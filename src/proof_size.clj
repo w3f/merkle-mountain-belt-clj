@@ -1,9 +1,10 @@
 (ns proof-size
   (:require [primitives.core :as p]
             [primitives.storage]
+            [primitives.proof :as proof]
             [clojure.test]
             [state :refer [leaf-count]]
-            [linked-peaks :refer [co-path-internal algo reset-all]]))
+            [linked-peaks :refer [algo reset-all]]))
 
 (defn range-splits [S-n]
   (first (reduce (fn [[acc last-elem but-last-elem] elem]
@@ -65,14 +66,14 @@
   (doall (repeatedly 2000 #(do (algo false)
                                (spit "leaf-count.dat" (str  [@leaf-count (every? true? (pmap (fn [m] (let [n @leaf-count
                                                                                                           expected-proof-size (proof-size n (- n m))
-                                                                                                          actual-proof-size (count (co-path-internal (primitives.storage/leaf-location m) [] nil true))]
+                                                                                                          actual-proof-size (count (proof/co-path-internal (primitives.storage/leaf-location m) [] nil true))]
                                                                                                       (= expected-proof-size actual-proof-size)))
                                                                                              (range 1 151)))]) :append true)
                                ))))
 
 (every? true? (map (fn [m] (let [n 100
                                 expected-proof-size (proof-size n (- n m))
-                                actual-proof-size (count (co-path-internal (primitives.storage/leaf-location m) [] nil true))]
+                                actual-proof-size (count (proof/co-path-internal (primitives.storage/leaf-location m) [] nil true))]
                             (= expected-proof-size actual-proof-size)))
                    (range 1 101)))
 
