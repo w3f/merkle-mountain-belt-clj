@@ -4,7 +4,7 @@
             [primitives.proof :as proof]
             [clojure.test]
             [state :refer [leaf-count]]
-            [linked-peaks :refer [algo reset-all]]))
+            [linked-peaks :refer [algo]]))
 
 (defn range-splits [S-n]
   (first (reduce (fn [[acc last-elem but-last-elem] elem]
@@ -77,17 +77,26 @@
                             (= expected-proof-size actual-proof-size)))
                    (range 1 101)))
 
-(map (fn [n-min] (let [m (* 15 10)
-                      n-max (+ n-min 1000)]
-                  (-> (->> (pmap (fn [n] (map (fn [m] (proof-size n m))
-                                             (range 0 m))) (range n-min n-max))
-                           (flatten)
-                           (reduce +))
-                      (/ (* m (- n-max n-min)))
-                      (float)
-                      )))
-     ;; (range 1000000 30000000 1000000)
-     (range 1500000 1500001))
+(let [blocks-per-minute 10
+      blocks-per-year (* blocks-per-minute 60 24 365)
+      n-range-min (* 2 blocks-per-year)
+      n-range-max (+ n-range-min (* 5 blocks-per-year))
+      n-max 10000
+      k 150
+      step-size 1000000]
+  (spit "avg-proof-size.dat" (with-out-str (doseq [i (doall (pmap (fn [n-min] {:n-min n-min
+                                                                              :avg-proof-sizes (let [n-max (+ n-min n-max)]
+                                                                                                 (-> (->> (map (fn [n] (map (fn [m] (proof-size n m))
+                                                                                                                           (range 0 k))) (range n-min n-max))
+                                                                                                          (flatten)
+                                                                                                          (reduce +))
+                                                                                                     (/ (* k (- n-max n-min)))
+                                                                                                     (float)
+                                                                                                     ))
+                                                                              }
+                                                                    )
+                                                                  (range n-range-min n-range-max step-size)))]
+                                             (print i "\n"))) :append false))
 
 (do (clojure.test/deftest test-range-splits
       (clojure.test/is
