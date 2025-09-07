@@ -13,7 +13,8 @@
     (linked-peaks/algo false)
     (swap! results conj (doall (map
                                 (fn [k] (count (primitives.proof/co-path-internal (primitives.storage/leaf-location (- n k)) [] nil true)))
-                                (range 0 n))))))
+                                (range 0 n)))))
+  @results)
 
 (let [max-n 10
       values (nth @results (dec n))
@@ -79,11 +80,14 @@
   (let [peak-sum (+ acc (first range-remainder))]
     (if (< peak-sum peak-n)
       (peak-position-inner peak-n peak-sum (inc acc-peaks) (rest range-remainder))
-      [acc-peaks (- (dec (first range-remainder)) (- peak-sum peak-n))])))
+      {:belt-position acc-peaks
+       :range-length (first range-remainder)
+       :range-position (- (dec (first range-remainder)) (- peak-sum peak-n))}
+      )))
 
 (defn peak-position [n peak-n]
   (let [ranges (belt-ranges-lengths n)]
-    (peak-position-inner peak-n 0 0 (reverse ranges))))
+    (merge {:belt-length (count ranges)} (peak-position-inner peak-n 0 0 (reverse ranges)))))
 
 (let [n 1337
       peak-n 1]
@@ -109,8 +113,32 @@
 ;; 3. proof component from tip of range to belt root
 ;; let's try starting from the last peak, and going
 ;; backwards recursively:
-(defn proof-lengths-for-peak [n, peak-n]
-  (let [peaks (S-n n)]))
+(defn proof-lengths-for-peak [n, peak-n, include-phantom?]
+  (let [bagging (bag-peaks-to-ranges n)
+        peak-position (peak-position n (inc peak-n))
+        peak-component (nth (reverse (S-n n)) peak-n)
+        range-component ()]
+    (if include-phantom?
+      nil
+      [[(reverse (map reverse bagging)) peak-position]
+       {:peak-component peak-component
+        :range-component (if (= (:range-position peak-position) (dec (:range-length peak-position)))
+                           (:range-position peak-position)
+                           (inc (:range-position peak-position)))
+        :belt-component (if (= (:belt-position peak-position) (dec (:belt-length peak-position)))
+                           (:belt-position peak-position)
+                           (inc (:belt-position peak-position)))
+        }])
+    ))
+
+(defn proof-length-for-peak [n, peak-n, include-phantom?]
+  [[(reverse (map reverse (bag-peaks-to-ranges n))) (peak-position n (inc peak-n))]
+   (apply + (vals (last (proof-lengths-for-peak n, peak-n, include-phantom?))))])
+
+(proof-lengths-for-peak 1337 0 false)
+(proof-length-for-peak 1337 3 false)
+
+(last (proof-length-for-peak 2 0 false))
 
 (primitives.core/belt-ranges-lengths 5)
 (primitives.core/S-n 5)
