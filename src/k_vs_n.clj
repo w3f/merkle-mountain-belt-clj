@@ -213,7 +213,7 @@
             (range 0 n)))
      (range 1 (inc 1000)))
 
-(let [max-n 20000
+(let [max-n 16384
       values (map (fn [n]
                     (proof-lengths-for-n n false))
                   (range 1 (inc max-n)))
@@ -221,6 +221,15 @@
       rows (map #(clojure.string/join "," %) padded)]
 
   (spit "stats/k-vs-n-no-phantom.csv" (clojure.string/join "\n" rows)))
+
+(let [max-n 16384
+      values (map (fn [n]
+                    (proof-lengths-for-n n true))
+                  (range 1 (inc max-n)))
+      padded (map #(concat % (repeat (- max-n (count %)) 0)) values)
+      rows (map #(clojure.string/join "," %) padded)]
+
+  (spit "stats/k-vs-n-with-phantom.csv" (clojure.string/join "\n" rows)))
 
 (proof-length-for-leaf 3 2 false)
 (belt-ranges-lengths 3)
