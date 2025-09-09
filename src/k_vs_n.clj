@@ -3,10 +3,14 @@
             [primitives.proof]
             [primitives.storage]
             [primitives.core :refer [S-n belt-ranges-lengths]]
+            [clojure.string]
             ;; [state :refer [node-array node-map]]
             ))
 
-(let [max-n 50]
+;; (defn proof-size [n k]
+;;   (count (primitives.proof/co-path-internal (primitives.storage/leaf-location (- n k)) [] nil true)))
+
+(let [max-n 100]
   (def results (atom []))
   (linked-peaks/reset-all)
   (doseq [n (range 1 (inc max-n))]
@@ -16,8 +20,18 @@
                                 (range 0 n)))))
   @results)
 
+(let [n 1337]
+  (def result-singleton (atom nil))
+  (linked-peaks/reset-all)
+  (linked-peaks/play-algo n true)
+  nil
+  ;; (reset! result-singleton (map (fn [k] (count (primitives.proof/co-path-internal (primitives.storage/leaf-location (- n k)) [] nil true))) (range 0 n)))
+  )
+
+(let [n 1337] (reset! result-singleton (map (fn [k] (count (primitives.proof/co-path-internal (primitives.storage/leaf-location (- n k)) [] nil true))) (range 0 1337))) nil)
+
 (let [max-n 10
-      values (nth @results (dec n))
+      values (nth @results (dec max-n))
       ;; Get list for n (0-based index) padded
       padded (concat values (repeat (- max-n (count values)) 0))
       rows (clojure.string/join "," padded)]
@@ -25,15 +39,11 @@
   ;; Write CSV content to file (no header)
   (spit "table.csv" (clojure.string/join "\n" rows)))
 
-(println @results)
-
-(def max-n 20)
 (def data (for [n (range 1 (inc max-n))]
             (do (linked-peaks/play-algo-oneshot-end n)
                 (map
                  (fn [k] [[n k] (count (primitives.proof/co-path-internal (primitives.storage/leaf-location (- n k)) [] nil true))])
                  (range 0 n)))))
-(println data)
 
 (do (linked-peaks/play-algo-oneshot-end 5)
     [(primitives.proof/co-path-internal (primitives.storage/leaf-location 5) [] nil true)
@@ -41,9 +51,6 @@
 
 (let [max-n 5])
 
-;; Output as a Markdown table
-
-;; do this more efficiently
 (every? (fn [[a b]] (= a b)) (for [n (range 1 (inc 1000))]
                                [(count (primitives.core/S-n n)) (apply + (primitives.core/belt-ranges-lengths n))]))
 
@@ -82,8 +89,7 @@
       (peak-position-inner peak-n peak-sum (inc acc-peaks) (rest range-remainder))
       {:belt-position acc-peaks
        :range-length (first range-remainder)
-       :range-position (- (dec (first range-remainder)) (- peak-sum peak-n))}
-      )))
+       :range-position (- (dec (first range-remainder)) (- peak-sum peak-n))})))
 
 (defn peak-position [n peak-n]
   (let [ranges (belt-ranges-lengths n)]
@@ -119,6 +125,7 @@
         peak-component (nth (reverse (S-n n)) peak-n)
         range-component ()]
     (if include-phantom?
+      ;; TODO
       nil
       [[(reverse (map reverse bagging)) peak-position]
        {:peak-component peak-component
@@ -126,10 +133,8 @@
                            (:range-position peak-position)
                            (inc (:range-position peak-position)))
         :belt-component (if (= (:belt-position peak-position) (dec (:belt-length peak-position)))
-                           (:belt-position peak-position)
-                           (inc (:belt-position peak-position)))
-        }])
-    ))
+                          (:belt-position peak-position)
+                          (inc (:belt-position peak-position)))}])))
 
 (defn proof-length-for-peak [n, peak-n, include-phantom?]
   [[(reverse (map reverse (bag-peaks-to-ranges n))) (peak-position n (inc peak-n))]
@@ -140,5 +145,77 @@
 
 (last (proof-length-for-peak 2 0 false))
 
-(primitives.core/belt-ranges-lengths 5)
-(primitives.core/S-n 5)
+(let [n 10
+      k 10
+      peaks (reverse (S-n n))
+      peak-max-leaf-mapping (rest (reduce (fn [acc i] (conj acc (+ (last acc) i))) [0] (map #(int (Math/pow % 2)) peaks)))
+      location (count (take-while #(<= % (dec k)) peak-max-leaf-mapping))]
+  [peaks peak-max-leaf-mapping location])
+
+(defn k-to-peak [k n]
+  (let [peaks (reverse (S-n n))
+        peak-max-leaf-mapping (rest (reduce (fn [acc i] (conj acc (+ (last acc) i))) [0] (map #(int (Math/pow 2 %)) peaks)))
+        location (count (take-while #(<= % k) peak-max-leaf-mapping))]
+    [peaks peak-max-leaf-mapping location]))
+
+(defn proof-length-for-leaf [n k include-phantom?]
+  (last (proof-length-for-peak n (last (k-to-peak k n)) include-phantom?)))
+
+(defn proof-lengths-for-n-inefficient [n include-phantom?]
+  (let [proof-lengths-peaks (map #(last (proof-length-for-peak n % include-phantom?)) (range 0 (count (S-n n))))]
+    (map #(nth proof-lengths-peaks (last (k-to-peak % n))) (range 0 n))))
+
+(defn proof-lengths-for-n [n include-phantom?]
+  (let [proof-lengths-peaks (map #(last (proof-length-for-peak n % include-phantom?)) (range 0 (count (S-n n))))
+        peak-heights (reverse (S-n n))]
+    ;; (map #(nth proof-lengths-peaks (last (k-to-peak % n))) (range 0 n))
+    ;; [proof-lengths-peaks peak-heights]
+    (reduce (fn [acc k] (concat acc (repeat (Math/pow 2 (nth peak-heights k)) (nth proof-lengths-peaks k)))) [] (range (count proof-lengths-peaks)))))
+
+(proof-length-for-leaf 3 1 false)
+(k-to-peak 3 3)
+
+(let [n 20
+      k 20]
+  [(bag-peaks-to-ranges n) (proof-length-for-leaf n k false)])
+
+(let [n 20] (map #(last (k-to-peak % n)) (range 0 n)))
+
+(let [n 5] [(map (fn [n]
+                   (map (fn [peak-n]
+                          (last (proof-length-for-peak n peak-n false)))
+                        (range 0 (count (S-n n)))))
+                 (range 1 (inc n)))
+            (take n @results)])
+
+(every? true? (map (fn [n] (apply = [(map (fn [n]
+                                            (map (fn [k]
+                                                   (proof-length-for-leaf n k false))
+                                                 (range 0 n)))
+                                          (range 1 (inc n)))
+                                     (take n @results)]))
+                   (range 1 100)))
+
+(every? true? (map (fn [n] (apply = [(map (fn [n]
+                                            (proof-lengths-for-n n false))
+                                          (range 1 (inc n)))
+                                     (take n @results)]))
+                   (range 1 100)))
+
+(map (fn [n]
+       (map (fn [k]
+              (proof-length-for-leaf n k false))
+            (range 0 n)))
+     (range 1 (inc 1000)))
+
+(let [max-n 20000
+      values (map (fn [n]
+                    (proof-lengths-for-n n false))
+                  (range 1 (inc max-n)))
+      padded (map #(concat % (repeat (- max-n (count %)) 0)) values)
+      rows (map #(clojure.string/join "," %) padded)]
+
+  (spit "stats/k-vs-n-no-phantom.csv" (clojure.string/join "\n" rows)))
+
+(proof-length-for-leaf 3 2 false)
+(belt-ranges-lengths 3)
