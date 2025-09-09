@@ -49,8 +49,6 @@
     [(primitives.proof/co-path-internal (primitives.storage/leaf-location 5) [] nil true)
      (count (primitives.proof/co-path-internal (primitives.storage/leaf-location 5) [] nil true))])
 
-(let [max-n 5])
-
 (every? (fn [[a b]] (= a b)) (for [n (range 1 (inc 1000))]
                                [(count (primitives.core/S-n n)) (apply + (primitives.core/belt-ranges-lengths n))]))
 
@@ -126,12 +124,19 @@
         range-component ()]
     (if include-phantom?
       ;; TODO
-      nil
       [[(reverse (map reverse bagging)) peak-position]
        {:peak-component peak-component
+        ;; if we have phantom (range) nodes, we always add another proof item to the position within the range.
+        :range-component (inc (:range-position peak-position))
+        ;; if we have phantom (belt) nodes, we always add another proof item to the position within the range.
+        :belt-component (inc (:belt-position peak-position))}]
+      [[(reverse (map reverse bagging)) peak-position]
+       {:peak-component peak-component
+        ;; if the peak is at the left edge of a range (always the case for singleton ranges), without phantom (range) nodes, we have no left item in the range path, hence the range component is simply the position of the peak in the range. Else, add another proof item to the position within the range.
         :range-component (if (= (:range-position peak-position) (dec (:range-length peak-position)))
                            (:range-position peak-position)
                            (inc (:range-position peak-position)))
+        ;; if the peak's range is at the left edge of the belt (always the case for singleton belt), without phantom (belt) nodes, we have no left item in the belt path, hence the belt component is simply the position of the peak's range in the belt (0 for singleton belt). Else, add another proof item to the position within the belt.
         :belt-component (if (= (:belt-position peak-position) (dec (:belt-length peak-position)))
                           (:belt-position peak-position)
                           (inc (:belt-position peak-position)))}])))
