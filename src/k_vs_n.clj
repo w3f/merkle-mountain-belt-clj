@@ -207,27 +207,28 @@
                                      (take n @results)]))
                    (range 1 100)))
 
-(map (fn [n]
-       (map (fn [k]
-              (proof-length-for-leaf n k false))
-            (range 0 n)))
-     (range 1 (inc 1000)))
+(comment
+  (map (fn [n]
+         (map (fn [k]
+                (proof-length-for-leaf n k false))
+              (range 0 n)))
+       (range 1 (inc 1000))))
 
 (let [max-n 16384
+      padded? false
       values (map (fn [n]
                     (proof-lengths-for-n n false))
                   (range 1 (inc max-n)))
-      padded (map #(concat % (repeat (- max-n (count %)) 0)) values)
-      rows (map #(clojure.string/join "," %) padded)]
+      rows (map #(clojure.string/join "," %) (if padded? (map #(concat % (repeat (- max-n (count %)) 0)) values) values))]
 
   (spit "stats/k-vs-n-no-phantom.csv" (clojure.string/join "\n" rows)))
 
 (let [max-n 16384
+      padded? false
       values (map (fn [n]
                     (proof-lengths-for-n n true))
                   (range 1 (inc max-n)))
-      padded (map #(concat % (repeat (- max-n (count %)) 0)) values)
-      rows (map #(clojure.string/join "," %) padded)]
+      rows (map #(clojure.string/join "," %) (if padded? (map #(concat % (repeat (- max-n (count %)) 0)) values) values))]
 
   (spit "stats/k-vs-n-with-phantom.csv" (clojure.string/join "\n" rows)))
 

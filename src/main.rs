@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("Collected {} k-avg values for {}", phantom_value, s);
 
             let zipf: Vec<f64> = rows.par_iter().enumerate().map(|(i, row)| {
-                // calculate h(n,s)
+                // calculate generalized harmonic number h(n,s)
                 let hns = (1..=i+1).map(|k| 1.0 / (k as f64).powf(s)).sum::<f64>();
 
                 let values: Vec<f64> = row

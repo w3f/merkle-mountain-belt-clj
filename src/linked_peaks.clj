@@ -434,8 +434,8 @@
   ([entry accumulator]
    (if (:parent entry)
      (co-path-ephemeral-indices (get-parent entry) (if (= (:hash entry) (:parent entry))
-                                             accumulator
-                                             (concat accumulator [(:hash (get-sibling entry))])))
+                                                     accumulator
+                                                     (concat accumulator [(:hash (get-sibling entry))])))
      accumulator)
    ;; (concat [(:hash (get-sibling entry))] (if (:parent entry) (co-path-ephemeral (get-parent entry))))
    ))
@@ -516,21 +516,18 @@
         [left-child right-child] (primitives.storage/children lca)]
     {:copath {:left (co-path-internal (primitives.storage/leaf-location leaf-a) [] left-child false)
               :right (if (< lca (primitives.storage/leaf-location leaf-c))
-                   ;; if leaf-c is outside of lca, then proceed as usual
-                   (co-path-internal (primitives.storage/leaf-location leaf-b) [] right-child false)
-                   ;; else, return
-                   (co-path-two [leaf-b leaf-c])
-                   )}
+                       ;; if leaf-c is outside of lca, then proceed as usual
+                       (co-path-internal (primitives.storage/leaf-location leaf-b) [] right-child false)
+                       ;; else, return
+                       (co-path-two [leaf-b leaf-c]))}
      :lca {:name (nth @node-array lca)
-           :index lca}}
-    ))
+           :index lca}}))
 
 (comment (co-path-two [1 9])
          (co-path-two [1 2])
          (co-path-two [2 3])
          (co-path-multi [1 3 4])
-         (co-path-multi [1 2 3])
-         )
+         (co-path-multi [1 2 3]))
 
 (defn membership-proof-node [index state]
   (state/reset-atoms-from-cached! state)
@@ -552,13 +549,11 @@
 (defn ancestry-proof [past-leaf-count]
   (let [proof-n-plus-one (membership-proof-leaf (inc past-leaf-count) (state/current-atom-states))
         left-co-path-items (left-co-path-items proof-n-plus-one)
-        past-peaks (primitives.storage/parent-less-nodes-internal past-leaf-count)
-        ]
+        past-peaks (primitives.storage/parent-less-nodes-internal past-leaf-count)]
     {:proof-n-plus-one proof-n-plus-one
      :left-co-path-items left-co-path-items
      :past-peaks (state/indices-to-names past-peaks)
-     :peak-proofs (state/indices-to-names (map #(primitives.storage/descendants-with-terminals (state/name-lookup %) past-peaks) left-co-path-items))}
-    ))
+     :peak-proofs (state/indices-to-names (map #(primitives.storage/descendants-with-terminals (state/name-lookup %) past-peaks) left-co-path-items))}))
 
 (comment (primitives.core/S-n 20)
 
@@ -629,28 +624,41 @@
 (defn peak-merge [oneshot-nesting?]
   ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:peak-merge]))}
   ;; TODO: consider moving all conditionals into the execution logic of `algo`
+  ;;;; if (Pairs is not empty)
   (if (not (zero? (count @mergeable-stack)))
-    (let [Q (atom (pop-mergeable-stack))
+    (let [;;;; let P_mrg <- Pairs.pop()
+          Q (atom (pop-mergeable-stack))
+          ;; TODO: can probably strip Q-old? We're updating the Q object as we go, and it seems like we're updating its values only after completing read operations on them
           Q-old @Q
           ;; Q-old-hash (:hash Q-old)
+          ;; get the left partner of Q
           L (get @node-map (:left @Q))]
 
+      ;;;; Update P_mrg.height++
       (swap! Q #(update % :height inc))
+      ;;;; Update P_mrg.hash ← H(P_mrg.prev.hash||P_mrg.hash)
       (swap! Q #(assoc % :hash (apply sorted-set (concat (:hash L) (:hash Q-old)))))
+      ;;;; Update P_mrg.prev ← P_mrg.prev.prev
       (swap! Q #(assoc % :left (:left L)))
 
+      ;;;; if (P_mrg.prev != Null)
       ;; Q and L (should) have a preexisting parent, either a range or a belt node
       ;; #dbg ^{:break/when (not oneshot-nesting?)}
       (if (and (not oneshot-nesting?) (:parent Q-old))
         ;; #dbg
         ;; just another check to ensure that we're merging
+        ;;;; if (P_mrg.parent == P_mrg.prev.parent))
+        ;;;; NOTE: above is convoluted logic since P_mrg.parent has not been updated yet. That's why I'm using Q-old here for distinction. Maybe can get rid of this check?
         (if (= (:parent Q-old)
                (:parent L))
-          ;; then
+          ;;;; then
           (let [;; check where parent lives: should only exist in one of the maps
                 parent (get-parent Q-old :range)]
+            ;;;; P_mrg.parent ← P_mrg.prev.parent
+            ;;;; NOTE: will be a range node
             (swap! Q #(assoc % :parent (:parent parent)))
             #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+            ;;;; RangeNodes.dissoc(P_mrg.parent)
              (swap! range-nodes #(dissoc % (:hash parent))))
           ;; else
           ;; DONE (should remove): (throw (Exception. (str "parents don't match @ leaf count " @leaf-count)))
@@ -843,14 +851,11 @@
     nil))
 
 (defn algo [oneshot-nesting?]
-  (let [;; let h be hash of new leaf
-        ;; h (str @leaf-count "-hash")
+  (let [;; let h be the hash of the new item
         h #{(inc @leaf-count)}
         ;; pointer (get-pointer)
-        ;; create object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
-        P (peak-node (:hash (get @node-map @lastP)) nil 0 h)
-        ;; P (peak-node (:hash (get @node-map @lastP)) nil 0 h)
-        ]
+        ;; create new object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
+        P (peak-node (:hash (get @node-map @lastP)) nil 0 h)]
     ;; 1. Add step
     ;; store object P in peak map
     (swap! node-map #(assoc % h P))
@@ -859,7 +864,8 @@
     (add-internal h (inc (* 2 (inc @leaf-count))))
 
     ;; 2. Check mergeable
-    ;; if lastP.height==0 then M.add(P)
+    ;; if lastP != nil && lastP.height==0 then M.add(P)
+    ;; if P_head != Null && P_head.height==0 then Pairs.push(P_new)
     #_{:clj-kondo/ignore [:missing-else-branch]}
     (if (and @lastP (= (:height (get @node-map @lastP)) 0))
       (add-mergeable-stack (get @node-map h)))
@@ -875,11 +881,13 @@
     (new-leaf-range oneshot-nesting? h P)
 
     ;; 3. reset lastP
+    ;; Set P_head<-P_new
     (reset! lastP h)
 
     ;; 4. merge if mergeable
     (peak-merge oneshot-nesting?)
 
+    ;; doc: update counter n++ (actually step 1 in algo, but that's an implementation detail)
     (swap! leaf-count inc)
 
     #_{:clj-kondo/ignore [:missing-else-branch]}
@@ -1013,25 +1021,25 @@
   2. verify all ancestry relationships"
   []
   (every? (fn [[k v]] (and
-                      (= k (if (and
+                       (= k (if (and
                                 ;; first, verify that left leaf is not nil
-                                (some? (:left v))
+                                 (some? (:left v))
                                 ;; then, verify that left & right "children" are even in the same range
-                                (let [left-child (get-child v :left)]
-                                  (if (= :peak (:type left-child))
-                                    (distinct-ranges? left-child (get-child v :right))
+                                 (let [left-child (get-child v :left)]
+                                   (if (= :peak (:type left-child))
+                                     (distinct-ranges? left-child (get-child v :right))
                                     ;; else
-                                    (if (= :range (:type left-child))
-                                      (not= v (get-parent left-child))
+                                     (if (= :range (:type left-child))
+                                       (not= v (get-parent left-child))
                                       ;; if parent neither range nor belt, throw exception
-                                      (throw (Exception. "unhandled type of left child"))))))
+                                       (throw (Exception. "unhandled type of left child"))))))
                              ;; if in distinct ranges, then left child does not get included in parent range node's "hash"
                              ;; TODO: stricter condition for distinct ranges of two range nodes
-                             (:right v)
+                              (:right v)
                              ;; else, "hash" both
-                             (clojure.set/union (or (:left v) #{}) (:right v))))
-                      (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))
-                      (verify-all-ancestry v)))
+                              (clojure.set/union (or (:left v) #{}) (:right v))))
+                       (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))
+                       (verify-all-ancestry v)))
           (:range-nodes (current-atom-states))))
 
 (defn verify-belt-node-parenting
@@ -1151,7 +1159,7 @@
 ;; while upgrading algo, test that new result matches cached
 (= manual-algos-cached
    (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
-;; => false
+;; => true
 
 ;; DONE: should check that reason cached algos don't match is just that I changed the indexing to start at 1
 ;; simplest is to revert that change, verify all tests pass, and the bump it & update cache
@@ -1164,8 +1172,7 @@
 
 (comment (bump-indexing-to-successor-and-vectorize [1 2 #{3 8 0}]))
 
-(let [
-      reference manual-algos-cached
+(let [reference manual-algos-cached
       ;; reference (bump-indexing-to-successor-and-vectorize manual-algos-cached)
       ]
   (and (= reference
@@ -1173,7 +1180,7 @@
 
        (every? true? (map
                       (fn [n] (= (nth reference (dec n))
-                                (play-algo n false))) (range 1 (inc (count manual-algos-cached)))))))
+                                 (play-algo n false))) (range 1 (inc (count manual-algos-cached)))))))
 ;; => true
 
 ;; test that everything is exactly the same
@@ -1692,10 +1699,10 @@
 
   (get @node-map #{72}))
 
-(keys @range-nodes)
-(truncate-#set-display (second (second @range-nodes)))
-(truncate-#set-display (second (second @range-nodes)))
-(:hash (second (second @range-nodes)))
+(comment (keys @range-nodes)
+         (truncate-#set-display (second (second @range-nodes)))
+         (truncate-#set-display (second (second @range-nodes)))
+         (:hash (second (second @range-nodes))))
 
 (comment
   (=
@@ -1727,8 +1734,6 @@
 (comment
   (map :type (get-nodes #{}))
   (types #{}))
-
-(println "end:" (new java.util.Date))
 
 (toggle-tests)
 
@@ -1803,8 +1808,7 @@
                                 (= (co-path-internal node-index [] (state/name-lookup (:max-node m)) false) (:co-path m)))
         30 {:node #{1 2}, :max-node #{1 2 3 4} :co-path '(#{3 4})}
         30 {:node #{1 2}, :max-node #{1 2 3 4 5 6 7 8} :co-path '(#{3 4} #{5 6 7 8})}
-        30 {:node #{9}, :max-node #{9 10 11 12} :co-path '(#{10} #{11 12})}
-        ))
+        30 {:node #{9}, :max-node #{9 10 11 12} :co-path '(#{10} #{11 12})}))
     (clojure.test/run-test test-co-path))
 ;; Ran 1 tests containing 3 assertions.
 ;; 0 failures, 0 errors.
@@ -1815,28 +1819,27 @@
                                 (play-algo n true)
                                 ;; test both that membership proof has expected shape and passes verification routine
                                 (and (= (membership-proof-node node-index (state/current-atom-states)) m)
-                                     (verify-membership m @state/root-belt-node)
-                                     ))
+                                     (verify-membership m @state/root-belt-node)))
         11 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11})}
         20 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11 12 13 14 15 16} #{17 18 19 20})}
-        30 {:node #{7}, :co-path '(#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}
-        ))
+        30 {:node #{7}, :co-path '(#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}))
     (clojure.test/run-test test-membership-proof))
 ;; Ran 1 tests containing 3 assertions.
 ;; 0 failures, 0 errors.
 
+(let [node-index (state/name-lookup (:node {:node #{7}, :co-path (quote (#{8} #{6 5} #{1 4 3 2} #{15 13 12 11 9 14 16 10} #{20 24 21 22 17 23 19 18} #{27 28 25 26} #{29 30}))}))] (play-algo 30 true) (and (= (membership-proof-node node-index (state/current-atom-states)) {:node #{7}, :co-path (quote (#{8} #{6 5} #{1 4 3 2} #{15 13 12 11 9 14 16 10} #{20 24 21 22 17 23 19 18} #{27 28 25 26} #{29 30}))})))
+
 (do
   (clojure.test/deftest test-lca
     (clojure.test/are [leaves lca]
-        (= lca (nth @node-array (primitives.storage/lowest-common-ancestor-leaves leaves)))
-        [1 2 3] #{1 2 3 4}
-        [1 3] #{1 2 3 4}
-        [5 6] #{5 6}
-        [5 7] #{5 6 7 8}
-        [5 10] #{1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16}
-        [9 10] #{9 10}
-        )
-    )
+                      (= lca (nth @node-array (primitives.storage/lowest-common-ancestor-leaves leaves)))
+      [1 2 3] #{1 2 3 4}
+      [1 3] #{1 2 3 4}
+      [5 6] #{5 6}
+      [5 7] #{5 6 7 8}
+      [5 10] #{1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16}
+      [9 10] #{9 10}))
+
   (clojure.test/run-test test-lca))
 
 ;; check that co-path is correct:
@@ -1845,36 +1848,35 @@
       (letfn [(co-path-intersection [leaf-number]
                 (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)]
                   (=
-                        (reduce (fn [acc v] (+ acc (count v))) 0 co-path)
-                        (count (into #{} (apply concat co-path)))
-                        (dec @leaf-count))
-                       ))]
+                   (reduce (fn [acc v] (+ acc (count v))) 0 co-path)
+                   (count (into #{} (apply concat co-path)))
+                   (dec @leaf-count))))]
         (clojure.test/are [n]
-            (do (play-algo n false)
-                (every? true? (map
-                               (fn [leaf-number]
-                                 (co-path-intersection leaf-number))
-                               (range 1 @leaf-count))))
+                          (do (play-algo n false)
+                              (every? true? (map
+                                             (fn [leaf-number]
+                                               (co-path-intersection leaf-number))
+                                             (range 1 @leaf-count))))
           10
           50
-          100
-          ))
-      )
+          100)))
+
     (clojure.test/run-test co-path-valid))
 
 ;; check that co-path is correct:
 ;; ensure that we have no intersection of any of the "hashes" in the co-path, and that all leaves are "hashed in" : \sum_{i=1}^n |co-path_i| = |union_{i=1}^n co-path_i| = |leaves| - 1
 (do (clojure.test/deftest co-path-refactor-valid
       (clojure.test/are [n]
-          (do (play-algo n false)
-              (every? true? (map
-                             (fn [leaf-number]
-                               (= (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)
-                                  (co-path-internal-v0 (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)))
-                             (range 1 @leaf-count))))
+                        (do (play-algo n false)
+                            (every? true? (map
+                                           (fn [leaf-number]
+                                             (= (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)
+                                                (co-path-internal-v0 (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)))
+                                           (range 1 @leaf-count))))
         10
         50
-        100
-        )
-      )
+        100))
+
     (clojure.test/run-test co-path-refactor-valid))
+
+(println "end:" (new java.util.Date))

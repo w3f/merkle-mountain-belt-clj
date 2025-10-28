@@ -145,9 +145,9 @@
       fixed-pos? true
       leaf-to-prove nil]
   (map (fn [n] (->
-               (linked-peaks/graph n leaf-to-prove false belting? hide-helper-nodes? fixed-pos?)
-               (tangle-direct-save (str (if hide-helper-nodes? "" "verbose-") (if belting? "" "u-") "mmb-n-" n))
-               ))
+                (linked-peaks/graph n leaf-to-prove false belting? hide-helper-nodes? fixed-pos?)
+               ;; TODO: hide dot files
+                (tangle-direct-dot (str "mmb/" (if belting? "double-bagged/" "unbagged/") (if hide-helper-nodes? "" "verbose-") (if belting? "" "u-") "mmb-n-" n))))
        (range 1 64)))
 
 (linked-peaks/toggle-debugging)
