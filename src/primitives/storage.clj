@@ -60,7 +60,6 @@
   (+ (* 2 n) 2))
 
 (defn highest-exponent-st-dividing [p n]
-  ;; TODO: improve this algorithm - it's inefficient as fuck!
   (last
    (filter #(= 0.0
                (mod (Math/abs n) (Math/pow p %)))
@@ -73,25 +72,32 @@
     ##Inf
     (highest-exponent-st-dividing p n)))
 
+(defn two-adic-order [n]
+  (if (= 0 n)
+    ##Inf
+    (Integer/numberOfTrailingZeros n)))
+
 (comment
   (map #(p-adic-order 2 %) (range 1 100)))
 
 (defn left-child [parent]
-  (- parent (* 3 (int (Math/pow 2 (- (p-adic-order 2 parent) 1))))))
+  (- parent (* 3 (int (Math/pow 2 (- (two-adic-order parent) 1))))))
 
 (defn right-child [parent]
-  (- parent (int (Math/pow 2 (- (p-adic-order 2 parent) 1)))))
+  (- parent (int (Math/pow 2 (- (two-adic-order parent) 1)))))
 
 (defn children [parent]
   ((juxt left-child right-child) parent))
 
 (defn childedness [node]
   (get {3 :left
-        1 :right} (int (mod (/ node (Math/pow 2 (p-adic-order 2 node))) 4))))
+        1 :right} (int (mod (/ node (Math/pow 2 (two-adic-order node))) 4))))
 
 (defn parent-index [child-index]
-  (+ child-index (mod child-index (int (Math/pow 2 (+ (primitives.storage/p-adic-order 2 child-index) 2))))))
-
+  (+ child-index
+     (mod child-index
+          (int (Math/pow 2
+                         (+ (primitives.storage/two-adic-order child-index) 2))))))
 
 ;; O(log2(n)) (barring sort) algo for lowest-common-ancestor of a collection of `leaves`
 (defn lowest-common-ancestor-leaves [leaves]

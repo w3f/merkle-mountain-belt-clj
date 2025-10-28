@@ -54,7 +54,7 @@
 
 (defn merge-rule [n]
   (let [b (primitives.core/binary-repr-of-n (inc n))
-        j (primitives.storage/p-adic-order 2 (inc n))
+        j (primitives.storage/two-adic-order (inc n))
         m1 (if (< 1 j) "new leaf joins last range"
                (get {0 "new leaf participates in merge"
                      1 "new leaf forms a range alone"} j))
@@ -1248,7 +1248,7 @@
 (every? #(= "1" %)
         (map
          #(let [b-reverse (map str (reverse (primitives.core/binary-repr-of-n (inc %))))
-                j (primitives.storage/p-adic-order 2 (inc %))]
+                j (primitives.storage/two-adic-order (inc %))]
             (nth b-reverse j))
          (range 1500)))
 ;; => true
