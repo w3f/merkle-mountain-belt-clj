@@ -39,8 +39,8 @@
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (comment
   "example usage"
-  (truncate-#set-display (:belt-nodes (oneshot-nesting-from-fresh 8 true)))
-  (truncate-#set-display (:range-nodes (oneshot-nesting-from-fresh 8 true))))
+  (truncate-#set-display (:belt-nodes (oneshot-bagging-from-fresh 8 true)))
+  (truncate-#set-display (:range-nodes (oneshot-bagging-from-fresh 8 true))))
 
 (defn display-type-filtered [data type]
   (truncate-#set-display
@@ -141,7 +141,7 @@
   (:parent (get (or (first target-map) @node-map) node)))
 
 (comment (count #_{:clj-kondo/ignore [:unresolved-symbol]}
-          (oneshot-nesting-from-fresh 1223 true)))
+          (oneshot-bagging-from-fresh 1223 true)))
 (comment (count #_{:clj-kondo/ignore [:unresolved-symbol]}
           (play-algo 1223 true)))
 (comment (keys (:node-map #_{:clj-kondo/ignore [:unresolved-symbol]}
@@ -150,7 +150,7 @@
 (comment
   (count (merge
           #_{:clj-kondo/ignore [:unresolved-symbol]}
-          (oneshot-nesting-from-fresh 1222 false)
+          (oneshot-bagging-from-fresh 1222 false)
           {:mergeable-stack (atom @mergeable-stack)
            :leaf-count (atom @leaf-count)
            :lastP (atom @lastP)})))
@@ -187,19 +187,19 @@
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (comment (:range-nodes (play-algo 5 true))
-         (oneshot-nesting-from-fresh 8 true)
+         (oneshot-bagging-from-fresh 8 true)
          (algo false)
-         (oneshot-nesting true))
+         (oneshot-bagging true))
 
-;; (truncate-#set-display (:belt-nodes (oneshot-nesting-from-fresh 8 true)))
-;; (truncate-#set-display (:range-nodes (oneshot-nesting-from-fresh 8 true)))
-;; (truncate-#set-display (:range-nodes (oneshot-nesting-from-fresh 8 true)))
+;; (truncate-#set-display (:belt-nodes (oneshot-bagging-from-fresh 8 true)))
+;; (truncate-#set-display (:range-nodes (oneshot-bagging-from-fresh 8 true)))
+;; (truncate-#set-display (:range-nodes (oneshot-bagging-from-fresh 8 true)))
 ;; (truncate-#set-display (:range-nodes (play-algo-optimized 8)))
 ;; (truncate-#set-display (:range-nodes (play-algo-oneshot-end 8)))
 
 (comment (map #(get @node-map (nth @node-array (- (first %) 0))) (primitives.storage/parent-less-nodes-sorted-height (primitives.storage/parent-less-nodes @leaf-count))))
 
-(defn oneshot-nesting
+(defn oneshot-bagging
   "performs a oneshot nesting of ephemeral range and belt nodes. takes flag `singleton-ranges?` to specify whether singleton peaks should also have a range node above them"
   [singleton-ranges?]
   (let [;; {:keys [node-map node-array]} (select-keys (play-algo @leaf-count upgrade?) [:node-map :node-array])
@@ -367,8 +367,8 @@
 (comment
   (get-sibling (get @node-map #{60})))
 
-(defn new-leaf-range [oneshot-nesting? h P]
-  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:singleton-range]))}
+(defn new-leaf-range [oneshot-bagging? h P]
+  #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:singleton-range]))}
   ;; DONE: if distinct ranges, we're also adding a new belt node for the new leaf
    (if (distinct-ranges? (get @node-map @lastP) P)
      (do
@@ -380,7 +380,7 @@
          (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
          ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
          (reset! root-belt-node new-belt-root)
-         #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+         #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
           (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @lastP)) h h new-belt-root))))
 
        (swap! node-map #(assoc-in % [h :parent] h))
@@ -398,10 +398,10 @@
            hash-new-range (clojure.set/union (:hash last-range) h)
            new-belt-parent (clojure.set/union hash-new-range (:left old-belt-parent))
            new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)]
-       #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+       #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
         (swap! range-nodes #(assoc % (:hash new-range) new-range))
        (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
-       #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+       #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
         (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
        ;; update former range-leader's parent belt to have new range-leader as child
        ;; TODO: following is wrong since old belt node is deleted
@@ -416,7 +416,7 @@
        (if (contains? @belt-nodes (:left old-belt-parent))
          (swap! belt-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
          (if (contains? @range-nodes (:left old-belt-parent))
-           #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+           #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
             (swap! range-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
            (throw (Exception. (str "old belt node's left child was invalid at leaf count " @leaf-count)))))
        (swap! belt-nodes #(dissoc % (:hash old-belt-parent)))
@@ -627,8 +627,8 @@
 (comment
   (get-parent (get @belt-nodes @root-belt-node)))
 
-(defn peak-merge [oneshot-nesting?]
-  ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:peak-merge]))}
+(defn peak-merge [oneshot-bagging?]
+  ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:peak-merge]))}
   ;; TODO: consider moving all conditionals into the execution logic of `algo`
   ;;;; if (Pairs is not empty)
   (if (not (zero? (count @mergeable-stack)))
@@ -649,8 +649,8 @@
 
       ;;;; if (P_mrg.prev != Null)
       ;; Q and L (should) have a preexisting parent, either a range or a belt node
-      ;; #dbg ^{:break/when (not oneshot-nesting?)}
-      (if (and (not oneshot-nesting?) (:parent Q-old))
+      ;; #dbg ^{:break/when (not oneshot-bagging?)}
+      (if (and (not oneshot-bagging?) (:parent Q-old))
         ;; #dbg
         ;; just another check to ensure that we're merging
         ;;;; if (P_mrg.parent == P_mrg.prev.parent))
@@ -663,7 +663,7 @@
             ;;;; P_mrg.parent ← P_mrg.prev.parent
             ;;;; NOTE: will be a range node
             (swap! Q #(assoc % :parent (:parent parent)))
-            #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+            #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
             ;;;; RangeNodes.dissoc(P_mrg.parent)
              (swap! range-nodes #(dissoc % (:hash parent))))
           ;; else
@@ -680,7 +680,7 @@
                    (= (:parent L) (:left (get-parent Q-old :range))))
             ;; #dbg
 
-            ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:merge]))}
+            ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:merge]))}
             (let [parent-L (get-parent L :range)
                   parent-Q-old (get-parent Q-old :range)
                   ;; this is the range node that will replace their former parent range nodes
@@ -725,12 +725,12 @@
                        (or (= :no-parent grandparent-type)
                            (and (= :range grandparent-type)
                                 (not= (:parent Q-old) (:left (get-parent (get-parent Q-old :range) :range))))))
-                #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+                #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                  (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right Q-old))) :left] rn)))
 
               ;; if Q-old's grandparent is a belt node, then
               ;; TODO: extend to cover when merge does not occur at rightmost edge of range (does that exist?) - it's just easier like this since already have necessary code above
-              ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:belt]))}
+              ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:belt]))}
               (if (and (= :belt grandparent-type)
                        (or
                         (apply > (map (comp count primitives.core/belt-ranges) [@leaf-count (inc @leaf-count)]))
@@ -757,7 +757,7 @@
                         (swap! belt-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
                         (if (contains? @range-nodes (:left left-of-old-bn))
                           ;; (if (and (not (contains? #{1 2 5} @leaf-count)) (contains? @range-nodes (:left left-of-old-bn)))
-                          #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+                          #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                            (swap! range-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
                           ;; (throw (Exception. (str "old belt node's left child didn't have a left child at " @leaf-count)))
                           ))
@@ -766,7 +766,7 @@
                   ))
               ;; add new parent range node that couples to old parent range's left
               ;; #dbg
-              #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+              #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                (swap! range-nodes #(assoc % rn (range-node (:left (get-parent L :range)) (:hash @Q) rn new-grandparent-hash)))
               ;; update former left's parent's left child to point to rn as a parent
               ;; NOTE: doesn't apply for left-most range node
@@ -774,24 +774,24 @@
               #_{:clj-kondo/ignore [:missing-else-branch]}
               (if (and (not distinct-ranges)
                        (:left (get-parent L :range)))
-                #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+                #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                  (swap! range-nodes #(assoc-in % [(:left (get-parent L :range)) :parent] rn)))
               ;; remove former left's parent from range nodes
               ;; #dbg
-              #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+              #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                (swap! range-nodes #(dissoc % (:parent L)))
 
               ;; TODO: integrate this neater!
               ;; if range nodes contains old
               (if (and (not distinct-ranges) (contains? @range-nodes (:hash @Q)) (not= 4 @leaf-count))
-                ;; #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-merge-replace]))}
+                ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-merge-replace]))}
                 (let [former-range (get @range-nodes (:hash @Q))]
-                  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+                  #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                    (swap! range-nodes #(dissoc % (:hash @Q)))
                   (swap! Q #(assoc % :parent rn))
                   ;; if merged peak is not rightmost peak, also update the reference to it from its left neighbour
                   #_{:clj-kondo/ignore [:missing-else-branch]}
-                  #dbg ^{:break/when (and (not oneshot-nesting?) (debugging [:range-phantom]))}
+                  #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                    (if (:right @Q) (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right @Q))) :left] (:parent @Q))))
                   ;; UNTRUE: if former range's parent is a range node, then former range was a left child
                   ;; (if (contains? @range-nodes (:parent former-range))
@@ -856,7 +856,7 @@
        (if upgrade?)))
     nil))
 
-(defn algo [oneshot-nesting?]
+(defn algo [oneshot-bagging?]
   (let [;; let h be the hash of the new item
         h #{(inc @leaf-count)}
         ;; pointer (get-pointer)
@@ -883,21 +883,21 @@
     ;; to the last peak is 2, or the last peak can be merged with the mountain to
     ;; its left
     ;; DONE: otherwise, the new node is involved in merge
-    ;; #dbg ^{:break/when (not oneshot-nesting?)}
-    (new-leaf-range oneshot-nesting? h P)
+    ;; #dbg ^{:break/when (not oneshot-bagging?)}
+    (new-leaf-range oneshot-bagging? h P)
 
     ;; 3. reset lastP
     ;; Set P_head<-P_new
     (reset! lastP h)
 
     ;; 4. merge if mergeable
-    (peak-merge oneshot-nesting?)
+    (peak-merge oneshot-bagging?)
 
     ;; doc: update counter n++ (actually step 1 in algo, but that's an implementation detail)
     (swap! leaf-count inc)
 
     #_{:clj-kondo/ignore [:missing-else-branch]}
-    (if oneshot-nesting? (oneshot-nesting true))
+    (if oneshot-bagging? (oneshot-bagging true))
     ;; check (difference (S-n n) (S-n (dec n)))
     ;; recalculate only those members of S-n that are in the difference set from above
 
@@ -907,18 +907,18 @@
     ;; (clojure.pprint/pprint @node-map)
     ))
 
-(defn play-algo [n oneshot-nesting?]
+(defn play-algo [n oneshot-bagging?]
   (reset-all)
-  (doall (repeatedly n #(algo oneshot-nesting?)))
+  (doall (repeatedly n #(algo oneshot-bagging?)))
   ;; (println "-----------------")
   ;; (clojure.pprint/pprint @node-map)
   (state/current-atom-states))
 
 (defn play-algo-retain-sequence
   "play algorithm up to `n`, retaining sequence of intermediate states"
-  [n oneshot-nesting?]
+  [n oneshot-bagging?]
   (reset-all)
-  (doall (repeatedly n #(do (algo oneshot-nesting?) (state/current-atom-states)))))
+  (doall (repeatedly n #(do (algo oneshot-bagging?) (state/current-atom-states)))))
 
 ;; verify that play-algo & play-algo-retain-sequence match
 #_{:clj-kondo/ignore [:missing-else-branch]}
@@ -1019,7 +1019,7 @@
   (verify-all-ancestry node))
 ;; => true for leaf #{1336} @ (= leaf-count 1337)
 ;; => true for leaf #{0..1023} @ (= leaf-count 1337)
-;; => false for leaf #{} @ (and (= leaf-count 1337) oneshot-nesting?)
+;; => false for leaf #{} @ (and (= leaf-count 1337) oneshot-bagging?)
 
 (defn verify-range-node-parenting
   "verifies parenting relationships of all range nodes:
@@ -1086,7 +1086,7 @@
   (let [n 600]
     (reset-all)
     (last (take-while #(true? (second %))
-                      ;; verify parenting with oneshot-nesting
+                      ;; verify parenting with oneshot-bagging
                       (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo true) (verify-parenting)))))))))
 ;; => 4999 (i.e. all passed)
 
@@ -1095,7 +1095,7 @@
   (let [n 5000]
     (reset-all)
     (last (take-while #(true? (second %))
-                      ;; verify parenting without oneshot-nesting
+                      ;; verify parenting without oneshot-bagging
                       (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo false) (verify-parenting)))))))))
 ;; => 4999 (i.e. all passed)
 
@@ -1334,24 +1334,24 @@
 ;; :right-most = ( #{ 1221 1222 } )
 ;; }
 
-(defn oneshot-nesting-from-cached [cached singleton-ranges?]
+(defn oneshot-bagging-from-cached [cached singleton-ranges?]
   (state/reset-atoms-from-cached! cached)
-  ;; (oneshot-nesting)
-  (merge (state/current-atom-states) (oneshot-nesting singleton-ranges?)))
+  ;; (oneshot-bagging)
+  (merge (state/current-atom-states) (oneshot-bagging singleton-ranges?)))
 
-(defn oneshot-nesting-from-fresh [n singleton-ranges?]
+(defn oneshot-bagging-from-fresh [n singleton-ranges?]
   (play-algo n true)
-  (merge (state/current-atom-states) (oneshot-nesting singleton-ranges?)))
+  (merge (state/current-atom-states) (oneshot-bagging singleton-ranges?)))
 
 ;; test that caching vs fresh has same result
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
-  (let [fresh-1222 (oneshot-nesting-from-fresh 1222 true)
-        cached-1222 (oneshot-nesting-from-cached algo-1222 true)]
+  (let [fresh-1222 (oneshot-bagging-from-fresh 1222 true)
+        cached-1222 (oneshot-bagging-from-cached algo-1222 true)]
     (= fresh-1222 cached-1222)))
 
-(def oneshot-1222 (oneshot-nesting-from-cached algo-1222 true))
-(def oneshot-1223 (oneshot-nesting-from-cached algo-1223 true))
+(def oneshot-1222 (oneshot-bagging-from-cached algo-1222 true))
+(def oneshot-1223 (oneshot-bagging-from-cached algo-1223 true))
 
 (comment
   (keys oneshot-1222)
@@ -1370,9 +1370,9 @@
 ;; NOTE: shifting storage left by 3 since skipping the constant offset from the beginning (always empty)
 (map #(- % 3) (sort (primitives.storage/parent-less-nodes 1222)))
 
-(:belt-children (oneshot-nesting-from-fresh 8 true))
-(:belt-nodes (oneshot-nesting-from-fresh 8 true))
-(def cached-oneshot-9 (oneshot-nesting-from-fresh 9 true))
+(:belt-children (oneshot-bagging-from-fresh 8 true))
+(:belt-nodes (oneshot-bagging-from-fresh 8 true))
+(def cached-oneshot-9 (oneshot-bagging-from-fresh 9 true))
 (identity @range-nodes)
 (identity @belt-nodes)
 
@@ -1381,9 +1381,9 @@
 (:belt-nodes cached-oneshot-9)
 (comment {#{0 1 2 3 4 5 6 7 8} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{0 1 2 3 4 5 6 7 8}, :parent nil, :type :belt}})
 
-(:belt-children (oneshot-nesting-from-fresh 9 true))
-(truncate-#set-display (map #(oneshot-nesting-from-fresh % true) (range 1 12)))
-(oneshot-nesting-from-fresh 11 true)
+(:belt-children (oneshot-bagging-from-fresh 9 true))
+(truncate-#set-display (map #(oneshot-bagging-from-fresh % true) (range 1 12)))
+(oneshot-bagging-from-fresh 11 true)
 (keys (:node-map (play-algo 11 true)))
 (:node-array (play-algo 11 true))
 
@@ -1399,13 +1399,13 @@
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
-  (do (def result-1222-cached (oneshot-nesting-from-fresh 1222 true))
-      (def result-1223-cached (oneshot-nesting-from-fresh 1223 true))))
+  (do (def result-1222-cached (oneshot-bagging-from-fresh 1222 true))
+      (def result-1223-cached (oneshot-bagging-from-fresh 1223 true))))
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
   (=
    (map #(if (instance? clojure.lang.Atom %) @% %) (vals result-1222-cached))
-   (map #(if (instance? clojure.lang.Atom %) @% %) (vals (oneshot-nesting-from-fresh 1222 true))))
+   (map #(if (instance? clojure.lang.Atom %) @% %) (vals (oneshot-bagging-from-fresh 1222 true))))
   ;; => true
   )
 
