@@ -107,10 +107,12 @@
 
 (defn pop-mergeable-stack []
   (let [pop-item (last @mergeable-stack)]
+    ;; TODO: replace with vec-drop operation
     (swap! mergeable-stack (comp #(into [] %) drop-last))
     (get @node-map pop-item)))
 
 (defn add-mergeable-stack [item]
+  ;; TODO: replace with vec-append operation
   (swap! mergeable-stack #(assoc % (count %) (:hash item))))
 
 (defn add-internal [item index]
@@ -281,11 +283,17 @@
 (apply > (map (comp count primitives.core/belt-ranges) [14 15]))
 
 (defn distinct-ranges? [M M']
-  (or (= 2 (- (:height M) (:height M')))
-      (contains? (into #{} @mergeable-stack) (:hash M))
-      ;; TODO: might be able to remove the following if/once have unified rules independent of singleton-ness of new leaf
-      (nil? (:hash M))
-      (= #{} (:hash M))))
+  (or
+   ;; O(1)
+   (= 2 (- (:height M) (:height M')))
+   ;; O(log(n))
+   ;; TODO: might be able to check if M is just the first/last element the mergeable stack
+   (contains? (into #{} @mergeable-stack) (:hash M))
+   ;; TODO: might be able to remove the following if/once have unified rules independent of singleton-ness of new leaf
+   ;; NOTE: the following two lines are equivalent, only cater for presence of singleton-ranges
+   (nil? (:hash M))
+   (= #{} (:hash M))))
+
 
 ;; (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
 (get @node-map (:left (get @node-map @lastP)))
@@ -504,8 +512,7 @@
     {:copath {:left (co-path-internal (primitives.storage/leaf-location leaf-a) [] left-child false)
               :right (co-path-internal (primitives.storage/leaf-location leaf-b) [] right-child false)}
      :lca {:name (nth @node-array lca)
-           :index lca}}
-    ))
+           :index lca}}))
 
 ;; TODO: finish stub
 (defn co-path-multi
@@ -562,8 +569,7 @@
          (state/indices-to-names (primitives.storage/descendants-with-terminals (state/name-lookup #{1 2 3 4 5 6 7 8}) [(state/name-lookup #{7 8})])))
 (comment
   (do (play-algo 30 false) (membership-proof-node (state/name-lookup #{7}) (state/current-atom-states)))
-  {:node #{7}, :co-path (#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}
-  )
+  {:node #{7}, :co-path (#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})})
 
 (comment
   #_{:clj-kondo/ignore [:unresolved-symbol]}
