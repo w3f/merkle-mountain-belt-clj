@@ -1647,7 +1647,8 @@
                             )
                            ;; group the peaks by hashset length
                            (nth (sort (group-by count (keys @node-map))) n)))))
-          (range (count (primitives.core/S-n @leaf-count)))))
+          ;; start at 1 to skip the phantom node #{} (always in node-map via reset-all)
+          (range 1 (count (primitives.core/S-n @leaf-count)))))
 
 (comment
   (sort (group-by count (keys @node-map)))
