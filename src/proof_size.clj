@@ -63,6 +63,12 @@
      ;;  :agg (apply + (flatten [peak-height range-position-nested aggregate-for-left-range-nodes aggregate-for-left-belt-nodes]))}
    (apply + (flatten [peak-height range-position-nested aggregate-for-left-range-nodes aggregate-for-left-belt-nodes]))))
 
+(comment (float (/ (* (+ 2 (* (dec 100))) 2500) 7886898)))
+
+(comment (pmap (fn [k] {(inc k) (float (avg (map #(proof-size % k)
+                                                (apply range (let [base (Math/pow 2 24)] [base (+ base (Math/pow 2 20))])))))})
+               (map dec [1 10 50 200 600])))
+
 (defn spit-lazy-to-file [lazy file append]
   (spit file (with-out-str (doseq [i (doall lazy)] (println i))) :append append))
 
@@ -90,9 +96,11 @@
                             (= expected-proof-size actual-proof-size)))
                    (range 1 101)))
 
+
 (let [blocks-per-minute 10
       blocks-per-year (* blocks-per-minute 60 24 365)
       n-range-min (* 2 blocks-per-year)
+      ;; n-range-min (* 2 blocks-per-year)
       n-range-max (+ n-range-min (* 5 blocks-per-year))
       n-max (Math/pow 2 11)
       k 2400
@@ -110,6 +118,33 @@
                                                                           )
                                                                         (range n-range-min n-range-max step-size)))]
                                                    (print i "\n"))) :append false))
+
+(comment
+  (spit "avg-proof-size.dat" (str (doall (map inc (doall (range 0 10))))))
+
+  (let [realized-sequence (doall (map inc (doall (range 0 10))))]
+    (spit "avg-proof-size.dat" (str realized-sequence)))
+
+  (spit "avg-proof-size.dat"
+        (with-out-str (doseq [i (map inc (doall (range 0 10)))] (print i "\n")))))
+;; -> cached eval
+(comment {:n-min 15768000, :avg-proof-sizes '(4.9596 7.84344 9.960587 11.3155365 12.626498 15.109105)})
+
+;; -> cached eval
+(comment {:n-min 10512000, :avg-proof-size 9.951567} {:n-min 11012000, :avg-proof-size 9.954033} {:n-min 11512000, :avg-proof-size 9.961166} {:n-min 12012000, :avg-proof-size 9.95232}
+         {:n-min 12512000, :avg-proof-size 9.940086} {:n-min 13012000, :avg-proof-size 9.94288} {:n-min 13512000, :avg-proof-size 9.95522} {:n-min 14012000, :avg-proof-size 9.952746}
+         {:n-min 14512000, :avg-proof-size 9.951567} {:n-min 15012000, :avg-proof-size 9.954033} {:n-min 15512000, :avg-proof-size 9.960587} {:n-min 16012000, :avg-proof-size 9.96296}
+         {:n-min 16512000, :avg-proof-size 9.9345665} {:n-min 17012000, :avg-proof-size 9.94358} {:n-min 17512000, :avg-proof-size 9.95522} {:n-min 18012000, :avg-proof-size 9.952746}
+         {:n-min 18512000, :avg-proof-size 9.951567} {:n-min 19012000, :avg-proof-size 9.954733} {:n-min 19512000, :avg-proof-size 9.961166} {:n-min 20012000, :avg-proof-size 9.95232}
+         {:n-min 20512000, :avg-proof-size 9.940086} {:n-min 21012000, :avg-proof-size 9.94288} {:n-min 21512000, :avg-proof-size 9.95522} {:n-min 22012000, :avg-proof-size 9.952746}
+         {:n-min 22512000, :avg-proof-size 9.95172} {:n-min 23012000, :avg-proof-size 9.954033} {:n-min 23512000, :avg-proof-size 9.960587} {:n-min 24012000, :avg-proof-size 9.96296}
+         {:n-min 24512000, :avg-proof-size 9.9345665} {:n-min 25012000, :avg-proof-size 9.94358} {:n-min 25512000, :avg-proof-size 9.95522} {:n-min 26012000, :avg-proof-size 9.952746}
+         {:n-min 26512000, :avg-proof-size 9.951567} {:n-min 27012000, :avg-proof-size 9.954033} {:n-min 27512000, :avg-proof-size 9.961166} {:n-min 28012000, :avg-proof-size 9.95232}
+         {:n-min 28512000, :avg-proof-size 9.940086} {:n-min 29012000, :avg-proof-size 9.94288} {:n-min 29512000, :avg-proof-size 9.95522} {:n-min 30012000, :avg-proof-size 9.952746}
+         {:n-min 30512000, :avg-proof-size 9.951567} {:n-min 31012000, :avg-proof-size 9.954033} {:n-min 31512000, :avg-proof-size 9.960587} {:n-min 32012000, :avg-proof-size 9.96296}
+         {:n-min 32512000, :avg-proof-size 9.9345665} {:n-min 33012000, :avg-proof-size 9.94358} {:n-min 33512000, :avg-proof-size 9.95522} {:n-min 34012000, :avg-proof-size 9.952746}
+         {:n-min 34512000, :avg-proof-size 9.951567} {:n-min 35012000, :avg-proof-size 9.954733} {:n-min 35512000, :avg-proof-size 9.961166} {:n-min 36012000, :avg-proof-size 9.95232}
+         {:n-min 36512000, :avg-proof-size 9.940086})
 
 (do (clojure.test/deftest test-range-splits
       (clojure.test/is

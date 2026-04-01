@@ -146,6 +146,8 @@
    (apply + (vals (last (proof-lengths-for-peak n, peak-n, include-phantom?))))])
 
 (proof-lengths-for-peak 1337 0 false)
+(proof-lengths-for-peak 1337 0 true)
+(proof-lengths-for-peak 1337 9 true)
 (proof-length-for-peak 1337 3 false)
 
 (last (proof-length-for-peak 2 0 false))
@@ -234,3 +236,12 @@
 
 (proof-length-for-leaf 3 2 false)
 (belt-ranges-lengths 3)
+
+(comment
+  ;; calculate mean proof size for fixed n, weighting k by zipf
+  (let [raw-data (slurp "stats/k-vs-n-with-phantom.csv")
+        rows (clojure.string/split raw-data #"\n")
+        data (map #(map read-string (clojure.string/split % #",")) rows)
+        s 1.0
+        zipf (map (fn [row] (reduce (fn [acc k] (+ acc (/ (nth row (dec k)) (Math/pow k s)))) 0 (range 1 (inc (count row))))) data)]
+    (spit (str "stats/n-vs-mean-proof-with-phantom-" s ".csv") (clojure.string/join "\n" zipf))))
