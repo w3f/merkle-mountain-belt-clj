@@ -1044,7 +1044,7 @@
 
 ;; verify that play-algo & play-algo-retain-sequence match
 #_{:clj-kondo/ignore [:missing-else-branch]}
-(if run-tests
+(if @run-tests
   (let [n 100
         retain-sequence-oneshot (play-algo-retain-sequence n true)
         retain-sequence-no-oneshot (play-algo-retain-sequence n false)]
@@ -1208,7 +1208,7 @@
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
-  (let [n 5000]
+  (let [n (if (System/getProperty "mmb.thorough") 5000 1024)]
     (reset-all)
     (last (take-while #(true? (second %))
                       ;; verify parenting without oneshot-bagging

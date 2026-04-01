@@ -12,4 +12,9 @@
            {:jvm-opts ["-Djava.awt.headless=true"]
             :extra-deps {io.github.cognitect-labs/test-runner
                          {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+            :main-opts ["-m" "cognitect.test-runner" "-d" "src"]}
+           :test-thorough
+           {:jvm-opts ["-Djava.awt.headless=true" "-Dmmb.thorough=true"]
+            :extra-deps {io.github.cognitect-labs/test-runner
+                         {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
             :main-opts ["-m" "cognitect.test-runner" "-d" "src"]}}}
