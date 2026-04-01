@@ -29,6 +29,36 @@
               #(+ % (nth reversed-bits %))
               (range (dec (count bits)))))))
 
+(comment
+  (map (comp #(Integer. %) str) (binary-repr-of-n (inc 82)))
+
+  (let [bits '(1 0 1 0 1 0 1 0)
+        reversed-bits (reverse bits)]
+    (reverse (map
+              #(+ % (nth reversed-bits %))
+              (range (dec (count bits))))))
+
+  (- (* 3 (Math/pow 2 (- (Math/floor (/
+                                       (Math/log 16)
+                                       (Math/log 2))) 1))) 1)
+  (-> (- (* 3 (Math/pow 2 (- (Math/floor (/
+                                           (Math/log 17)
+                                           (Math/log 2))) 1))) 1)
+      binary-repr-of-n)
+  (S-n 11)
+  (S-n 23)
+  (S-n 28)
+  (S-n 29)
+  (binary-repr-of-n 28)
+  (binary-repr-of-n 23)
+  (binary-repr-of-n 47)
+  (binary-repr-of-n 95)
+
+  (S-n 28)
+  (binary-repr-of-n 30)
+
+  (/ (Math/log 46) (Math/log 2)))
+
 (defn next-power-of-two
   [n]
   (if (zero? n)
@@ -89,6 +119,9 @@
 (defn belt-ranges [n]
   ;; NOTE: the values are in fact irrelevant - it's really just the lengths of these lists that matter.
   (reduce append-to-belt-range [[]] (rest (bits-of-n (inc n)))))
+
+(defn belt-ranges-lengths [n]
+  (map count (belt-ranges n)))
 
 ;; compare S-n-1 & S-n: see at what position difference results
 ;; compare belt-ranges n-1 & belt-ranges n: see at what position difference results
