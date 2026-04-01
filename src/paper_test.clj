@@ -1,4 +1,4 @@
-(ns paper-tests
+(ns paper-test
   (:require
    [clojure.test :refer [deftest testing is]]
    [primitives.core :refer [S-n]]
@@ -65,4 +65,4 @@
 
 (comment
   (map S-n (range 1 (inc 10)))
-  (clojure.test/run-tests 'paper-tests))
+  (clojure.test/run-tests 'paper-test))
