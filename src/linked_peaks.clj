@@ -18,7 +18,7 @@
 
 (println "start:" (new java.util.Date))
 
-(defonce run-tests (atom false))
+(defonce run-tests (atom true))
 (defn toggle-tests [] (swap! run-tests #(not %)))
 
 (def profile? (atom false))
@@ -293,7 +293,6 @@
    ;; NOTE: the following two lines are equivalent, only cater for presence of singleton-ranges
    (nil? (:hash M))
    (= #{} (:hash M))))
-
 
 ;; (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
 (get @node-map (:left (get @node-map @lastP)))
@@ -585,33 +584,8 @@
              (:co-path membership-proof))
      root-belt-node))
 
-;; verify that membership proof for all leafs are correct
-#_{:clj-kondo/ignore [:missing-else-branch]}
-(if @run-tests
-  (let [state (state/current-atom-states)]
-    (empty?
-     (filter
-      #(not (verify-membership
-             (membership-proof-leaf % state)
-             (:root-belt-node state)))
-      (range 1 101)))))
 
-;; verify that membership proof for incorrect state root fails
-#_{:clj-kondo/ignore [:missing-else-branch]}
-(if @run-tests
-  (let [state (state/current-atom-states)]
-    (not
-     (verify-membership
-      (membership-proof-leaf 59 state)
-      (clojure.set/union (:root-belt-node state) #{100})))))
 
-#_{:clj-kondo/ignore [:missing-else-branch]}
-(if @run-tests
-  ((fn [leaf-number]
-     (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)]
-       [(reduce (fn [acc v] (+ acc (count v))) 0 co-path)
-        (count (into #{} (apply concat co-path)))]))
-   65))
 
 (defn edges-to-root
   ([ephemeral-node]
@@ -913,6 +887,35 @@
   ;; (println "-----------------")
   ;; (clojure.pprint/pprint @node-map)
   (state/current-atom-states))
+
+;; verify that membership proof for all leafs are correct
+#_{:clj-kondo/ignore [:missing-else-branch]}
+(if @run-tests
+  (let [state (play-algo 100 true)]
+    (empty?
+     (filter
+      #(not (verify-membership
+             (membership-proof-leaf % state)
+             (:root-belt-node state)))
+      (range 1 101)))))
+
+;; verify that membership proof for incorrect state root fails
+#_{:clj-kondo/ignore [:missing-else-branch]}
+(if @run-tests
+  (let [state (play-algo 100 true)]
+    (not
+     (verify-membership
+      (membership-proof-leaf 59 state)
+      (clojure.set/union (:root-belt-node state) #{100})))))
+
+#_{:clj-kondo/ignore [:missing-else-branch]}
+(if @run-tests
+  (let [state (play-algo 100 true)]
+    ((fn [leaf-number]
+       (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)]
+         [(reduce (fn [acc v] (+ acc (count v))) 0 co-path)
+          (count (into #{} (apply concat co-path)))]))
+     65)))
 
 (defn play-algo-retain-sequence
   "play algorithm up to `n`, retaining sequence of intermediate states"
