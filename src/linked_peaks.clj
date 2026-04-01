@@ -1746,6 +1746,10 @@
                    "yellow")}
        (if (and (parent node) (or belting? (not (contains? #{:belt :range} (:type (get-parent node)))))) [(id (parent node)) (id node)] [(id node) (id node)])])))
 
+(comment (get-node #{17 18 19 20 21 22 23} :internal)
+
+         (keys @(get storage-maps :internal)))
+
 (defn co-path-ids [node]
   (letfn [(id [node]
             (str (:hash node) (:type node)))]
@@ -1753,7 +1757,7 @@
                     (map (fn [hash] {:hash hash :type (lowest-type-rank hash)})
                          (co-path-ephemeral (get-sibling (get-node (last (co-path-internal node [] (count @node-array) true)) :internal)) []))))))
 
-(defn- nodes-edges [belting? hide-helper-nodes?]
+(defn nodes-edges [belting? hide-helper-nodes?]
   (apply mapv vector
          (map #(node-plus-edge % belting? hide-helper-nodes?)
               ;; (filter #(not= #{} (:hash %))

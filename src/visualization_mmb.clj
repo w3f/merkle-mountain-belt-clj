@@ -119,7 +119,7 @@
    (map primitives.storage/node-name (primitives.storage/parent-less-nodes)))))
 
 (->
- (construct-graph 9 1 false)
+ (construct-graph 9 1 true)
  tangle-dot
  (tangle/dot->image "png")
  javax.imageio.ImageIO/read
@@ -132,9 +132,9 @@
    (tangle/dot->svg)
    (spit (str "visualizations/ephemeral-nodes-" n ".svg"))))
 
-(let [n 17]
+(let [n 26]
   (->
-   (linked-peaks/graph n nil false true true true)
+   (linked-peaks/graph n 24 false true true true)
    tangle-dot
    (tangle/dot->image "png")
    javax.imageio.ImageIO/read
@@ -143,12 +143,23 @@
 (let [belting? true
       hide-helper-nodes? true
       fixed-pos? true
+      leaf-to-prove 24
+      n 26]
+  (->
+   (linked-peaks/graph n leaf-to-prove false true true true)
+   (tangle-direct-dot (str "mmb/" (if belting? "double-bagged/" "unbagged/") (if hide-helper-nodes? "" "verbose-") (if belting? "" "u-") "mmb-n-" n "-membership-proof-" leaf-to-prove))))
+
+(let [belting? false
+      hide-helper-nodes? true
+      fixed-pos? true
       leaf-to-prove nil]
   (map (fn [n] (->
                 (linked-peaks/graph n leaf-to-prove false belting? hide-helper-nodes? fixed-pos?)
                ;; TODO: hide dot files
                 (tangle-direct-dot (str "mmb/" (if belting? "double-bagged/" "unbagged/") (if hide-helper-nodes? "" "verbose-") (if belting? "" "u-") "mmb-n-" n))))
        (range 1 64)))
+
+(linked-peaks/graph 1 3 false false true true)
 
 (linked-peaks/toggle-debugging)
 (linked-peaks/set-debugging-flags [:range-phantom])
@@ -209,6 +220,7 @@
           :node->id (fn [n] (:id n))
           :node->descriptor (fn [n] (when (map? n) n))}]))
 
+;; FIXME
 ;; this is completely broken
 (do
   (storage/run (inc 100))

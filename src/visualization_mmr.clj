@@ -106,7 +106,7 @@
     ))
 
 (->
- (graph 11 nil false false)
+ (graph 15 14 true false)
  truncate-#set-display
  (#(apply tangle/graph->dot %))
  (tangle/dot->image "png")
@@ -121,3 +121,50 @@
                    truncate-#set-display
                    (tangle-direct-save (str (if l2r? "f-" (if unbagged? "u-" "")) "mmr-n-" n))))
        (range 1 100)))
+
+(let [l2r? false
+      unbagged? false]
+  (map (fn [n] (-> n
+                   (graph nil l2r? unbagged?)
+                   truncate-#set-display
+                   ;; TODO: hide dot files
+                   (tangle-direct-dot (str "mmr/" (if l2r? "forward/f-" (if unbagged? "unbagged/u-" "backward/")) "mmr-n-" n))))
+       (range 1 100)))
+
+(let [l2r? false
+      unbagged? true
+      n 15]
+  (-> n
+      (graph n l2r? unbagged?)
+      truncate-#set-display
+      ;; TODO: hide dot files
+      (tangle-direct-dot (str "mmr/" (if l2r? "forward/f-" (if unbagged? "unbagged/u-" "backward/")) "mmr-n-" n "-membership-proof-" n)))
+  )
+
+
+(->
+ (graph 15 15 false false)
+ truncate-#set-display
+ (#(apply tangle/graph->dot %))
+ )
+
+(let [l2r? false
+      unbagged? true
+      leaf-to-prove 12]
+  (map (fn [n] (-> n
+                   (graph leaf-to-prove l2r? unbagged?)
+                   truncate-#set-display
+                   ;; TODO: hide dot files
+                   (tangle-direct-dot (str "mmr/" (if l2r? "forward/f-" (if unbagged? "unbagged/u-" "backward/")) "mmr-n-" n "-membership-proof-" leaf-to-prove))))
+       (range leaf-to-prove 16)))
+
+(let [l2r? true
+      unbagged? false
+      leaf-to-prove 6
+      ]
+  (map (fn [n] (-> n
+                   (graph leaf-to-prove l2r? unbagged?)
+                   truncate-#set-display
+                   ;; TODO: hide dot files
+                   (tangle-direct-dot (str "mmr/" (if l2r? "forward/f-" (if unbagged? "unbagged/u-" "backward/")) "mmr-n-" n "-membership-proof-" n))))
+       (range 15 100)))
