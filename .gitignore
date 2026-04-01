@@ -8,3 +8,6 @@
 .clj-kondo
 .lsp
 src/cached-large.edn
+target/
+.direnv/
+.envrc
