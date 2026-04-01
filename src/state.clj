@@ -22,6 +22,8 @@
 
 (def pointers (atom #{}))
 
+(def hash-count (atom 0))
+
 ;; TODO: maybe create new ns for the storage atoms
 (defn reset-atoms-from-cached! [cached]
   (reset! node-map (:node-map cached))
@@ -31,7 +33,8 @@
   (reset! lastP (:lastP cached))
   (reset! belt-nodes (:belt-nodes cached))
   (reset! root-belt-node (:root-belt-node cached))
-  (reset! range-nodes (:range-nodes cached)))
+  (reset! range-nodes (:range-nodes cached))
+  (reset! hash-count (or (:hash-count cached) 0)))
 
 (defn current-atom-states []
   {:node-map @node-map
@@ -41,7 +44,8 @@
    :lastP @lastP
    :belt-nodes @belt-nodes
    :root-belt-node @root-belt-node
-   :range-nodes @range-nodes})
+   :range-nodes @range-nodes
+   :hash-count @hash-count})
 
 ;; TODO: maybe add the index to the nodes when creating them
 (defn name-lookup [name]
