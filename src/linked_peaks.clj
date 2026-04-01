@@ -463,6 +463,13 @@
 (let [n 60]
   (primitives.storage/children (primitives.storage/parent-index (+ (* 2 n) 4))))
 
+;; filter a vector of indices to only include those that are elements of a set
+;; (defn descendants [index indices]
+;;   (let [parent-index (primitives.storage/parent-index index)]
+;;     (if (contains? indices parent-index)
+;;       (cons parent-index (descendants parent-index indices))
+;;       [])))
+
 ;; check if a sorted vector contains a given element
 (defn contains-sorted? [v e]
   (if (empty? v) false
@@ -474,6 +481,15 @@
             (if (< (nth v mid) e)
               (contains-sorted? (drop (inc mid) v) e)
               (contains-sorted? (take mid v) e)))))))
+
+(comment (primitives.storage/descendants (state/name-lookup #{1 2 3 4 5 6 7 8})))
+
+(comment
+  (defn batch-proof-indices [parent indices]
+    identity)
+
+  (letfn [(batch-proof-indices [parent indices]
+            (let [children (primitives.storage/children parent)]))]))
 
 (defn co-path-internal-indices-multi
   "returns the indices of co-path items"
@@ -497,9 +513,23 @@
     ;; #dbg
     ))
 
+(comment
+  (co-path-internal-indices-multi (primitives.storage/parent-index (primitives.storage/leaf-location 1)) [] (state/name-lookup #{1 2 3 4 5 6 7 8}) [(primitives.storage/leaf-location 3) (primitives.storage/leaf-location 4)])
+  (primitives.storage/parent-index (primitives.storage/leaf-location 4))
+  (primitives.storage/leaf-location 3))
 
+;; (play-algo 40 false)
 
 (comment (do (play-algo 1000 false) nil))
+
+;; calculate average of list
+(defn avg [l]
+  (float (/ (reduce + l) (count l))))
+(comment (apply max (map #(count (co-path-internal (primitives.storage/leaf-location %) [] nil true)) (range (- @leaf-count (* 6 24)) @leaf-count))))
+(comment (def averages (repeatedly 10 (fn [] (doall (algo false)
+                                                    (map #(count (co-path-internal (primitives.storage/leaf-location %) [] nil true)) (range (- @leaf-count (* 6 24)) @leaf-count)))))))
+
+;; (identity averages)
 
 ;; TODO: test
 (defn co-path-two
@@ -539,6 +569,8 @@
   (state/reset-atoms-from-cached! state)
   {:node (nth @node-array index) :co-path (co-path-internal index [] (count @node-array) true)})
 
+(comment (co-path-internal (state/name-lookup #{1 2 3 4}) [] @state/root-belt-node false))
+
 (defn membership-proof-leaf [leaf state]
   (let [leaf-index (primitives.storage/leaf-location leaf)]
     (membership-proof-node leaf-index state)))
@@ -551,6 +583,21 @@
   [ancestry-proof]
   (filter (fn [co-path-element] (< (apply max co-path-element) (apply min (into [] (:node ancestry-proof)))))
           (:co-path ancestry-proof)))
+
+;; match child to parent from candidates
+;; most efficient?
+;; 1. get range of indices that parent candidate fathers
+;; 2. match past peaks to ranges
+;; (let [
+;;       ;; child #{8}
+;;       ;; parent-candidates '(#{1 2 3 4} #{5 6 7 8})
+;;       ]
+;;   ())
+
+(comment
+  (letfn [(hash-membership-proof
+            ([left right] (str "hash(" (if (vector? left) (apply hash-membership-proof left) left) ", " (if (vector? right) (apply hash-membership-proof right) right) ")")))]
+    (hash-membership-proof [[0 1] [2 3]] [4 [5 6]])))
 
 (defn ancestry-proof [past-leaf-count]
   (let [proof-n-plus-one (membership-proof-leaf (inc past-leaf-count) (state/current-atom-states))
@@ -566,6 +613,18 @@
          (state/indices-to-names (primitives.storage/descendants-with-terminals (state/name-lookup #{1 2 3 4 5 6 7 8}) [(state/name-lookup #{7 8})]))
 
          (state/indices-to-names (primitives.storage/descendants-with-terminals (state/name-lookup #{1 2 3 4 5 6 7 8}) [(state/name-lookup #{7 8})])))
+;; (let [past-leaf-count 7
+;;       ancestry-proof (ancestry-proof past-leaf-count)]
+;;   (filter (fn [co-path-element] (< (apply max co-path-element) (apply min (into [] (:node ancestry-proof))))) (:co-path ancestry-proof)))
+
+(comment
+  (play-algo 11 false)
+  (play-algo 7 false)
+  (identity @state/parent-less-nodes)
+  (ancestry-proof 10)
+  (left-co-path-items (ancestry-proof 7)))
+(comment (state/indices-to-names (:peak-proofs (ancestry-proof 10))))
+
 (comment
   (do (play-algo 30 false) (membership-proof-node (state/name-lookup #{7}) (state/current-atom-states)))
   {:node #{7}, :co-path (#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})})
@@ -584,8 +643,50 @@
              (:co-path membership-proof))
      root-belt-node))
 
+(comment (ancestry-proof 7))
 
+(defn process-batch-proof [proof]
+  (walk/postwalk
+   (fn [i] (if (vector? i) (let [concatenated (apply concat i)
+                                 merged (apply sorted-set concatenated)]
+                             (if (= (count concatenated) (count merged))
+                               merged
+                               (throw (Exception. "collision in mergable leaves"))))  i))
+   (walk/postwalk
+    #(if (int? %) (nth @state/node-array %) %)
+    proof)))
 
+(comment (process-batch-proof (primitives.storage/descendants-with-terminals 20 [18])))
+
+(defn verify-ancestry-proof [ancestry-proof]
+  {:n+1-valid?
+
+   ;; verify n+1 proof
+   (verify-membership (:proof-n-plus-one ancestry-proof) @state/root-belt-node)
+
+   ;; verify that left co path items are all in the proof for n+1 (or extract left co path items from n+1 proof)
+   ;; TODO
+   :peak-proofs-valid (map (fn [item proof] (= item (process-batch-proof proof))) (:left-co-path-items ancestry-proof) (:peak-proofs ancestry-proof))
+
+   ;; calculate prior mmb root
+   ;; TODO
+   })
+
+(comment (letfn [(verify-ancestry-proof [ancestry-proof]
+                   (list
+
+                    ;; verify n+1 proof
+                    (verify-membership (:proof-n-plus-one ancestry-proof) @state/root-belt-node)
+
+                    ;; verify that left co path items are all in the proof for n+1 (or extract left co path items from n+1 proof)
+                    ;; TODO
+
+                    ;; verify batch proofs
+                    (map (fn [item proof] (= item (process-batch-proof proof))) (:left-co-path-items ancestry-proof) (:peak-proofs ancestry-proof))))]
+           ;; (play-algo 20 false)
+           (let [ancestry-proof (ancestry-proof 7)]
+             ;; (play-algo 19 false)
+             (verify-ancestry-proof ancestry-proof))))
 
 (defn edges-to-root
   ([ephemeral-node]
@@ -601,6 +702,7 @@
 (comment
   (get-parent (get @belt-nodes @root-belt-node)))
 
+;; TODO: check whether the algo here is sufficient for paper definition
 (defn peak-merge [oneshot-bagging?]
   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:peak-merge]))}
   ;; TODO: consider moving all conditionals into the execution logic of `algo`
@@ -639,6 +741,7 @@
             (swap! Q #(assoc % :parent (:parent parent)))
             #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
             ;;;; RangeNodes.dissoc(P_mrg.parent)
+            ;;;; NOTE: unclear to me why
              (swap! range-nodes #(dissoc % (:hash parent))))
           ;; else
           ;; DONE (should remove): (throw (Exception. (str "parents don't match @ leaf count " @leaf-count)))
@@ -649,6 +752,8 @@
           ;; TODO: first condition superfluous given second
           ;; TODO: jump up chain of parents. once parent is belt node, also jump to child, then to its right sibling, then to its parent (range node in other range), and update its left pointer (doesn't change hash since still in distinct ranges)
           ;; #dbg
+          ;;;; else
+          ;;;; if
           (if (and (every? #(contains? @range-nodes %) [(:parent Q-old) (:parent L)])
                    (= (:parent Q-old) (:parent (get-parent L :range)))
                    (= (:parent L) (:left (get-parent Q-old :range))))
@@ -830,6 +935,14 @@
        (if upgrade?)))
     nil))
 
+;; (play-algo 5 false)
+
+;; mapping to paper:
+;; Counter n: @leaf-count
+;; peak object P_head: lastP
+;; peak object P_new: P
+;; Pairs: mergeable-stack
+;;
 (defn algo [oneshot-bagging?]
   (let [;; let h be the hash of the new item
         h #{(inc @leaf-count)}
@@ -841,6 +954,7 @@
     (swap! node-map #(assoc % h P))
     ;; (swap! node-map #(assoc % pointer P))
     ;; A[R*n+1]<-h
+    ;; (add-internal h (inc (* 2 @leaf-count)))
     (add-internal h (inc (* 2 (inc @leaf-count))))
 
     ;; 2. Check mergeable
@@ -888,6 +1002,11 @@
   ;; (clojure.pprint/pprint @node-map)
   (state/current-atom-states))
 
+(comment
+  (let [state (play-algo 10 false)
+        lastP (get state :lastP)]
+    (get (:node-map state) lastP)))
+
 ;; verify that membership proof for all leafs are correct
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
@@ -926,7 +1045,7 @@
 ;; verify that play-algo & play-algo-retain-sequence match
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if run-tests
-  (let [n 50
+  (let [n 100
         retain-sequence-oneshot (play-algo-retain-sequence n true)
         retain-sequence-no-oneshot (play-algo-retain-sequence n false)]
     (every? #(and
@@ -1010,16 +1129,10 @@
      ;; verify right child
      (parent-child-mutual-acknowledgement node (get-child node :right)))))
 
-(play-algo 1337 false)
-(let [node (get @state/range-nodes #{1337})
-      ;; node (get @state/range-nodes #{})
-      ;; node (get @state/range-nodes (into #{} (range 0 1024)))
-      ]
-  ;; (verify-all-ancestry (get @state/range-nodes #{1336}))
-  ;; (truncate-#set-display node)
-  ;; (truncate-#set-display (get-child node :left))
-  ;; (truncate-#set-display (get-parent (get-child node :left)))
-  (verify-all-ancestry node))
+(comment
+  (play-algo 1337 false)
+  (let [node (get @state/range-nodes #{1337})]
+    (verify-all-ancestry node)))
 ;; => true for leaf #{1336} @ (= leaf-count 1337)
 ;; => true for leaf #{0..1023} @ (= leaf-count 1337)
 ;; => false for leaf #{} @ (and (= leaf-count 1337) oneshot-bagging?)
@@ -1078,7 +1191,7 @@
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
-  (let [n 1]
+  (let [n 500]
     (reset-all)
     (empty? (filter false?
                     (doall (repeatedly n #(do (algo true) (verify-parenting))))))))
@@ -1536,6 +1649,27 @@
                            (nth (sort (group-by count (keys @node-map))) n)))))
           (range (count (primitives.core/S-n @leaf-count)))))
 
+(comment
+  (sort (group-by count (keys @node-map)))
+  (nth (sort (group-by count (keys @node-map))) 0))
+
+(if @run-tests
+  (map (fn [n]
+         (eval `(and ~@((juxt
+                         ;; number of leaves with this height
+                         ;; (comp count second)
+                         ;; does every leaf "hash" start with a 2^height
+                         (comp (fn [list-first-indices] (every? #(= 0.0 %) (map #(mod % (Math/pow 2 n)) list-first-indices))) sort #(map first %) second)
+                         ;; is every leaf "hash" a range from the first index until first index + 2^height?
+                         (comp (fn [child-list] (every? #(= % (into #{} (range (first %) (+ (first %) (Math/pow 2 n))))) child-list)) second)
+                         ;; identity
+                         )
+                        ;; group and sort the peaks by hashset length (i.e. peaks in retrograde)
+                        (nth (sort (group-by count (keys @node-map))) n)))))
+       (range 1 (count (primitives.core/S-n @leaf-count)))
+       ;; [1 1 1 0]
+       ))
+
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests (do
                  (def algo-new-mismatch (play-algo (inc (last-algo-match 1000)) true))
@@ -1809,6 +1943,11 @@
 ;; Ran 1 tests containing 16 assertions.
 ;; 0 failures, 0 errors.
 
+(comment
+  (play-algo 20 true)
+  (co-path-internal (state/name-lookup #{9}) [] (state/name-lookup #{1 2 3 4 5 6 7 8 9 10 11 12 13}) false)
+
+  (identity @state/root-belt-node))
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (do (clojure.test/deftest test-co-path

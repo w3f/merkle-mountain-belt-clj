@@ -78,6 +78,7 @@
     (Integer/numberOfTrailingZeros n)))
 
 (comment
+  (two-adic-order 0)
   (map #(p-adic-order 2 %) (range 1 100)))
 
 (defn left-child [parent]
@@ -89,6 +90,52 @@
 (defn children [parent]
   ((juxt left-child right-child) parent))
 
+(comment (children 6))
+
+;; (defn descendants [parent]
+;;   (let [children (children parent)]
+;;     {:index parent
+;;      :children (if (every? #(and (pos? %) (not= parent %)) children) (map descendants children) '())}))
+
+(defn descendants [parent]
+  (if (even? parent)
+    (let [children (children parent)]
+      (if (every? #(and (pos? %) (not= parent %)) children) (into [] (map descendants children)) parent))
+    parent))
+
+(defn descendants-with-terminals [parent terminals]
+  (if (and (even? parent) (not (contains? terminals parent)))
+    (let [parent ((juxt identity state/name-lookup) parent)
+          children ((juxt identity state/name-lookup) (children parent))]
+      (if (every? #(and (pos? %) (not= (first parent) (first %))) children) (into [] (map #(descendants-with-terminals (first %) terminals) children)) parent))
+    parent))
+
+(comment (defn indices-to-names [structure]
+           (cojure.walk/postwalk
+            #(if (int? %) (nth @state/node-array %) %)
+            structure))
+
+         (clojure.walk/postwalk
+          ;; merge two sets #{1 2 3} #{2 3 4} => #{1 2 3 4}
+          (fn ([a b] (into #{} (concat a b)))
+            ([a] a))
+          (clojure.walk/postwalk
+           #(if (int? %) (nth @state/node-array %) %)
+           (descendants-with-terminals 20 #{18})))
+
+         (clojure.walk/postwalk
+          ;; merge two sets #{1 2 3} #{2 3 4} => #{1 2 3 4}
+          (fn [i] (if (vector? i) (apply concat (map #(nth @state/node-array %) i)) i))
+          (descendants-with-terminals 20 #{18}))
+
+         (nth @state/node-array 20)
+         (descendants 20)
+         (descendants-with-terminals 20 #{18})
+         (state/indices-to-names [20 (descendants-with-terminals 20 #{})]))
+
+(comment (flatten (descendants 124))
+         (left-child 115))
+
 (defn childedness [node]
   (get {3 :left
         1 :right} (int (mod (/ node (Math/pow 2 (two-adic-order node))) 4))))
@@ -99,6 +146,12 @@
           (int (Math/pow 2
                          (+ (primitives.storage/two-adic-order child-index) 2))))))
 
+(comment
+  (Math/pow 2 (- (two-adic-order 4) 1))
+  (children (parent-index 1))
+  (descendants 4)
+  (map #(parent-index (leaf-location %)) (range 1 (inc 256))))
+
 ;; O(log2(n)) (barring sort) algo for lowest-common-ancestor of a collection of `leaves`
 (defn lowest-common-ancestor-leaves [leaves]
   ;; TODO: remove sort: assume presorted
@@ -107,6 +160,34 @@
   (let [highest-leaf (apply max leaves)
         lowest-leaf (apply min leaves)]
     (nth (iterate parent-index (leaf-location lowest-leaf)) (primitives.core/next-power-of-two (bit-xor (dec lowest-leaf) (dec highest-leaf))))))
+
+(comment
+  (Integer/toBinaryString (bit-xor 2r111 2r10))
+  (dec (primitives.core/next-power-of-two (bit-xor 2r111 2r10)))
+  (reduce (fn [acc n] (conj acc (+ (last acc) (int (Math/pow 2 n))))) [0] (primitives.core/S-n 30))
+  (primitives.core/next-power-of-two 30))
+
+;; (defn segregate-by-peak [leaves leaf-count]
+;;   (let [peak-positions (primitives.core/peak-positions-final leaf-count)]
+;;     (reduce (fn [acc leaf]
+;;               (let [peak (first (filter #(= leaf (nth @storage-array %)) peak-positions))]
+;;                 (assoc acc peak (conj (get acc peak []) leaf))))
+;;             {}
+;;             leaves)))
+
+;; (defn lowest-common-ancestor [leaf-a-index])
+
+;; (children (parent-index 3))
+
+;; (defn name-lookup)
+
+;; (defn padded-index-only-debugging
+;;   "convert the unpadded index (i.e. the most compact form) to the actual one. For instance, the unpadded node array would be `[#{1} #{2} #{1 2}]`, but it's actually stored as `[0 0 0 #{1} 0 #{2} #{1 2}]`"
+;;   [unpadded-index]
+;;   (nth (filter #(not= 0 %) @state/node-array) unpadded-index)
+;;   )
+
+;; (padded-index-only-debugging 1)
 
 ;; defined using `peak-positions-final`
 (defn parent-less-nodes-internal
@@ -142,6 +223,11 @@
   ([n]
    (into #{} (parent-less-nodes-internal n))))
 
+(comment
+  (let [n 10]
+    [(primitives.core/S-n 10)
+     (parent-less-nodes 10)]))
+
 ;; hacky calculation of parent: if number, take position in (max (position-parent-less-nodes))
 (defn position-parentless-nodes [node]
   (first (filter #(= node (nth (into [] (parent-less-nodes)) %)) (range (count (parent-less-nodes))))))
@@ -153,6 +239,11 @@
     (count (take-while #(not= (nth child-iterator %)
                               (nth child-iterator (inc %)))
                        (range 3000)))))
+
+(comment
+  ;; get depth of last leaf
+  (apply min (map #(node-height-literal (nth (parent-less-nodes-internal %) (- (count (parent-less-nodes-internal %)) 9))) (range 1000 1500)))
+  (map #(node-height-literal (last (parent-less-nodes-internal %))) (range 1 10)))
 
 (defn parent-less-nodes-sorted-height
   "sorts nodes by height (inverse), with tie-breaker being the node index"
