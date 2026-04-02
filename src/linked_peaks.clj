@@ -123,6 +123,18 @@
                         (reduce
                          conj coll items)) (concat (repeat zero-leaves 0) (list item)))))
 
+(defn counted-union
+  "clojure.set/union with hash-count side-effect."
+  [& sets]
+  (swap! state/hash-count inc)
+  (apply clojure.set/union sets))
+
+(defn counted-merge-hash
+  "Merge hash for two peak hashes (sorted-set of concat), counted."
+  [a b]
+  (swap! state/hash-count inc)
+  (apply sorted-set (concat a b)))
+
 (defn reset-all []
   ;; NOTE: need to already set parent for phantom node, range, and belt
   (reset! node-map {#{} (assoc (peak-node nil nil ##Inf #{}) :parent #{})})
@@ -132,7 +144,8 @@
   (reset! lastP #{})
   (reset! belt-nodes {#{} (belt-node nil #{} #{} #{1})})
   (reset! root-belt-node #{})
-  (reset! range-nodes {#{} (range-node nil #{} #{} #{})}))
+  (reset! range-nodes {#{} (range-node nil #{} #{} #{})})
+  (reset! state/hash-count 0))
 
 (defn hop-left [node & target-map]
   (:left (get (or (first target-map) @node-map) node)))
@@ -228,8 +241,8 @@
                                                                        ;; (= nil (clojure.set/union nil #{}))
                                                                        ;; but
                                                                        ;; (= #{} (clojure.set/union #{} nil))
-                                                                       (clojure.set/union (:hash right-child) #_{:clj-kondo/ignore [:missing-else-branch]}
-                                                                                          (if-not (and singleton-ranges? left-most) (:hash left-child)))
+                                                                       (counted-union (:hash right-child) #_{:clj-kondo/ignore [:missing-else-branch]}
+                                                                                       (if-not (and singleton-ranges? left-most) (:hash left-child)))
                                                                        ;; (clojure.set/union (if-not (and singleton-ranges? left-most) (:hash left-child)) (:hash right-child))
                                                                        nil)]
                                                     (doall (map
@@ -241,7 +254,7 @@
                                                 ;; for every iteration, include the last node from the prior range, to make a linked list of all range nodes.
                                                 (update (into [] (if singleton-ranges?
                                                                    (let [[dropped remainder] (split-at (inc belt-range-count) @sorted-peaks)
-                                                                         new-leader (apply clojure.set/union (map :hash (rest dropped)))]
+                                                                         new-leader (apply counted-union (map :hash (rest dropped)))]
                                                                      ;; NOTE: since sorted-peaks is never read again after last step, the (if (empty? remainder) ..) check is in fact superfluous, but putting it in nonetheless, in case this features as a bug later
                                                                      (reset! sorted-peaks (if (empty? remainder) remainder (cons {:hash new-leader} remainder)))
                                                                      (if (< 1 (count dropped))
@@ -258,7 +271,7 @@
             root-bn (doall
                      (reduce (fn [left-child right-child]
                                (let [bn (belt-node (:hash left-child) (:hash right-child)
-                                                   (clojure.set/union (or (:hash left-child) #{}) (:hash right-child)) nil)]
+                                                   (counted-union (or (:hash left-child) #{}) (:hash right-child)) nil)]
                                  (doall (map
                                          (partial update-parent bn)
                                          [left-child right-child]))
@@ -372,7 +385,7 @@
    (if (distinct-ranges? (get @node-map @lastP) P)
      (do
        ;; create new root belt node with new leaf's parent range node as right child and former root node as left child
-       (let [new-belt-root (clojure.set/union h @root-belt-node)]
+       (let [new-belt-root (counted-union h @root-belt-node)]
          (swap! belt-nodes #(assoc % new-belt-root (belt-node @root-belt-node h new-belt-root nil)))
          ;; TODO: skipping #{} because don't have phantom #{} belt node yet -> fix once added
          #_{:clj-kondo/ignore [:missing-else-branch]}
@@ -388,14 +401,14 @@
        (if (>= @leaf-count 8)
          (let [last-range-node-hash (:parent (get @node-map @lastP))
                last-belt-node-hash (:parent (get @range-nodes last-range-node-hash))
-               new-belt-hash (clojure.set/union (or last-belt-node-hash last-range-node-hash) h)]
+               new-belt-hash (counted-union (or last-belt-node-hash last-range-node-hash) h)]
            (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
      ;; else new leaf joins last range, i.e. get new range node above new leaf
      ;; TODO: update parent belt node hash, likewise for its left sibling
      (let [last-range (get-parent (get @node-map @lastP) :range)
            old-belt-parent (get @belt-nodes (:parent last-range))
-           hash-new-range (clojure.set/union (:hash last-range) h)
-           new-belt-parent (clojure.set/union hash-new-range (:left old-belt-parent))
+           hash-new-range (counted-union (:hash last-range) h)
+           new-belt-parent (counted-union hash-new-range (:left old-belt-parent))
            new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)]
        ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
         (swap! range-nodes #(assoc % (:hash new-range) new-range))
@@ -719,7 +732,7 @@
       ;;;; Update P_mrg.height++
       (swap! Q #(update % :height inc))
       ;;;; Update P_mrg.hash ← H(P_mrg.prev.hash||P_mrg.hash)
-      (swap! Q #(assoc % :hash (apply sorted-set (concat (:hash L) (:hash Q-old)))))
+      (swap! Q #(assoc % :hash (counted-merge-hash (:hash L) (:hash Q-old))))
       ;;;; Update P_mrg.prev ← P_mrg.prev.prev
       (swap! Q #(assoc % :left (:left L)))
 
@@ -767,10 +780,10 @@
                   ;; DONE: update the nodes referred to to be left: left, right: newly merged peak
                   ;; TODO: should kill old parent range node that's no longer applicable
                   distinct-ranges (distinct-ranges? (get @node-map (:left @Q)) @Q)
-                  rn (clojure.set/union #_{:clj-kondo/ignore [:missing-else-branch]}
+                  rn (counted-union #_{:clj-kondo/ignore [:missing-else-branch]}
                       (if (not distinct-ranges)
                         (:left parent-L))
-                                        (:hash @Q))
+                                     (:hash @Q))
                   ;; DONE (fixed above): the following currently only *preserves* range splits - should check whether the two range nodes should now be in the same range
                   ;; rn (clojure.set/union (if (not= (:hash parent-L) (:right parent-L)) (:left parent-L)) (:hash @Q))
                   ;; Q-old is a peak node, so its immediate parent is certainly a range node. The only unknown is the type of the parent's parent
@@ -786,16 +799,16 @@
                   ;; new-parent-hash SHOULD refer to the parent of the range node
                   [new-grandparent-hash child-leg] (if (= :range grandparent-type)
                                                      ;; if parent is range node, this was its left child (since range nodes don't have other range nodes as right children)
-                                                     [(clojure.set/union rn (:right (get-parent (get-parent Q-old :range) :range))) :right]
+                                                     [(counted-union rn (:right (get-parent (get-parent Q-old :range) :range))) :right]
                                                      ;; else, parent is belt - then we must check whether left or right child
                                                      ;; TODO: this check should only be applicable to left-most belt node - all others have a belt node as their left child and a range node as their right
                                                      (if (= :belt grandparent-type)
                                                        (let [left (:left (get-parent (get-parent Q-old :range) :belt))
                                                              right (:right (get-parent (get-parent Q-old :range) :belt))]
                                                          (if (= left (:parent Q-old))
-                                                           [(clojure.set/union rn right) :left]
+                                                           [(counted-union rn right) :left]
                                                            (if (= right (:parent Q-old))
-                                                             [(clojure.set/union left rn) :right])))
+                                                             [(counted-union left rn) :right])))
                                                        ;; if grandparent neither range nor belt, we just leave blank
                                                        [nil nil]))]
               ;; if Q-old's grandparent is a range node, and Q-old's parent is not the left-child of Q-old's grandparent range, then it's the right-child, hence the range node to the right of Q-old's parent is in another range, so need to hop to it via path: Q-old's right's parent, and then update its left reference (without updating hash, since other range)
