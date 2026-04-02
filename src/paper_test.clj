@@ -2,7 +2,7 @@
   (:require
    [clojure.test :refer [deftest testing is]]
    [primitives.core :refer [S-n belt-ranges-lengths]]
-   [primitives.storage :refer [leaf-location storage-maps]]
+   [primitives.storage :refer [leaf-location storage-maps two-adic-order]]
    [primitives.proof :refer [type-rank parent-type-contenders child-type get-parent get-child get-sibling co-path-ephemeral co-path-internal co-path-internal-v0 sibling-index]]
    [linked-peaks :refer [play-algo]]
    [proof-size :refer [range-splits]]))
@@ -82,6 +82,39 @@
            '([15 15] [14] [12 11 10 10] [9 8 7 6] [4 3 3] [1 0])))
     (is (= (range-splits (S-n 91145))
            '([15 15] [14] [12 11 11] [9 8 7 6 5 4 4] [2 2] [0])))))
+
+(defn merge-peak-info
+  "Compares S-(n-1) and S-n. Returns {:merge bool, :position index-or-nil}. Compares from front for code simplicity, even though O(log(n))"
+  [s-prev s-curr]
+  (if (not= (count s-prev) (count s-curr))
+    {:merge false :position nil}
+    (let [idx (->> (map = s-prev s-curr)
+                   (take-while true?)
+                   count)]
+      (assert (= (nth s-curr idx) (inc (nth s-prev idx)))
+              (str "expected merge peak height +1 at idx " idx
+                   ": s-prev=" s-prev " s-curr=" s-curr))
+      {:merge true :position idx})))
+
+(defn merge-peak-in-last-two-ranges?
+  "Checks merge peak sits in rightmost or second-rightmost range of S-n."
+  [n]
+  (let [{:keys [merge position]} (merge-peak-info (S-n (dec n)) (S-n n))]
+    (when merge
+      (let [ranges (range-splits (S-n n))
+            range-idx (->> (map count ranges)
+                           (reductions +)
+                           (take-while #(<= % position))
+                           count)]
+        (>= range-idx (- (count ranges) 2))))))
+
+(deftest lemma-17-test
+  (testing "No merge only at n = 2^k - 1 (peak count grows by 1)"
+    (let [no-merge-ns (filter #(not (:merge (merge-peak-info (S-n (dec %)) (S-n %)))) (range 1 10000))]
+      (is (every? #(= (inc %) (Long/highestOneBit (inc %))) no-merge-ns))))
+  (testing "Lemma 17 (lem:close): merge peak in rightmost or second-rightmost range"
+    (let [merge-ns (filter #(:merge (merge-peak-info (S-n (dec %)) (S-n %))) (range 2 10000))]
+      (is (every? merge-peak-in-last-two-ranges? merge-ns)))))
 
 (comment
   (map S-n (range 1 (inc 10)))
