@@ -17,7 +17,7 @@
 
 (defn range-position-flat [m S-n acc-leaves current-range]
   (let [last-range-max-m (+ acc-leaves (Math/pow 2 (last S-n)))]
-    (if (< m last-range-max-m)
+    (if (<= m last-range-max-m)
       current-range
       (range-position-flat m (butlast S-n) last-range-max-m (inc current-range)))))
 

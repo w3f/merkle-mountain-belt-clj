@@ -5,7 +5,7 @@
    [primitives.storage :refer [leaf-location storage-maps two-adic-order]]
    [primitives.proof :refer [type-rank parent-type-contenders child-type get-parent get-child get-sibling co-path-ephemeral co-path-internal co-path-internal-v0 sibling-index]]
    [linked-peaks :refer [play-algo]]
-   [proof-size :refer [range-splits]]))
+   [proof-size :refer [range-splits proof-size]]))
 
 (comment
   (keys (play-algo 5 true))
@@ -115,6 +115,40 @@
       (is (every? #(= (inc %) (Long/highestOneBit (inc %))) no-merge-ns)))
     (testing "Lemma 17 (lem:close): merge peak in rightmost or second-rightmost range"
       (is (every? merge-peak-in-last-two-ranges? merge-ns)))))
+
+(defn ummb-proof-size
+  "U-MMB proof size = peak height for the k-th most recent leaf at state n."
+  [n k]
+  (let [s (S-n n)
+        flat-pos (proof-size/range-position-flat k s 0 0)]
+    (proof-size/nth-reverse s flat-pos)))
+
+(defn amortized-ummb-lemma
+  "Paper's eqn (Lemma lem:aUMMB) for amortized U-MMB proof size.
+   d = floor(log₂(k+1)), cases split at k+1 = (3/2)·2^d."
+  [k]
+  (let [d (int (Math/floor (/ (Math/log (inc k)) (Math/log 2))))
+        kinc (inc k)]
+    (if (< kinc (* 3/2 (bit-shift-left 1 d)))
+      (+ d (/ (* 3.0 kinc) (bit-shift-left 1 (inc d))) -2)
+      (+ d (/ (double kinc) (bit-shift-left 1 (inc d))) -0.5))))
+
+(defn amortized-empirical
+  "Average proof-size-fn over num-periods full periods starting at n=k."
+  [proof-size-fn k num-periods]
+  (let [d (int (Math/floor (/ (Math/log (inc k)) (Math/log 2))))
+        period (bit-shift-left 1 (inc d))
+        n-samples (* num-periods period)]
+    (/ (double (reduce + (map #(proof-size-fn % k) (range k (+ k n-samples)))))
+       n-samples)))
+
+(deftest lemma-29-amortized-proof-size-test
+  (testing "U-MMB amortized: empirical matches formula exactly over full period (lem:aUMMB)"
+    (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
+      (is (every? #(< (Math/abs (- (amortized-empirical ummb-proof-size % 1)
+                                   (amortized-ummb-lemma %)))
+                      1e-9)
+                  test-ks)))))
 
 (comment
   (map S-n (range 1 (inc 10)))
