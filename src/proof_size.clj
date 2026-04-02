@@ -72,11 +72,12 @@
 (defn spit-lazy-to-file [lazy file append]
   (spit file (with-out-str (doseq [i (doall lazy)] (println i))) :append append))
 
-(spit-lazy-to-file
- (pmap (fn [k] {(inc k) (float (avg (map #(proof-size % k)
-                                        (apply range (let [base (Math/pow 2 24)] [base (+ base (Math/pow 2 20))])))))})
-       (map dec [1 10 50 200 600]))
- "stats/absolute-proof-size.dat" false)
+(comment
+  (spit-lazy-to-file
+   (pmap (fn [k] {(inc k) (float (avg (map #(proof-size % k)
+                                           (apply range (let [base (Math/pow 2 24)] [base (+ base (Math/pow 2 20))])))))})
+         (map dec [1 10 50 200 600]))
+   "stats/absolute-proof-size.dat" false))
 
 ;; loop for checking that proof-size calculation matches implementation
 (comment
@@ -90,34 +91,32 @@
                                                                                              (range 1 151)))]) "append" true)
                                ))))
 
-(every? true? (map (fn [m] (let [n 100
-                                expected-proof-size (proof-size n (- n m))
-                                actual-proof-size (count (proof/co-path-internal (primitives.storage/leaf-location m) [] nil true))]
-                            (= expected-proof-size actual-proof-size)))
-                   (range 1 101)))
+(comment
+  (every? true? (map (fn [m] (let [n 100
+                                   expected-proof-size (proof-size n (- n m))
+                                   actual-proof-size (count (proof/co-path-internal (primitives.storage/leaf-location m) [] nil true))]
+                               (= expected-proof-size actual-proof-size)))
+                     (range 1 101))))
 
 
-(let [blocks-per-minute 10
-      blocks-per-year (* blocks-per-minute 60 24 365)
-      n-range-min (* 2 blocks-per-year)
-      ;; n-range-min (* 2 blocks-per-year)
-      n-range-max (+ n-range-min (* 5 blocks-per-year))
-      n-max (Math/pow 2 11)
-      k 2400
-      step-size 1000000]
-  (spit (str "stats/avg-proof-size-" k ".dat") (with-out-str (doseq [i (doall (pmap (fn [n-min] {:n-min n-min
-                                                                                    :avg-proof-sizes (let [n-max (+ n-min n-max)]
-                                                                                                       (-> (->> (map (fn [n] (map (fn [m] (proof-size n m))
-                                                                                                                                 (range 0 k))) (range n-min n-max))
-                                                                                                                (flatten)
-                                                                                                                (reduce +))
-                                                                                                           (/ (* k (- n-max n-min)))
-                                                                                                           (float)
-                                                                                                           ))
-                                                                                    }
-                                                                          )
-                                                                        (range n-range-min n-range-max step-size)))]
-                                                   (print i "\n"))) :append false))
+(comment
+  (let [blocks-per-minute 10
+        blocks-per-year (* blocks-per-minute 60 24 365)
+        n-range-min (* 2 blocks-per-year)
+        n-range-max (+ n-range-min (* 5 blocks-per-year))
+        n-max (Math/pow 2 11)
+        k 2400
+        step-size 1000000]
+    (spit (str "stats/avg-proof-size-" k ".dat") (with-out-str (doseq [i (doall (pmap (fn [n-min] {:n-min n-min
+                                                                                      :avg-proof-sizes (let [n-max (+ n-min n-max)]
+                                                                                                         (-> (->> (map (fn [n] (map (fn [m] (proof-size n m))
+                                                                                                                                   (range 0 k))) (range n-min n-max))
+                                                                                                                  (flatten)
+                                                                                                                  (reduce +))
+                                                                                                             (/ (* k (- n-max n-min)))
+                                                                                                             (float)))})
+                                                                          (range n-range-min n-range-max step-size)))]
+                                                     (print i "\n"))) :append false)))
 
 (comment
   (spit "avg-proof-size.dat" (str (doall (map inc (doall (range 0 10))))))
