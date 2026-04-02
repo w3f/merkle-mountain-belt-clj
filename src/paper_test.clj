@@ -109,11 +109,11 @@
         (>= range-idx (- (count ranges) 2))))))
 
 (deftest lemma-17-test
-  (testing "No merge only at n = 2^k - 1 (peak count grows by 1)"
-    (let [no-merge-ns (filter #(not (:merge (merge-peak-info (S-n (dec %)) (S-n %)))) (range 1 10000))]
-      (is (every? #(= (inc %) (Long/highestOneBit (inc %))) no-merge-ns))))
-  (testing "Lemma 17 (lem:close): merge peak in rightmost or second-rightmost range"
-    (let [merge-ns (filter #(:merge (merge-peak-info (S-n (dec %)) (S-n %))) (range 1 10000))]
+  (let [{merge-ns true no-merge-ns false}
+        (group-by #(:merge (merge-peak-info (S-n (dec %)) (S-n %))) (range 1 10000))]
+    (testing "No merge only at n = 2^k - 1"
+      (is (every? #(= (inc %) (Long/highestOneBit (inc %))) no-merge-ns)))
+    (testing "Lemma 17 (lem:close): merge peak in rightmost or second-rightmost range"
       (is (every? merge-peak-in-last-two-ranges? merge-ns)))))
 
 (comment
