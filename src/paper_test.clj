@@ -174,15 +174,15 @@
                          @state/hash-count))))
 
 (deftest lemma-17-hash-count-test
-  (testing "Lemma 17 (lem:hash-d): max 5 hashes per append"
-    (is (every? #(<= % 5) (hash-counts-per-append 5000))))
   ;; TODO: lemma proves amortized 4, but implementation averages ~5 due to
   ;; redundant bagging in new-leaf-range before merge (2 extra hashes when
   ;; new leaf participates in merge). Deferred fix: defer bagging to after
   ;; peak-merge.
-  (testing "Lemma 17 (lem:hash-d): amortized value (known overhead, expect ~5 not 4)"
-    (let [counts (hash-counts-per-append 10000)
-          mean (/ (double (reduce + counts)) (count counts))]
+  (let [counts (hash-counts-per-append 10000)
+        mean (/ (double (reduce + counts)) (count counts))]
+    (testing "Lemma 17 (lem:hash-d): max 5 hashes per append"
+      (is (every? #(<= % 5) counts)))
+    (testing "Lemma 17 (lem:hash-d): amortized value (known overhead, expect ~5 not 4)"
       (is (<= mean 5.0)))))
 
 (comment
