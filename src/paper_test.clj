@@ -142,14 +142,29 @@
     (/ (double (reduce + (map #(proof-size-fn % k) (range k (+ k n-samples)))))
        n-samples)))
 
-(deftest lemma-29-amortized-proof-size-test
-  (testing "U-MMB amortized: empirical matches formula exactly over full period (lem:aUMMB)"
-    (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
+(defn amortized-mmb-upper-bound
+  "Paper's upper bound (Lemma lem:a-mmb) for amortized MMB proof size.
+   d = floor(log₂(k+1))."
+  [k]
+  (let [d (int (Math/floor (/ (Math/log (inc k)) (Math/log 2))))
+        kinc (inc k)]
+    (if (< kinc (* 3/2 (bit-shift-left 1 d)))
+      (+ (* 11/8 d) (/ (- (* 4.0 kinc) 5) (bit-shift-left 1 (inc d))) 1/16)
+      (+ (* 11/8 d) (/ (- (* 3.0 kinc) 6) (bit-shift-left 1 (+ d 2))) 2))))
+
+(deftest amortized-proof-size-test
+  (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
+    (testing "Lemma 29 (lem:aUMMB): U-MMB amortized empirical matches formula exactly"
       (is (every? #(< (Math/abs (- (amortized-empirical ummb-proof-size % 1)
                                    (amortized-ummb-lemma %)))
                       1e-9)
+                  test-ks)))
+    (testing "Lemma 39 (lem:a-mmb): MMB amortized empirical <= upper bound"
+      (is (every? #(<= (amortized-empirical proof-size % 1)
+                       (amortized-mmb-upper-bound %))
                   test-ks)))))
 
 (comment
   (map S-n (range 1 (inc 10)))
-  (clojure.test/run-tests 'paper-test))
+  (clojure.test/run-tests 'paper-test)
+  (map (juxt #(amortized-empirical proof-size % 1) #(amortized-mmb-upper-bound %)) [1 2 3 500 1000]))
