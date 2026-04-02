@@ -108,12 +108,12 @@
                            count)]
         (>= range-idx (- (count ranges) 2))))))
 
-(deftest lemma-17-test
+(deftest lemma-16-test
   (let [{merge-ns true no-merge-ns false}
         (group-by #(:merge (merge-peak-info (S-n (dec %)) (S-n %))) (range 1 10000))]
     (testing "No merge only at n = 2^k - 1"
       (is (every? #(= (inc %) (Long/highestOneBit (inc %))) no-merge-ns)))
-    (testing "Lemma 17 (lem:close): merge peak in rightmost or second-rightmost range"
+    (testing "Lemma 16 (lem:close): merge peak in rightmost or second-rightmost range"
       (is (every? merge-peak-in-last-two-ranges? merge-ns)))))
 
 (defn ummb-proof-size
