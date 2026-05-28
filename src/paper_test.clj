@@ -163,7 +163,8 @@
       (+ (* 11/8 d) (/ (- (* 3.0 kinc) 6) (bit-shift-left 1 (+ d 2))) 2))))
 
 (deftest amortized-proof-size-test
-  (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
+  ;; (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
+  (let [test-ks (range 1 1000)]
     (testing "Lemma 28 (lem:aUMMB) consistency: structural avg over period == formula"
       (is (every? #(= (amortized-structural ummb-proof-size % 1) (amortized-ummb-lemma %))
                   test-ks)))
