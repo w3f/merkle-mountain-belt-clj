@@ -5,7 +5,9 @@
    [primitives.storage :refer [leaf-location storage-maps two-adic-order]]
    [primitives.proof :refer [type-rank parent-type-contenders child-type get-parent get-child get-sibling co-path-ephemeral co-path-internal co-path-internal-v0 sibling-index]]
    [linked-peaks :refer [play-algo membership-proof-leaf verify-membership]]
-   [proof-size :refer [range-splits proof-size]]))
+   [proof-size :refer [range-splits proof-size]]
+   [state]
+   [linked-peaks]))
 
 (comment
   (keys (play-algo 5 true))
@@ -162,6 +164,30 @@
       (+ (* 11/8 d) (/ (- (* 4.0 kinc) 5) (bit-shift-left 1 (inc d))) 1/16)
       (+ (* 11/8 d) (/ (- (* 3.0 kinc) 6) (bit-shift-left 1 (+ d 2))) 2))))
 
+(defn empirical-mmb-proof-sizes
+  "For each n in [k, k+window), generate the MMB proof for the k-th most recent
+   leaf (i.e. leaf (n-k+1)) via play-algo + membership-proof-leaf, and return
+   the co-path length. Builds state incrementally."
+  [k window]
+  (linked-peaks/reset-all)
+  (dotimes [_ k] (linked-peaks/algo false))
+  (mapv (fn [i]
+          (let [leaf (inc i)
+                snapshot (state/current-atom-states)
+                proof (membership-proof-leaf leaf snapshot)
+                size (count (:co-path proof))]
+            (linked-peaks/algo false)
+            size))
+        (range window)))
+
+(defn amortized-mmb-empirical
+  "Empirical since it averages actual MMB proof sizes from play-algo over one full period."
+  [k]
+  (let [d (int (Math/floor (/ (Math/log (inc k)) (Math/log 2))))
+        period (bit-shift-left 1 (inc d))
+        sizes (empirical-mmb-proof-sizes k period)]
+    (/ (double (reduce + sizes)) period)))
+
 (deftest amortized-proof-size-test
   ;; (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
   (let [test-ks (range 1 1000)]
@@ -172,8 +198,20 @@
       (is (every? #(<= (amortized-structural-restricted ummb-proof-size %)
                        (amortized-ummb-lemma %))
                   test-ks)))
-    (testing "Lemma 38 (lem:a-mmb): MMB amortized empirical <= upper bound"
+    (testing "Lemma 38 (lem:a-mmb): structural MMB amortized <= upper bound"
       (is (every? #(<= (amortized-structural proof-size % 1)
+                       (amortized-mmb-upper-bound %))
+                  test-ks)))))
+
+(deftest amortized-proof-size-empirical-test
+  ;; smaller k range: empirical via play-algo is much slower than structural
+  (let [test-ks [1 2 5 10 50 100]]
+    (testing "Empirical MMB proof sizes match structural prediction (paper-test/proof-size)"
+      (is (every? #(= (amortized-mmb-empirical %)
+                      (amortized-structural proof-size % 1))
+                  test-ks)))
+    (testing "Lemma 38 (lem:a-mmb): empirical MMB amortized <= upper bound"
+      (is (every? #(<= (amortized-mmb-empirical %)
                        (amortized-mmb-upper-bound %))
                   test-ks)))))
 
