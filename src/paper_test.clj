@@ -4,7 +4,7 @@
    [primitives.core :refer [S-n belt-ranges-lengths]]
    [primitives.storage :refer [leaf-location storage-maps two-adic-order]]
    [primitives.proof :refer [type-rank parent-type-contenders child-type get-parent get-child get-sibling co-path-ephemeral co-path-internal co-path-internal-v0 sibling-index]]
-   [linked-peaks :refer [play-algo]]
+   [linked-peaks :refer [play-algo membership-proof-leaf verify-membership]]
    [proof-size :refer [range-splits proof-size]]))
 
 (comment
@@ -203,6 +203,41 @@
       (is (every? #(<= % 5) counts)))
     (testing "Lemma 17 (lem:hash-d): amortized value (known overhead, expect ~5 not 4)"
       (is (<= mean 5.0)))))
+
+(defn k-from-leaf
+  "Convert leaf index (1-indexed, 1=oldest) to k (1=newest) at state n."
+  [n leaf]
+  (inc (- n leaf)))
+
+(deftest membership-proofs-test
+  (let [n 100
+        state (play-algo n true)
+        root (:root-belt-node state)
+        proofs (mapv #(membership-proof-leaf % state) (range 1 (inc n)))]
+    (testing "Every membership proof verifies against root (n=100)"
+      (is (every? #(verify-membership % root) proofs)))
+    (testing "Proof co-path length matches proof-size formula (n=100)"
+      (is (every? (fn [[leaf proof]]
+                    (= (count (:co-path proof))
+                       (proof-size n (k-from-leaf n leaf))))
+                  (map vector (range 1 (inc n)) proofs))))
+    (testing "Tampered root fails verification"
+      (is (not (verify-membership (first proofs)
+                                  (clojure.set/union root #{(inc n)})))))))
+
+(deftest membership-proofs-large-test
+  (let [n 1337
+        state (play-algo n true)
+        root (:root-belt-node state)
+        leaves (distinct (concat [1 2 n (dec n)] (range 100 n 100)))
+        proofs (mapv #(membership-proof-leaf % state) leaves)]
+    (testing "Membership proofs verify at n=1337"
+      (is (every? #(verify-membership % root) proofs)))
+    (testing "Proof sizes match formula at n=1337"
+      (is (every? (fn [[leaf proof]]
+                    (= (count (:co-path proof))
+                       (proof-size n (k-from-leaf n leaf))))
+                  (map vector leaves proofs))))))
 
 (comment
   (map S-n (range 1 (inc 10)))
