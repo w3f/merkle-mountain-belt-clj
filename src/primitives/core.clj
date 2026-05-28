@@ -39,11 +39,11 @@
               (range (dec (count bits))))))
 
   (- (* 3 (Math/pow 2 (- (Math/floor (/
-                                       (Math/log 16)
-                                       (Math/log 2))) 1))) 1)
+                                      (Math/log 16)
+                                      (Math/log 2))) 1))) 1)
   (-> (- (* 3 (Math/pow 2 (- (Math/floor (/
-                                           (Math/log 17)
-                                           (Math/log 2))) 1))) 1)
+                                          (Math/log 17)
+                                          (Math/log 2))) 1))) 1)
       binary-repr-of-n)
   (S-n 11)
   (S-n 23)
