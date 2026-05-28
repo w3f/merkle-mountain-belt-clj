@@ -133,8 +133,9 @@
       (+ d (/ (* 3.0 kinc) (bit-shift-left 1 (inc d))) -2)
       (+ d (/ (double kinc) (bit-shift-left 1 (inc d))) -0.5))))
 
-(defn amortized-empirical
-  "Average proof-size-fn over num-periods full periods starting at n=k."
+(defn amortized-structural
+  "Average a structural proof-size-fn over num-periods full periods starting at n=k.
+   The fn is structural (S-n based), not empirical (algorithm output)."
   [proof-size-fn k num-periods]
   (let [d (int (Math/floor (/ (Math/log (inc k)) (Math/log 2))))
         period (bit-shift-left 1 (inc d))
@@ -142,9 +143,9 @@
     (/ (double (reduce + (map #(proof-size-fn % k) (range k (+ k n-samples)))))
        n-samples)))
 
-(defn amortized-empirical-restricted
-  "Average proof-size-fn over the restricted window [k, k+2^d) (half-period).
-   Per corollary 30, this is a lower bound on the asymptotic value."
+(defn amortized-structural-restricted
+  "Average a structural proof-size-fn over the restricted window [k, k+2^d)
+   (half-period). Per Corollary 30, this is a lower bound on the asymptotic value."
   [proof-size-fn k]
   (let [d (int (Math/floor (/ (Math/log (inc k)) (Math/log 2))))
         window (bit-shift-left 1 d)]
@@ -164,23 +165,21 @@
 (deftest amortized-proof-size-test
   (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
     (testing "Lemma 28 (lem:aUMMB) consistency: structural avg over period == formula"
-      (is (every? #(< (Math/abs (- (amortized-empirical ummb-proof-size % 1)
-                                   (amortized-ummb-lemma %)))
-                      1e-9)
+      (is (every? #(= (amortized-structural ummb-proof-size % 1) (amortized-ummb-lemma %))
                   test-ks)))
     (testing "Corollary 30 (cor:UMMB-period): restricted-window avg <= formula"
-      (is (every? #(<= (amortized-empirical-restricted ummb-proof-size %)
+      (is (every? #(<= (amortized-structural-restricted ummb-proof-size %)
                        (amortized-ummb-lemma %))
                   test-ks)))
     (testing "Lemma 38 (lem:a-mmb): MMB amortized empirical <= upper bound"
-      (is (every? #(<= (amortized-empirical proof-size % 1)
+      (is (every? #(<= (amortized-structural proof-size % 1)
                        (amortized-mmb-upper-bound %))
                   test-ks)))))
 
 (comment (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
-           {:lemma28 (map #(identity [(amortized-empirical ummb-proof-size % 1) (amortized-ummb-lemma %)]) test-ks)
-            :corollary30 (map #(- (amortized-ummb-lemma %) (amortized-empirical-restricted ummb-proof-size %)) test-ks)
-            :lemma38 (map (juxt #(amortized-empirical proof-size % 1)
+           {:lemma28 (map #(identity [(amortized-structural ummb-proof-size % 1) (amortized-ummb-lemma %)]) test-ks)
+            :corollary30 (map #(- (amortized-ummb-lemma %) (amortized-structural-restricted ummb-proof-size %)) test-ks)
+            :lemma38 (map (juxt #(amortized-structural proof-size % 1)
                                 #(amortized-mmb-upper-bound %)) test-ks)}))
 
 (defn hash-counts-per-append
@@ -207,4 +206,4 @@
 (comment
   (map S-n (range 1 (inc 10)))
   (clojure.test/run-tests 'paper-test)
-  (map (juxt #(amortized-empirical proof-size % 1) #(amortized-mmb-upper-bound %)) [1 2 3 500 1000]))
+  (map (juxt #(amortized-structural proof-size % 1) #(amortized-mmb-upper-bound %)) [1 2 3 500 1000]))
