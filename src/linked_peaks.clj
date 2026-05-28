@@ -578,13 +578,20 @@
          (co-path-multi [1 3 4])
          (co-path-multi [1 2 3]))
 
-(defn membership-proof-node [index state]
+(defn membership-proof-node
+  "Generate a membership proof for the node at `index` in `node-array`.
+   Returns {:node hash :co-path [hash...]}, where co-path lists the sibling
+   hashes from the node up through internal nodes until peak + range + belt layers."
+  [index state]
   (state/reset-atoms-from-cached! state)
   {:node (nth @node-array index) :co-path (co-path-internal index [] (count @node-array) true)})
 
 (comment (co-path-internal (state/name-lookup #{1 2 3 4}) [] @state/root-belt-node false))
 
-(defn membership-proof-leaf [leaf state]
+(defn membership-proof-leaf
+  "Generate a membership proof for the `leaf`-th leaf (1-indexed) in `state`.
+   Returns {:node hash :co-path [hash...]}."
+  [leaf state]
   (let [leaf-index (primitives.storage/leaf-location leaf)]
     (membership-proof-node leaf-index state)))
 
@@ -647,7 +654,11 @@
   (play-algo 11 false)
   (membership-proof-leaf 4 (state/current-atom-states)))
 
-(defn verify-membership [membership-proof root-belt-node]
+(defn verify-membership
+  "Verify a membership proof against `root-belt-node`. Folds the co-path via
+   set-union starting from :node, asserting each step's intersection is empty
+   (else throws), and returns true iff the result equals the root."
+  [membership-proof root-belt-node]
   (= (reduce (fn [acc v] (if (= #{} (clojure.set/intersection acc v))
                            (clojure.set/union acc v)
                            ;; TODO: replace exception with returning eqvlt of result
