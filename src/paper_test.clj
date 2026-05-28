@@ -142,6 +142,15 @@
     (/ (double (reduce + (map #(proof-size-fn % k) (range k (+ k n-samples)))))
        n-samples)))
 
+(defn amortized-empirical-restricted
+  "Average proof-size-fn over the restricted window [k, k+2^d) (half-period).
+   Per corollary 30, this is a lower bound on the asymptotic value."
+  [proof-size-fn k]
+  (let [d (int (Math/floor (/ (Math/log (inc k)) (Math/log 2))))
+        window (bit-shift-left 1 d)]
+    (/ (double (reduce + (map #(proof-size-fn % k) (range k (+ k window)))))
+       window)))
+
 (defn amortized-mmb-upper-bound
   "Paper's upper bound (Lemma lem:a-mmb) for amortized MMB proof size.
    d = floor(log₂(k+1))."
@@ -167,6 +176,12 @@
       (is (every? #(<= (amortized-empirical proof-size % 1)
                        (amortized-mmb-upper-bound %))
                   test-ks)))))
+
+(comment (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
+           {:lemma28 (map #(identity [(amortized-empirical ummb-proof-size % 1) (amortized-ummb-lemma %)]) test-ks)
+            :corollary30 (map #(- (amortized-ummb-lemma %) (amortized-empirical-restricted ummb-proof-size %)) test-ks)
+            :lemma38 (map (juxt #(amortized-empirical proof-size % 1)
+                                #(amortized-mmb-upper-bound %)) test-ks)}))
 
 (defn hash-counts-per-append
   "Returns seq of hash counts for n appends in incremental mode."
