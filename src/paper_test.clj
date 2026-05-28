@@ -154,12 +154,16 @@
 
 (deftest amortized-proof-size-test
   (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
-    (testing "Lemma 29 (lem:aUMMB): U-MMB amortized empirical matches formula exactly"
+    (testing "Lemma 28 (lem:aUMMB) consistency: structural avg over period == formula"
       (is (every? #(< (Math/abs (- (amortized-empirical ummb-proof-size % 1)
                                    (amortized-ummb-lemma %)))
                       1e-9)
                   test-ks)))
-    (testing "Lemma 39 (lem:a-mmb): MMB amortized empirical <= upper bound"
+    (testing "Corollary 30 (cor:UMMB-period): restricted-window avg <= formula"
+      (is (every? #(<= (amortized-empirical-restricted ummb-proof-size %)
+                       (amortized-ummb-lemma %))
+                  test-ks)))
+    (testing "Lemma 38 (lem:a-mmb): MMB amortized empirical <= upper bound"
       (is (every? #(<= (amortized-empirical proof-size % 1)
                        (amortized-mmb-upper-bound %))
                   test-ks)))))
