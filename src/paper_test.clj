@@ -6,8 +6,7 @@
    [primitives.proof :refer [type-rank parent-type-contenders child-type get-parent get-child get-sibling co-path-ephemeral co-path-internal co-path-internal-v0 sibling-index]]
    [linked-peaks :refer [play-algo membership-proof-leaf verify-membership]]
    [proof-size :refer [range-splits proof-size]]
-   [state]
-   [linked-peaks]))
+   [state]))
 
 (comment
   (keys (play-algo 5 true))
@@ -205,7 +204,7 @@
 
 (deftest amortized-proof-size-empirical-test
   ;; smaller k range: empirical via play-algo is much slower than structural
-  (let [test-ks [1 2 5 10 50 100]]
+  (let [test-ks [1 2 5 10 50 100 1000]]
     (testing "Empirical MMB proof sizes match structural prediction (paper-test/proof-size)"
       (is (every? #(= (amortized-mmb-empirical %)
                       (amortized-structural proof-size % 1))
@@ -215,11 +214,37 @@
                        (amortized-mmb-upper-bound %))
                   test-ks)))))
 
-(comment (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
+(comment (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000 1337 2000 5000 10000 50000]]
            {:lemma28 (map #(identity [(amortized-structural ummb-proof-size % 1) (amortized-ummb-lemma %)]) test-ks)
             :corollary30 (map #(- (amortized-ummb-lemma %) (amortized-structural-restricted ummb-proof-size %)) test-ks)
             :lemma38 (map (juxt #(amortized-structural proof-size % 1)
-                                #(amortized-mmb-upper-bound %)) test-ks)}))
+                                #(amortized-mmb-upper-bound %)) test-ks)
+            :lemma38diffs (map #(* -1 (- (amortized-structural proof-size % 1)
+                                         (amortized-mmb-upper-bound %))) test-ks)})
+
+         (let [test-ks (range 1 1000)]
+           (apply (juxt min max) (pmap #(* -1 (- (amortized-structural proof-size % 50)
+                                                 (amortized-mmb-upper-bound %))) test-ks))))
+(comment
+  (defn distance-upper-bound [k p]
+    (- (amortized-mmb-upper-bound k) (amortized-structural proof-size k p)))
+
+  (defn spit-csv [header values file]
+    (spit file (str header "\n"
+                    (clojure.string/join "\n"
+                                         (map (fn [[k1 k2]] (clojure.string/join "," [(str k1) (str k2)])) values))
+                    "\n")))
+
+  (let [periods 5000
+        test-kss [(range 1 100) [1 2 3 5 7 10 20 50 100 500 1000 1337 2000 5000]]]
+    (map (fn [test-ks]
+           (spit-csv "k,diff-to-upper-bound"
+                     (pmap
+                      (fn [k] [k (distance-upper-bound k periods)]) test-ks) (str "lemma-38-diffs" periods "-periods-" (apply min test-ks) "-" (apply max test-ks) "-k-" (if (every? #{1} (map - (rest test-ks) test-ks)) "sample" nil) " .csv")))
+         test-kss)))
+
+;; TODO check min/max of lemma38's diffs
+(comment ((juxt #(apply min %) #(apply max %)) (pmap #(distance-upper-bound % 10000) (range 1 100))))
 
 (defn hash-counts-per-append
   "Returns seq of hash counts for n appends in incremental mode."
