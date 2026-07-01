@@ -22,8 +22,8 @@
 
 (defn S-n-from-state [n]
   (let [state (play-algo n false)
-        lastP (get state :lastP)]
-    (->> (peaks-from-state state lastP [])
+        rightmostP (get state :rightmostP)]
+    (->> (peaks-from-state state rightmostP [])
          (map :height)
          (reverse)
          (rest))))

@@ -3,7 +3,7 @@
    clojure.walk))
 
 ;; state containers. phantom hash is [] (compact [lo hi] representation).
-(def lastP (atom []))
+(def rightmostP (atom []))
 
 ;; (def R-count (atom 0))
 
@@ -30,7 +30,7 @@
   (reset! node-array (:node-array cached))
   (reset! mergeable-stack (:mergeable-stack cached))
   (reset! leaf-count (:leaf-count cached))
-  (reset! lastP (:lastP cached))
+  (reset! rightmostP (:rightmostP cached))
   (reset! belt-nodes (:belt-nodes cached))
   (reset! root-belt-node (:root-belt-node cached))
   (reset! range-nodes (:range-nodes cached))
@@ -41,7 +41,7 @@
    :node-array @node-array
    :mergeable-stack @mergeable-stack
    :leaf-count @leaf-count
-   :lastP @lastP
+   :rightmostP @rightmostP
    :belt-nodes @belt-nodes
    :root-belt-node @root-belt-node
    :range-nodes @range-nodes})

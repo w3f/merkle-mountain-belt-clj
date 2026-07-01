@@ -13,7 +13,7 @@
    [primitives.proof :refer [type-rank parent-type-contenders child-type get-parent get-child get-sibling co-path-ephemeral co-path-internal co-path-internal-v0 sibling-index]]
    [state
     :refer
-    [belt-nodes current-atom-states lastP leaf-count mergeable-stack
+    [belt-nodes current-atom-states rightmostP leaf-count mergeable-stack
      node-array node-map pointers range-nodes root-belt-node]]))
 
 (println "start:" (new java.util.Date))
@@ -184,7 +184,7 @@
   (reset! node-array [])
   (reset! mergeable-stack [])
   (reset! leaf-count 0)
-  (reset! lastP [])
+  (reset! rightmostP [])
   ;; phantom belt-node's parent is [1 1] (compact equiv of the original #{1}):
   ;; oneshot bagging reconstructs it as [1 1], so incremental must match for the two to agree
   (reset! belt-nodes {[] (belt-node nil [] [] [1 1])})
@@ -211,7 +211,7 @@
           (oneshot-bagging-from-fresh 1222 false)
           {:mergeable-stack (atom @mergeable-stack)
            :leaf-count (atom @leaf-count)
-           :lastP (atom @lastP)})))
+           :rightmostP (atom @rightmostP)})))
 
 ;; could switch to object pointers to avoid :right values, but not convinced that the advantages outweigh the disadvantages:
 ;; +: don't need to update left pointers of right siblings
@@ -229,12 +229,12 @@
 
 (defn sanity-checks [Q-old]
   #_{:clj-kondo/ignore [:missing-else-branch]}
-  (if (= (:hash Q-old) (hop-left @lastP))
-    (throw (Exception. ":left of lastP is outdated")))
+  (if (= (:hash Q-old) (hop-left @rightmostP))
+    (throw (Exception. ":left of rightmostP is outdated")))
   #_{:clj-kondo/ignore [:missing-else-branch]}
-  (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @lastP)))))
-    (throw (Exception. ":left of lastP's left is outdated")))
-  (let [left-most-sibling-peak (last (take-while #(and (some? %) (not (contains? #{:internal :peak} (:type (get @node-map (hop-parent %)))))) (iterate hop-left @lastP)))
+  (if (= (:hash Q-old) (:left (get @node-map (:left (get @node-map @rightmostP)))))
+    (throw (Exception. ":left of rightmostP's left is outdated")))
+  (let [left-most-sibling-peak (last (take-while #(and (some? %) (not (contains? #{:internal :peak} (:type (get @node-map (hop-parent %)))))) (iterate hop-left @rightmostP)))
         correct-sibling-of-left-most (take-while #(and (some? %) (contains? #{:internal :peak} (:type (get @node-map %)))) (iterate hop-parent (hop-left left-most-sibling-peak)))]
     #_{:clj-kondo/ignore [:missing-else-branch]}
     (if (and (some? left-most-sibling-peak) (< 1 (count correct-sibling-of-left-most)))
@@ -350,9 +350,9 @@
    (= [] (:hash M))))
 
 (comment
-  (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
-  (get @node-map (:left (get @node-map @lastP)))
-  (get @node-map @lastP))
+  (distinct-ranges? (get @node-map (:left (get @node-map @rightmostP))) (get @node-map @rightmostP))
+  (get @node-map (:left (get @node-map @rightmostP)))
+  (get @node-map @rightmostP))
 
 ;; (:belt-nodes (play-algo-manual-end 13))
 (comment (:node-map #_{:clj-kondo/ignore [:unresolved-symbol]}
@@ -425,7 +425,7 @@
 (defn new-leaf-range [oneshot-bagging? h P]
   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:singleton-range]))}
   ;; DONE: if distinct ranges, we're also adding a new belt node for the new leaf
-  (if (distinct-ranges? (get @node-map @lastP) P)
+  (if (distinct-ranges? (get @node-map @rightmostP) P)
     (do
        ;; create new root belt node with new leaf's parent range node as right child and former root node as left child
       (let [new-belt-root (hash-union @root-belt-node h)]
@@ -436,19 +436,19 @@
          ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
         (reset! root-belt-node new-belt-root)
          ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-        (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @lastP)) h h new-belt-root))))
+        (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @rightmostP)) h h new-belt-root))))
 
       (swap! node-map #(assoc-in % [h :parent] h))
        ;; TODO: conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
       #_{:clj-kondo/ignore [:missing-else-branch]}
       (if (>= @leaf-count 8)
-        (let [last-range-node-hash (:parent (get @node-map @lastP))
+        (let [last-range-node-hash (:parent (get @node-map @rightmostP))
               last-belt-node-hash (:parent (get @range-nodes last-range-node-hash))
               new-belt-hash (hash-union (or last-belt-node-hash last-range-node-hash) h)]
           (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
      ;; else new leaf joins last range, i.e. get new range node above new leaf
      ;; TODO: update parent belt node hash, likewise for its left sibling
-    (let [last-range (get-parent (get @node-map @lastP) :range)
+    (let [last-range (get-parent (get @node-map @rightmostP) :range)
           old-belt-parent (get @belt-nodes (:parent last-range))
           hash-new-range (hash-union (:hash last-range) h)
           new-belt-parent (hash-union (:left old-belt-parent) hash-new-range)
@@ -897,9 +897,9 @@
                           (apply > range-counts)
                           (and (apply = range-counts)
                                ;; NOTE: remaining issue is that mergeable pair has already been removed from stack
-                               ;; (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
-                               ;; NOTE: instead, check whether @lastP has its own range node
-                               (= @lastP (:parent (get @node-map @lastP)))))))
+                               ;; (distinct-ranges? (get @node-map (:left (get @node-map @rightmostP))) (get @node-map @rightmostP))
+                               ;; NOTE: instead, check whether @rightmostP has its own range node
+                               (= @rightmostP (:parent (get @node-map @rightmostP)))))))
 
                 (let [old-bn (get-parent (get-parent Q-old :range) :belt)
                       new-bn (belt-node
@@ -1004,10 +1004,10 @@
                          "- can't have a non-ephemeral parent! leaf count "
                          @leaf-count))))))
 
-      ;; if we've replaced the old lastP, should reset lastP to point to the new entry
+      ;; if we've replaced the old rightmostP, should reset rightmostP to point to the new entry
       #_{:clj-kondo/ignore [:missing-else-branch]}
-      (if (= (:hash Q-old) @lastP)
-        (reset! lastP (:hash @Q)))
+      (if (= (:hash Q-old) @rightmostP)
+        (reset! rightmostP (:hash @Q)))
 
       ;; TODO: the following has a smarter integration
       ;; (if (= 4 @leaf-count) (sanity-checks Q-old))
@@ -1021,7 +1021,7 @@
 
 ;; mapping to paper:
 ;; Counter n: @leaf-count
-;; peak object P_head: lastP
+;; peak object P_head: rightmostP
 ;; peak object P_new: P
 ;; Pairs: mergeable-stack
 ;;
@@ -1030,8 +1030,8 @@
         next-leaf (inc @leaf-count)
         h [next-leaf next-leaf]
         ;; pointer (get-pointer)
-        ;; create new object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
-        P (peak-node (:hash (get @node-map @lastP)) nil 0 h)]
+        ;; create new object P, set P.hash<-h, set P.height<-0, set P.left<-rightmostP
+        P (peak-node (:hash (get @node-map @rightmostP)) nil 0 h)]
     ;; 1. Add step
     ;; store object P in peak map
     (swap! node-map #(assoc % h P))
@@ -1041,15 +1041,15 @@
     (add-internal h (inc (* 2 (inc @leaf-count))))
 
     ;; 2. Check mergeable
-    ;; if lastP != nil && lastP.height==0 then M.add(P)
+    ;; if rightmostP != nil && rightmostP.height==0 then M.add(P)
     ;; if P_head != Null && P_head.height==0 then Pairs.push(P_new)
     #_{:clj-kondo/ignore [:missing-else-branch]}
-    (if (and @lastP (= (:height (get @node-map @lastP)) 0))
+    (if (and @rightmostP (= (:height (get @node-map @rightmostP)) 0))
       (add-mergeable-stack (get @node-map h)))
 
-    ;; prelim: set right pointer of lastP to h
+    ;; prelim: set right pointer of rightmostP to h
     #_{:clj-kondo/ignore [:missing-else-branch]}
-    (if @lastP (swap! node-map #(assoc-in % [@lastP :right] h)))
+    (if @rightmostP (swap! node-map #(assoc-in % [@rightmostP :right] h)))
     ;; prelim: create range node for newly appended node if its height difference
     ;; to the last peak is 2, or the last peak can be merged with the mountain to
     ;; its left
@@ -1057,9 +1057,9 @@
     ;; #dbg ^{:break/when (not oneshot-bagging?)}
     (new-leaf-range oneshot-bagging? h P)
 
-    ;; 3. reset lastP
+    ;; 3. reset rightmostP
     ;; Set P_head<-P_new
-    (reset! lastP h)
+    (reset! rightmostP h)
 
     ;; 4. merge if mergeable
     (peak-merge oneshot-bagging?)
@@ -1073,7 +1073,7 @@
     ;; recalculate only those members of S-n that are in the difference set from above
 
     ;; show results
-    ;; (clojure.pprint/pprint [@node-map @node-array @mergeable-stack @lastP])
+    ;; (clojure.pprint/pprint [@node-map @node-array @mergeable-stack @rightmostP])
     ;; (clojure.pprint/pprint @node-map)
     ;; (clojure.pprint/pprint @node-map)
     ))
@@ -1087,8 +1087,8 @@
 
 (comment
   (let [state (play-algo 10 false)
-        lastP (get state :lastP)]
-    (get (:node-map state) lastP)))
+        rightmostP (get state :rightmostP)]
+    (get (:node-map state) rightmostP)))
 
 ;; verify that membership proof for all leafs are correct
 #_{:clj-kondo/ignore [:missing-else-branch]}
@@ -1592,8 +1592,8 @@
         play (play-algo n true)
         node-array (:node-array play)
         node-map (:node-map play)
-        lastP (:lastP play)]
-    (first (filter #(= lastP (nth node-array %)) (range (count node-array))))))
+        rightmostP (:rightmostP play)]
+    (first (filter #(= rightmostP (nth node-array %)) (range (count node-array))))))
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
@@ -1761,8 +1761,8 @@
 
                  (:mergeable-stack algo-new-mismatch)
                  (:mergeable-stack algo-old-mismatch)
-                 (:lastP algo-new-mismatch)
-                 (:lastP algo-old-mismatch)
+                 (:rightmostP algo-new-mismatch)
+                 (:rightmostP algo-old-mismatch)
                  (clojure.set/difference (into #{} (:node-map algo-new-mismatch))
                                          (into #{} (:node-map algo-old-mismatch)))
                  (clojure.set/difference (into #{} (:node-map algo-old-mismatch))
@@ -1777,8 +1777,8 @@
     (every? true?
             [(= (primitives.core/S-n n) (reverse (sort (map (comp :height val) parent-less))))
              (= (primitives.core/S-n n) (reverse (map (comp :height #(get @node-map %))
-                                                      (take-while some? (iterate hop-left (:lastP nodes))))))
-             (every? nil? (map #(:parent (get @node-map %)) (take-while #(some? (get @node-map %)) (iterate hop-left @lastP))))])))
+                                                      (take-while some? (iterate hop-left (:rightmostP nodes))))))
+             (every? nil? (map #(:parent (get @node-map %)) (take-while #(some? (get @node-map %)) (iterate hop-left @rightmostP))))])))
 
 (defn posx [node]
   ;; #dbg
@@ -1979,9 +1979,9 @@
         cached-reference (state/remap-to-compact cached)
         fresh            (play-algo n false)]
     ;; test that all keys are present
-    (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
+    (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :rightmostP :belt-nodes :root-belt-node :range-nodes)
     ;; test that all non-map values match
-    (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
+    (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :rightmostP :root-belt-node)
     ;; test that all maps match
     (letfn [(values [m k]
               (into #{} (vals (k m))))
@@ -2002,9 +2002,9 @@
         cached-reference (state/remap-to-compact cached)
         fresh (play-algo n false)]
     ;; test that all keys are present
-    (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
+    (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :rightmostP :belt-nodes :root-belt-node :range-nodes)
     ;; test that all non-map values match
-    (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
+    (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :rightmostP :root-belt-node)
     ;; test that all maps match
     (letfn [(values [m k]
               (into #{} (vals (k m))))
