@@ -44,6 +44,9 @@
    large n often triggers a GC, so bigger n can measure faster: a spurious dip).
    returns rows {:n :mean-ns :mean-hashes :max-hashes}."
   [checkpoints batch]
+  ;; warmup: exercise the hot path enough to trigger JIT C2, then discard
+  (reset-all)
+  (dotimes [_ 20000] (algo false))
   (reset-all)
   (loop [built 0
          cps (sort checkpoints)
