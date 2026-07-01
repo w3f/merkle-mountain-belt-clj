@@ -888,13 +888,18 @@
               ;; TODO: extend to cover when merge does not occur at rightmost edge of range (does that exist?) - it's just easier like this since already have necessary code above
               ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:belt]))}
               (if (and (= :belt grandparent-type)
-                       (or
-                        (apply > (map (comp count primitives.core/belt-ranges) [@leaf-count (inc @leaf-count)]))
-                        (and (apply = (map (comp count primitives.core/belt-ranges) [@leaf-count (inc @leaf-count)]))
-                             ;; NOTE: remaining issue is that mergeable pair has already been removed from stack
-                             ;; (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
-                             ;; NOTE: instead, check whether @lastP has its own range node
-                             (= @lastP (:parent (get @node-map @lastP))))))
+                       ;; belt-ranges is a pure O((log n)^2) fn of leaf-count; compute the two
+                       ;; range-counts once here and reuse across the > and = checks below
+                       ;; (previously recomputed up to 4x per append, dominating per-append time).
+                       (let [range-counts (mapv (comp count primitives.core/belt-ranges)
+                                                [@leaf-count (inc @leaf-count)])]
+                         (or
+                          (apply > range-counts)
+                          (and (apply = range-counts)
+                               ;; NOTE: remaining issue is that mergeable pair has already been removed from stack
+                               ;; (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
+                               ;; NOTE: instead, check whether @lastP has its own range node
+                               (= @lastP (:parent (get @node-map @lastP)))))))
 
                 (let [old-bn (get-parent (get-parent Q-old :range) :belt)
                       new-bn (belt-node
