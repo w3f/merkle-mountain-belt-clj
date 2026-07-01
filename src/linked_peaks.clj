@@ -888,10 +888,9 @@
               ;; TODO: extend to cover when merge does not occur at rightmost edge of range (does that exist?) - it's just easier like this since already have necessary code above
               ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:belt]))}
               (if (and (= :belt grandparent-type)
-                       ;; belt-ranges is a pure O((log n)^2) fn of leaf-count; compute the two
-                       ;; range-counts once here and reuse across the > and = checks below
-                       ;; (previously recomputed up to 4x per append, dominating per-append time).
-                       (let [range-counts (mapv (comp count primitives.core/belt-ranges)
+                       ;; belt-range-count is an O(log n) bit scan (no partition built);
+                       ;; compute the two counts once and reuse across the > and = checks below.
+                       (let [range-counts (mapv primitives.core/belt-range-count
                                                 [@leaf-count (inc @leaf-count)])]
                          (or
                           (apply > range-counts)

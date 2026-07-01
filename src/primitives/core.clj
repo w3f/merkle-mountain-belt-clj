@@ -123,6 +123,26 @@
 (defn belt-ranges-lengths [n]
   (map count (belt-ranges n)))
 
+(defn belt-range-count
+  "number of belt ranges for n, i.e. (count (belt-ranges n)), but O(log n) with no alloc.
+  scan the bits of (n+1) below the MSB, counting create-new-range? firings (never builds the
+  partition). the leading 1 is excluded from the window (belt-ranges' reduce starts from an
+  empty acc), so the two preceding bits (prev2 prev) seed to `absent` (not 0 or 1).
+  create-new-range?'s two clauses [(prev=1 and bit=0), (prev2=0 and prev=1)] factor to:
+  prev=1 and (bit=0 or prev2=0). verified == (count (belt-ranges n)) for n in [0,200000],
+  and == the string-scan ref for n in [0,10000000]."
+  ^long [^long n]
+  (let [m (inc n)
+        msb-pos (- 63 (Long/numberOfLeadingZeros m))          ;; bit position of the MSB
+        absent -1]                                            ;; window seed: neither 0 nor 1
+    (loop [p (dec msb-pos), prev2 absent, prev absent, ranges 1]
+      (if (neg? p)
+        ;; scanned past the LSB -> done
+        ranges
+        (let [bit (bit-and (unsigned-bit-shift-right m p) 1)  ;; current bit
+              fire? (and (== 1 prev) (or (zero? bit) (zero? prev2)))]
+          (recur (dec p) prev bit (if fire? (inc ranges) ranges)))))))
+
 ;; compare S-n-1 & S-n: see at what position difference results
 ;; compare belt-ranges n-1 & belt-ranges n: see at what position difference results
 
