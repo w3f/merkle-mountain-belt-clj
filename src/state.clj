@@ -2,8 +2,8 @@
   (:require
    clojure.walk))
 
-;; state containers
-(def lastP (atom #{}))
+;; state containers. phantom hash is [] (compact [lo hi] representation).
+(def lastP (atom []))
 
 ;; (def R-count (atom 0))
 
@@ -16,7 +16,7 @@
 (def belt-nodes (atom {}))
 ;; NOTE: this is a hack to actually point to the dummy range node
 ;; TODO: potentially find more elegant solution since this hack may introduce bugs
-(def root-belt-node (atom #{}))
+(def root-belt-node (atom []))
 (def range-nodes (atom {}))
 ;; (def belt-children (atom {}))
 
@@ -53,3 +53,25 @@
 (defn indices-to-names [structure]
   (clojure.walk/postwalk
    #(if (int? %) (nth @node-array %) %) structure))
+
+;; --- compact [lo hi] <-> #{} hash translation (for comparing against #{}-form cached refs) ---
+
+(defn set-hash->compact
+  "Translate a #{}-form hash — a contiguous set of leaf indices, or #{} (phantom) —
+   to the compact [lo hi] form (or []). Asserts contiguity, since only contiguous
+   ranges are valid hashes."
+  [s]
+  (if (empty? s)
+    []
+    (let [lo (apply min s) hi (apply max s)]
+      (assert (= (count s) (inc (- hi lo))) (str "non-contiguous hash set: " s))
+      [lo hi])))
+
+(defn remap-to-compact
+  "Deep-translate a #{}-form structure (e.g. a cached state map) to compact [lo hi]
+   form, replacing every set with its [lo hi] span. Every set in these structures is
+   a hash, so this is unambiguous."
+  [form]
+  (clojure.walk/postwalk
+   #(if (set? %) (set-hash->compact %) %)
+   form))

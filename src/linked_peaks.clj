@@ -18,7 +18,7 @@
 
 (println "start:" (new java.util.Date))
 
-(defonce run-tests (atom true))
+(defonce run-tests (atom false))
 (defn toggle-tests [] (swap! run-tests #(not %)))
 
 (def profile? (atom false))
@@ -103,7 +103,7 @@
    :parent parent
    :type :belt})
 
-(def nil-leaf (internal-node nil ##Inf #{} #{}))
+(def nil-leaf (internal-node nil ##Inf [] []))
 
 (defn pop-mergeable-stack []
   (let [pop-item (last @mergeable-stack)]
@@ -123,28 +123,73 @@
                         (reduce
                          conj coll items)) (concat (repeat zero-leaves 0) (list item)))))
 
-(defn counted-union
-  "clojure.set/union with hash-count side-effect."
-  [& sets]
-  (swap! state/hash-count inc)
-  (apply clojure.set/union sets))
+(defn raw-hash-union
+  "Combine two compact hashes [lo hi] without counting. Used by verification."
+  ([] [])
+  ([a] a)
+  ([a b]
+   (cond
+     (or (nil? a) (= [] a)) (or b [])
+     (or (nil? b) (= [] b)) a
+     :else (let [[a-lo a-hi] a
+                 [b-lo b-hi] b]
+             (when-not (= (inc a-hi) b-lo)
+               (throw (ex-info (str "raw-hash-union: not consecutive: " a " " b)
+                               {:a a :b b :leaf-count @state/leaf-count})))
+             [a-lo b-hi])))
+  ([a b & more]
+   (reduce raw-hash-union (raw-hash-union a b) more)))
 
-(defn counted-merge-hash
-  "Merge hash for two peak hashes (sorted-set of concat), counted."
+(defn hash-union
+  "Counted hash union: same as raw-hash-union but increments state/hash-count.
+   Use at every construction site; not in verification."
+  ([] [])
+  ([a] (do (swap! state/hash-count inc) a))
+  ([a b]
+   (swap! state/hash-count inc)
+   (raw-hash-union a b))
+  ([a b & more]
+   (reduce hash-union (hash-union a b) more)))
+
+ ;; TODO Remove once the redundant bagging itself is eliminated
+(defn hash-union-absorb
   [a b]
   (swap! state/hash-count inc)
-  (apply sorted-set (concat a b)))
+  (cond
+    (or (nil? a) (= [] a)) (or b [])
+    (or (nil? b) (= [] b)) a
+    :else (let [[a-lo a-hi] a
+                [b-lo b-hi] b]
+            (cond
+              ;; consecutive either way -> normal span
+              (= (inc a-hi) b-lo) [a-lo b-hi]
+              (= (inc b-hi) a-lo) [b-lo a-hi]
+              ;; overlapping / one contains the other -> absorb into the covering span
+              (or (<= a-lo b-lo a-hi) (<= b-lo a-lo b-hi)) [(min a-lo b-lo) (max a-hi b-hi)]
+              :else (throw (ex-info (str "hash-union-absorb: disjoint non-consecutive: " a " " b)
+                                    {:a a :b b :leaf-count @state/leaf-count}))))))
+
+(defn expand-hash
+  "REPL helper: render [lo hi] as '[lo..hi]' (matching truncate-#set-display)."
+  [h]
+  (cond
+    (or (nil? h) (= [] h)) "[]"
+    (= (first h) (second h)) (str "[" (first h) "]")
+    :else (str "[" (first h) ".." (second h) "]")))
 
 (defn reset-all []
   ;; NOTE: need to already set parent for phantom node, range, and belt
-  (reset! node-map {#{} (assoc (peak-node nil nil ##Inf #{}) :parent #{})})
+  ;; phantom hashes are [] (compact-repr equivalent of #{} empty)
+  (reset! node-map {[] (assoc (peak-node nil nil ##Inf []) :parent [])})
   (reset! node-array [])
   (reset! mergeable-stack [])
   (reset! leaf-count 0)
-  (reset! lastP #{})
-  (reset! belt-nodes {#{} (belt-node nil #{} #{} #{1})})
-  (reset! root-belt-node #{})
-  (reset! range-nodes {#{} (range-node nil #{} #{} #{})})
+  (reset! lastP [])
+  ;; phantom belt-node's parent is [1 1] (compact equiv of the original #{1}):
+  ;; oneshot bagging reconstructs it as [1 1], so incremental must match for the two to agree
+  (reset! belt-nodes {[] (belt-node nil [] [] [1 1])})
+  (reset! root-belt-node [])
+  (reset! range-nodes {[] (range-node nil [] [] [])})
   (reset! state/hash-count 0))
 
 (defn hop-left [node & target-map]
@@ -222,7 +267,7 @@
         ;; belt-nodes (atom {})
         original-sorted-peaks (map #(get @node-map (nth @node-array (first %))) (primitives.storage/parent-less-nodes-sorted-height (primitives.storage/parent-less-nodes @leaf-count)))
         ;; prepend nil as a peak to facilitate a linked list of peaks. TODO: abuse this as a pointer for the left-most peak ^^
-        sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
+        sorted-peaks (atom (if singleton-ranges? (cons (peak-node nil (:hash (first original-sorted-peaks)) ##Inf []) original-sorted-peaks) original-sorted-peaks))
         ;; sorted-peaks (atom (if singleton-ranges? (cons (peak-node #{} (:hash (first original-sorted-peaks)) ##Inf #{}) original-sorted-peaks) original-sorted-peaks))
         ]
     (reset! range-nodes {})
@@ -237,13 +282,10 @@
                                         (reduce (fn [left-child right-child]
                                                   (let [left-most (:intruder left-child)
                                                         rn (range-node (:hash left-child) (:hash right-child)
-                                                                       ;; NOTE: ugly hack to use (:hash right-child) first since
-                                                                       ;; (= nil (clojure.set/union nil #{}))
-                                                                       ;; but
-                                                                       ;; (= #{} (clojure.set/union #{} nil))
-                                                                       (counted-union (:hash right-child) #_{:clj-kondo/ignore [:missing-else-branch]}
-                                                                                      (if-not (and singleton-ranges? left-most) (:hash left-child)))
-                                                                       ;; (clojure.set/union (if-not (and singleton-ranges? left-most) (:hash left-child)) (:hash right-child))
+                                                                       ;; left-child first, right-child second (left-to-right adjacency)
+                                                                       (hash-union #_{:clj-kondo/ignore [:missing-else-branch]}
+                                                                        (if-not (and singleton-ranges? left-most) (:hash left-child))
+                                                                                   (:hash right-child))
                                                                        nil)]
                                                     (doall (map
                                                             (partial update-parent rn)
@@ -254,7 +296,7 @@
                                                 ;; for every iteration, include the last node from the prior range, to make a linked list of all range nodes.
                                                 (update (into [] (if singleton-ranges?
                                                                    (let [[dropped remainder] (split-at (inc belt-range-count) @sorted-peaks)
-                                                                         new-leader (apply counted-union (map :hash (rest dropped)))]
+                                                                         new-leader (apply hash-union (map :hash (rest dropped)))]
                                                                      ;; NOTE: since sorted-peaks is never read again after last step, the (if (empty? remainder) ..) check is in fact superfluous, but putting it in nonetheless, in case this features as a bug later
                                                                      (reset! sorted-peaks (if (empty? remainder) remainder (cons {:hash new-leader} remainder)))
                                                                      (if (< 1 (count dropped))
@@ -271,7 +313,7 @@
             root-bn (doall
                      (reduce (fn [left-child right-child]
                                (let [bn (belt-node (:hash left-child) (:hash right-child)
-                                                   (counted-union (or (:hash left-child) #{}) (:hash right-child)) nil)]
+                                                   (hash-union (or (:hash left-child) []) (:hash right-child)) nil)]
                                  (doall (map
                                          (partial update-parent bn)
                                          [left-child right-child]))
@@ -305,11 +347,12 @@
    ;; TODO: might be able to remove the following if/once have unified rules independent of singleton-ness of new leaf
    ;; NOTE: the following two lines are equivalent, only cater for presence of singleton-ranges
    (nil? (:hash M))
-   (= #{} (:hash M))))
+   (= [] (:hash M))))
 
-;; (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
-(get @node-map (:left (get @node-map @lastP)))
-(get @node-map @lastP)
+(comment
+  (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
+  (get @node-map (:left (get @node-map @lastP)))
+  (get @node-map @lastP))
 
 ;; (:belt-nodes (play-algo-manual-end 13))
 (comment (:node-map #_{:clj-kondo/ignore [:unresolved-symbol]}
@@ -385,11 +428,11 @@
   (if (distinct-ranges? (get @node-map @lastP) P)
     (do
        ;; create new root belt node with new leaf's parent range node as right child and former root node as left child
-      (let [new-belt-root (counted-union h @root-belt-node)]
+      (let [new-belt-root (hash-union @root-belt-node h)]
         (swap! belt-nodes #(assoc % new-belt-root (belt-node @root-belt-node h new-belt-root nil)))
          ;; TODO: skipping #{} because don't have phantom #{} belt node yet -> fix once added
         #_{:clj-kondo/ignore [:missing-else-branch]}
-        (if (not= #{} @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
+        (if (not= [] @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
          ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
         (reset! root-belt-node new-belt-root)
          ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
@@ -401,14 +444,14 @@
       (if (>= @leaf-count 8)
         (let [last-range-node-hash (:parent (get @node-map @lastP))
               last-belt-node-hash (:parent (get @range-nodes last-range-node-hash))
-              new-belt-hash (counted-union (or last-belt-node-hash last-range-node-hash) h)]
+              new-belt-hash (hash-union (or last-belt-node-hash last-range-node-hash) h)]
           (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
      ;; else new leaf joins last range, i.e. get new range node above new leaf
      ;; TODO: update parent belt node hash, likewise for its left sibling
     (let [last-range (get-parent (get @node-map @lastP) :range)
           old-belt-parent (get @belt-nodes (:parent last-range))
-          hash-new-range (counted-union (:hash last-range) h)
-          new-belt-parent (counted-union hash-new-range (:left old-belt-parent))
+          hash-new-range (hash-union (:hash last-range) h)
+          new-belt-parent (hash-union (:left old-belt-parent) hash-new-range)
           new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)]
        ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
       (swap! range-nodes #(assoc % (:hash new-range) new-range))
@@ -473,8 +516,9 @@
   (nth @node-array (sibling-index (primitives.storage/leaf-location 59)))
   (nth @node-array (sibling-index 59)))
 
-(let [n 60]
-  (primitives.storage/children (primitives.storage/parent-index (+ (* 2 n) 4))))
+(comment
+  (let [n 60]
+    (primitives.storage/children (primitives.storage/parent-index (+ (* 2 n) 4)))))
 
 ;; filter a vector of indices to only include those that are elements of a set
 ;; (defn descendants [index indices]
@@ -655,14 +699,21 @@
   (membership-proof-leaf 4 (state/current-atom-states)))
 
 (defn verify-membership
-  "Verify a membership proof against `root-belt-node`. Folds the co-path via
-   set-union starting from :node, asserting each step's intersection is empty
-   (else throws), and returns true iff the result equals the root."
+  "Verify a membership proof against `root-belt-node`. Folds the co-path
+   starting from :node, joining each sibling either on the left or right
+   depending on adjacency; throws if no adjacency exists at a step.
+   Returns true iff the final result equals the root."
   [membership-proof root-belt-node]
-  (= (reduce (fn [acc v] (if (= #{} (clojure.set/intersection acc v))
-                           (clojure.set/union acc v)
-                           ;; TODO: replace exception with returning eqvlt of result
-                           (throw (Exception. "invalid membership proof"))))
+  (= (reduce (fn [acc v]
+               (cond
+                 (or (nil? acc) (= [] acc)) v
+                 (or (nil? v)   (= [] v))   acc
+                 ;; sibling extends acc on the right
+                 (= (inc (second acc)) (first v)) [(first acc) (second v)]
+                 ;; sibling extends acc on the left
+                 (= (inc (second v)) (first acc)) [(first v) (second acc)]
+                 :else (throw (Exception.
+                               (str "invalid membership proof at step: acc=" acc " sibling=" v)))))
              (:node membership-proof)
              (:co-path membership-proof))
      root-belt-node))
@@ -743,7 +794,7 @@
       ;;;; Update P_mrg.height++
       (swap! Q #(update % :height inc))
       ;;;; Update P_mrg.hash ← H(P_mrg.prev.hash||P_mrg.hash)
-      (swap! Q #(assoc % :hash (counted-merge-hash (:hash L) (:hash Q-old))))
+      (swap! Q #(assoc % :hash (hash-union (:hash L) (:hash Q-old))))
       ;;;; Update P_mrg.prev ← P_mrg.prev.prev
       (swap! Q #(assoc % :left (:left L)))
 
@@ -791,10 +842,10 @@
                   ;; DONE: update the nodes referred to to be left: left, right: newly merged peak
                   ;; TODO: should kill old parent range node that's no longer applicable
                   distinct-ranges (distinct-ranges? (get @node-map (:left @Q)) @Q)
-                  rn (counted-union #_{:clj-kondo/ignore [:missing-else-branch]}
+                  rn (hash-union #_{:clj-kondo/ignore [:missing-else-branch]}
                       (if (not distinct-ranges)
                         (:left parent-L))
-                                    (:hash @Q))
+                                 (:hash @Q))
                   ;; DONE (fixed above): the following currently only *preserves* range splits - should check whether the two range nodes should now be in the same range
                   ;; rn (clojure.set/union (if (not= (:hash parent-L) (:right parent-L)) (:left parent-L)) (:hash @Q))
                   ;; Q-old is a peak node, so its immediate parent is certainly a range node. The only unknown is the type of the parent's parent
@@ -810,16 +861,18 @@
                   ;; new-parent-hash SHOULD refer to the parent of the range node
                   [new-grandparent-hash child-leg] (if (= :range grandparent-type)
                                                      ;; if parent is range node, this was its left child (since range nodes don't have other range nodes as right children)
-                                                     [(counted-union rn (:right (get-parent (get-parent Q-old :range) :range))) :right]
+                                                     ;; hash-union-absorb: rn may already span its right sibling (redundant re-bag); see task #4
+                                                     [(hash-union-absorb rn (:right (get-parent (get-parent Q-old :range) :range))) :right]
                                                      ;; else, parent is belt - then we must check whether left or right child
                                                      ;; TODO: this check should only be applicable to left-most belt node - all others have a belt node as their left child and a range node as their right
                                                      (if (= :belt grandparent-type)
                                                        (let [left (:left (get-parent (get-parent Q-old :range) :belt))
                                                              right (:right (get-parent (get-parent Q-old :range) :belt))]
+                                                         ;; hash-union-absorb: rn may already span the belt's other child (redundant re-bag); see task #4
                                                          (if (= left (:parent Q-old))
-                                                           [(counted-union rn right) :left]
+                                                           [(hash-union-absorb rn right) :left]
                                                            (if (= right (:parent Q-old))
-                                                             [(counted-union left rn) :right])))
+                                                             [(hash-union-absorb left rn) :right])))
                                                        ;; if grandparent neither range nor belt, we just leave blank
                                                        [nil nil]))]
               ;; if Q-old's grandparent is a range node, and Q-old's parent is not the left-child of Q-old's grandparent range, then it's the right-child, hence the range node to the right of Q-old's parent is in another range, so need to hop to it via path: Q-old's right's parent, and then update its left reference (without updating hash, since other range)
@@ -838,9 +891,9 @@
                        (or
                         (apply > (map (comp count primitives.core/belt-ranges) [@leaf-count (inc @leaf-count)]))
                         (and (apply = (map (comp count primitives.core/belt-ranges) [@leaf-count (inc @leaf-count)]))
-                             ;; NOTE: right thinking, but issue is that mergeable pair has already been removed from stack
+                             ;; NOTE: remaining issue is that mergeable pair has already been removed from stack
                              ;; (distinct-ranges? (get @node-map (:left (get @node-map @lastP))) (get @node-map @lastP))
-                             ;; NOTE: instead, check whether @lastP has its own range node :D
+                             ;; NOTE: instead, check whether @lastP has its own range node
                              (= @lastP (:parent (get @node-map @lastP))))))
 
                 (let [old-bn (get-parent (get-parent Q-old :range) :belt)
@@ -968,8 +1021,9 @@
 ;; Pairs: mergeable-stack
 ;;
 (defn algo [oneshot-bagging?]
-  (let [;; let h be the hash of the new item
-        h #{(inc @leaf-count)}
+  (let [;; let h be the hash of the new item: compact [n n] for single leaf
+        next-leaf (inc @leaf-count)
+        h [next-leaf next-leaf]
         ;; pointer (get-pointer)
         ;; create new object P, set P.hash<-h, set P.height<-0, set P.left<-lastP
         P (peak-node (:hash (get @node-map @lastP)) nil 0 h)]
@@ -1146,10 +1200,16 @@
        (if (some? left-child)
          ;; if the left child is a range node and its parent is a belt node, then the set of children of the left-child and the node must be disjoint
          (or
-          (and (= :range (:type node)) (= :range (:type left-child)) (= :belt (:type (get-parent left-child))) (= #{} (clojure.set/intersection (:hash node) (:hash left-child))))
+          (and (= :range (:type node)) (= :range (:type left-child)) (= :belt (:type (get-parent left-child)))
+               ;; [lo hi] hashes are disjoint iff one ends strictly before the other begins;
+               ;; a phantom hash [] is the empty set, trivially disjoint from anything
+               (let [nh (:hash node) lh (:hash left-child)]
+                 (or (= [] nh) (= [] lh)
+                     (let [[a-lo a-hi] nh [b-lo b-hi] lh]
+                       (or (< a-hi b-lo) (< b-hi a-lo))))))
           (parent-child-mutual-acknowledgement node left-child))
          ;; if left child is nil, then must be phantom node
-         (= #{} (:hash node))))
+         (= [] (:hash node))))
      ;; verify right child
      (parent-child-mutual-acknowledgement node (get-child node :right)))))
 
@@ -1182,9 +1242,9 @@
                              ;; if in distinct ranges, then left child does not get included in parent range node's "hash"
                              ;; TODO: stricter condition for distinct ranges of two range nodes
                               (:right v)
-                             ;; else, "hash" both
-                              (clojure.set/union (or (:left v) #{}) (:right v))))
-                       (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))
+                             ;; else, "hash" both. raw-hash-union asserts consecutiveness, so the
+                             ;; equality check subsumes the old set-intersection-empty check.
+                              (raw-hash-union (or (:left v) []) (:right v))))
                        (verify-all-ancestry v)))
           (:range-nodes (current-atom-states))))
 
@@ -1192,12 +1252,11 @@
   "verifies parenting relationships of all belt nodes"
   []
   (every? (fn [[k v]] (and
-                       (= k (clojure.set/union (or (:left v) #{}) (:right v)))
-                       (= #{} (clojure.set/intersection (or (:left v) #{}) (:right v)))
+                       (= k (raw-hash-union (or (:left v) []) (:right v)))
                        (verify-all-ancestry v)))
           (:belt-nodes (current-atom-states))))
 
-(truncate-#set-display (get (:range-nodes (play-algo-oneshot-end 1337)) #{}))
+(comment (truncate-#set-display (get (:range-nodes (play-algo-oneshot-end 1337)) [])))
 
 (defn verify-parenting
   "verifies that all parent hashes are calculated correctly"
@@ -1213,31 +1272,16 @@
   ([]
    (verify-parenting nil)))
 
-#_{:clj-kondo/ignore [:missing-else-branch]}
-(if @run-tests
-  (let [n 500]
-    (reset-all)
-    (empty? (filter false?
-                    (doall (repeatedly n #(do (algo true) (verify-parenting))))))))
-;; => true
-
-#_{:clj-kondo/ignore [:missing-else-branch]}
-(if @run-tests
-  (let [n 600]
-    (reset-all)
-    (last (take-while #(true? (second %))
-                      ;; verify parenting with oneshot-bagging
-                      (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo true) (verify-parenting)))))))))
-;; => 4999 (i.e. all passed)
-
-#_{:clj-kondo/ignore [:missing-else-branch]}
-(if @run-tests
-  (let [n (if (System/getProperty "mmb.thorough") 5000 1024)]
-    (reset-all)
-    (last (take-while #(true? (second %))
-                      ;; verify parenting without oneshot-bagging
-                      (take n (map-indexed (fn [i v] [i v]) (repeatedly #(do (algo false) (verify-parenting)))))))))
-;; => 4999 (i.e. all passed)
+;; verify-parenting (parent/child mutual-acknowledgement + hash invariants) holds for every
+;; append, in both oneshot and incremental modes. Default n=500; -Dmmb.thorough=true bumps to 5000.
+(clojure.test/deftest verify-parenting-test
+  (let [n (if (System/getProperty "mmb.thorough") 5000 500)]
+    (clojure.test/testing "oneshot bagging"
+      (reset-all)
+      (clojure.test/is (every? true? (doall (repeatedly n #(do (algo true) (verify-parenting)))))))
+    (clojure.test/testing "incremental bagging"
+      (reset-all)
+      (clojure.test/is (every? true? (doall (repeatedly n #(do (algo false) (verify-parenting)))))))))
 
 ;; show that, barring missing belt node impl in incremental algo, get matching
 ;; result between incremental & oneshot
@@ -1266,18 +1310,27 @@
   ;; => true
   )
 
-(println "pre-algos:" (new java.util.Date))
 (def algo-bound 111)
-(def oneshot-only-algos (atom (doall (play-algo-retain-sequence (dec algo-bound) true))))
+(def oneshot-only-algos (atom nil))
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(def oneshot-algos (atom (map #(play-algo-oneshot-end %) (range 1 algo-bound))))
-(def manual-algos (atom (doall (map #(play-algo-manual-end %) (range 1 algo-bound)))))
-(def manual-only-algos (atom (doall (play-algo-retain-sequence (dec algo-bound) false))))
+(def oneshot-algos (atom nil))
+(def manual-algos (atom nil))
+(def manual-only-algos (atom nil))
 ;; NOTE: extended range of manual-only-algos beyond algo bound
-(def manual-only-algos-large (atom (drop 1327 (doall (play-algo-retain-sequence 1337 false)))))
+(def manual-only-algos-large (atom nil))
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(def optimized-manual-algos (atom (map #(play-algo-optimized %) (range 1 algo-bound))))
-(println "post-algos:" (new java.util.Date))
+(def optimized-manual-algos (atom nil))
+#_{:clj-kondo/ignore [:missing-else-branch]}
+(if @run-tests
+  (do
+    (println "pre-algos:" (new java.util.Date))
+    (reset! oneshot-only-algos (doall (play-algo-retain-sequence (dec algo-bound) true)))
+    (reset! oneshot-algos (map #(play-algo-oneshot-end %) (range 1 algo-bound)))
+    (reset! manual-algos (doall (map #(play-algo-manual-end %) (range 1 algo-bound))))
+    (reset! manual-only-algos (doall (play-algo-retain-sequence (dec algo-bound) false)))
+    (reset! manual-only-algos-large (drop 1327 (doall (play-algo-retain-sequence 1337 false))))
+    (reset! optimized-manual-algos (map #(play-algo-optimized %) (range 1 algo-bound)))
+    (println "post-algos:" (new java.util.Date))))
 
 (comment
   (with-open [w (clojure.java.io/writer "src/cached.edn")]
@@ -1303,8 +1356,9 @@
     (throw (Exception. "cached-large.edn has not been created yet - please amend!"))))
 
 ;; while upgrading algo, test that new result matches cached
-(= manual-algos-cached
-   (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
+(comment
+  (= manual-algos-cached
+     (map #(play-algo % false) (range 1 (inc (count manual-algos-cached))))))
 ;; => true
 
 ;; DONE: should check that reason cached algos don't match is just that I changed the indexing to start at 1
@@ -1318,15 +1372,13 @@
 
 (comment (bump-indexing-to-successor-and-vectorize [1 2 #{3 8 0}]))
 
-(let [reference manual-algos-cached
-      ;; reference (bump-indexing-to-successor-and-vectorize manual-algos-cached)
-      ]
-  (and (= reference
-          (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
-
-       (every? true? (map
-                      (fn [n] (= (nth reference (dec n))
-                                 (play-algo n false))) (range 1 (inc (count manual-algos-cached)))))))
+(comment
+  (let [reference manual-algos-cached]
+    (and (= reference
+            (map #(play-algo % false) (range 1 (inc (count manual-algos-cached)))))
+         (every? true? (map
+                        (fn [n] (= (nth reference (dec n))
+                                   (play-algo n false))) (range 1 (inc (count manual-algos-cached))))))))
 ;; => true
 
 ;; test that everything is exactly the same
@@ -1406,16 +1458,18 @@
          (range 1500)))
 ;; => true
 
-(println "pre-big-algos:" (new java.util.Date))
-(def algo-1222 (play-algo-oneshot-end 1222))
-(def algo-1223 (play-algo-oneshot-end 1223))
+;; plain defs (map or nil) gated on run-tests; downstream gated blocks use these as values
+#_{:clj-kondo/ignore [:missing-else-branch]}
+(if @run-tests (println "pre-big-algos:" (new java.util.Date)))
+(def algo-1222 (when @run-tests (play-algo-oneshot-end 1222)))
+(def algo-1223 (when @run-tests (play-algo-oneshot-end 1223)))
 (comment
   (def algo-1277 (play-algo-oneshot-end 1277))
   (def algo-1278 (play-algo-oneshot-end 1278))
   (def algo-1279 (play-algo-oneshot-end 1279)))
-(println "post-big-algos:" (new java.util.Date))
-
-(def algo-100 (play-algo 100 false))
+#_{:clj-kondo/ignore [:missing-else-branch]}
+(if @run-tests (println "post-big-algos:" (new java.util.Date)))
+(def algo-100 (when @run-tests (play-algo 100 false)))
 
 (if @profile?
   (do
@@ -1490,8 +1544,9 @@
         cached-1222 (oneshot-bagging-from-cached algo-1222 true)]
     (= fresh-1222 cached-1222)))
 
-(def oneshot-1222 (oneshot-bagging-from-cached algo-1222 true))
-(def oneshot-1223 (oneshot-bagging-from-cached algo-1223 true))
+;; plain defs (map or nil) gated on run-tests
+(def oneshot-1222 (when @run-tests (oneshot-bagging-from-cached algo-1222 true)))
+(def oneshot-1223 (when @run-tests (oneshot-bagging-from-cached algo-1223 true)))
 
 (comment
   (keys oneshot-1222)
@@ -1503,8 +1558,9 @@
   (truncate-#set-display (:belt-children oneshot-1222))
   (count (:belt-nodes oneshot-1222)))
 
-(filter #(= :peak (:type (get (:node-map algo-1222) (nth (:node-array algo-1222) %))))
-        (range (count (:node-array algo-1222))))
+(comment
+  (filter #(= :peak (:type (get (:node-map algo-1222) (nth (:node-array algo-1222) %))))
+          (range (count (:node-array algo-1222)))))
 (comment (list 1533 1789 2301 2397 2413 2421 2429 2437 2441 2443))
 
 ;; NOTE: shifting storage left by 3 since skipping the constant offset from the beginning (always empty)
@@ -1521,21 +1577,18 @@
 (:belt-nodes cached-oneshot-9)
 (comment {#{0 1 2 3 4 5 6 7 8} {:left #{0 1 2 3 4 5 6 7}, :right #{8}, :hash #{0 1 2 3 4 5 6 7 8}, :parent nil, :type :belt}})
 
-(:belt-children (oneshot-bagging-from-fresh 9 true))
-(truncate-#set-display (map #(oneshot-bagging-from-fresh % true) (range 1 12)))
-(oneshot-bagging-from-fresh 11 true)
-(keys (:node-map (play-algo 11 true)))
-(:node-array (play-algo 11 true))
-
-(let [n 10
-      play (play-algo n true)
-      node-array (:node-array play)
-      node-map (:node-map play)
-      lastP (:lastP play)]
-  (first (filter #(= lastP (nth node-array %)) (range (count node-array))))
-  ;; (map #(nth @node-array %)
-  ;;      (map #(- % 3) (primitives.storage/parent-less-nodes n)))
-  )
+(comment
+  (:belt-children (oneshot-bagging-from-fresh 9 true))
+  (truncate-#set-display (map #(oneshot-bagging-from-fresh % true) (range 1 12)))
+  (oneshot-bagging-from-fresh 11 true)
+  (keys (:node-map (play-algo 11 true)))
+  (:node-array (play-algo 11 true))
+  (let [n 10
+        play (play-algo n true)
+        node-array (:node-array play)
+        node-map (:node-map play)
+        lastP (:lastP play)]
+    (first (filter #(= lastP (nth node-array %)) (range (count node-array))))))
 
 #_{:clj-kondo/ignore [:missing-else-branch]}
 (if @run-tests
@@ -1638,14 +1691,15 @@
       :old (play-algo first-mismatch false)
       :new (play-algo first-mismatch true)})))
 
-(do
-  ;; (play-algo 10 false)
-  (play-algo 100 false)
-  (map (fn [[k v]] [k (:parent v)]) @node-map)
-  (keys @node-map))
+(comment
+  (do
+    ;; (play-algo 10 false)
+    (play-algo 100 false)
+    (map (fn [[k v]] [k (:parent v)]) @node-map)
+    (keys @node-map))
 
-(keys @node-map)
-(get @node-map #{8 9})
+  (keys @node-map)
+  (get @node-map #{8 9}))
 
 (comment
   (algo true)
@@ -1723,14 +1777,15 @@
 
 (defn posx [node]
   ;; #dbg
-  (if (not= #{} (:hash node))
+  (if (not= [] (:hash node))
     (if (contains? #{:internal :peak} (:type node))
-                ;; if internal or peak, calculate mean position from sum of leaves
-      (float (/ (reduce + 0 (:hash node)) (max 1 (count (:hash node)))))
-                ;; if ephemeral calculate as mean of children
+      ;; if internal or peak, mean position of leaves [lo..hi]: midpoint
+      (let [[lo hi] (:hash node)]
+        (float (/ (+ lo hi) 2)))
+      ;; if ephemeral calculate as mean of children
       (float (/
-              (reduce + (map posx (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))
-              (count (filter #(not= #{} (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))))
+              (reduce + (map posx (filter #(not= [] (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))
+              (count (filter #(not= [] (:hash %)) [(get-real-left-child node) (get-real-right-child node)])))))
     -1))
 
 (defn node-plus-edge [node belting? hide-helper-nodes?]
@@ -1738,17 +1793,18 @@
             (str (:hash node) (:type node)))
           (label [node]
             (let [hash (:hash node)]
-              (if (and (contains? #{:internal :peak} (:type node)) (= 1 (count hash)))
+              (if (and (contains? #{:internal :peak} (:type node))
+                       (vector? hash) (= 2 (count hash)) (= (first hash) (second hash)))
                 (str (first hash))
-                (truncate-#set-display hash))))
+                (expand-hash hash))))
           (height [node]
             (or (:height node)
-                (if (= #{} (:hash node))
+                (if (= [] (:hash node))
                   ((:type node) {:belt (dec (height (get-parent node)))
                                  :range 1
                                  :internal 0}))
                 (inc (max (or #_{:clj-kondo/ignore [:missing-else-branch]}
-                           (if (not= #{} (:left node))
+                           (if (not= [] (:left node))
                              (height (if (or (not= :range (:type node))
                                              (= (:hash node) (:parent (get-child node :left)))) (get-child node :left)
                                          (get-child node :right)))) 0)
@@ -1790,17 +1846,17 @@
                         (if belting?
                           #(not
                             (or
-                             (= #{} (:hash %))
+                             (= [] (:hash %))
                              (intermediary-node? %)))
                           #(not
                             (or
-                             (= #{} (:hash %))
+                             (= [] (:hash %))
                              (contains? #{:belt :range} (:type %))
                              (intermediary-node? %))))
                         (if belting?
                           (fn [_] true)
                           #(not (or
-                                 (= #{} (:hash %))
+                                 (= [] (:hash %))
                                  (contains? #{:belt :range} (:type %))))))
                       (apply concat (map vals [@node-map @range-nodes @belt-nodes]))))))
 
@@ -1911,66 +1967,51 @@
 
 ;; tests
 
-(do (clojure.test/deftest cache-aligned
-      (let [n                   110
-            ;; NOTE: this will only work after migration (else, use cached-index-bumped)
-            cached              (last manual-algos-cached)
-            ;; NOTE: this will only work during migration
-            cached-index-bumped (bump-indexing-to-successor-and-vectorize cached)
-            ;; cached (nth manual-algos-cached (dec n))
-            cached-reference    cached
-            ;; cached-reference cached-index-bumped
-            fresh               (play-algo n false)]
-        ;; test that all keys are present
-        (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
-        ;; test that all non-map values match
-        (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
-        ;; test that all maps match
-        (letfn [(values [m k]
-                  (into #{} (vals (k m))))
-                (diff [k]
-                  [(clojure.set/difference
-                    (values cached-reference k)
-                    (values fresh k))
-                   (clojure.set/difference
-                    (values fresh k)
-                    (values cached-reference k))])]
-          (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
-            :belt-nodes :range-nodes :node-map))))
-    (clojure.test/run-test cache-aligned))
-;; Ran 1 tests containing 16 assertions.
-;; 0 failures, 0 errors.
+(clojure.test/deftest cache-aligned
+  (let [n                110
+        cached           (last manual-algos-cached)
+        ;; cached ref is in #{} form; remap to compact [lo hi] to compare against current output
+        cached-reference (state/remap-to-compact cached)
+        fresh            (play-algo n false)]
+    ;; test that all keys are present
+    (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
+    ;; test that all non-map values match
+    (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
+    ;; test that all maps match
+    (letfn [(values [m k]
+              (into #{} (vals (k m))))
+            (diff [k]
+              [(clojure.set/difference
+                (values cached-reference k)
+                (values fresh k))
+               (clojure.set/difference
+                (values fresh k)
+                (values cached-reference k))])]
+      (clojure.test/are [k] (= [#{} #{}] (diff k))
+        :belt-nodes :range-nodes :node-map))))
 
 ;; DONE: update cached nodes to account for phantom belt node - belt-nodes & range-nodes differ
-(do (clojure.test/deftest cache-aligned-large
-      (let [n 1337
-            ;; NOTE: this will only work after migration (else, use cached-index-bumped)
-            cached (nth manual-algos-cached-large (- (dec n) 1327))
-            ;; NOTE: this will only work during migration
-            cached-index-bumped (bump-indexing-to-successor-and-vectorize cached)
-            ;; cached (nth manual-algos-cached (dec n))
-            cached-reference cached
-            ;; cached-reference cached-index-bumped
-            fresh (play-algo n false)]
-        ;; test that all keys are present
-        (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
-        ;; test that all non-map values match
-        (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
-        ;; test that all maps match
-        (letfn [(values [m k]
-                  (into #{} (vals (k m))))
-                (diff [k]
-                  [(clojure.set/difference
-                    (values cached-reference k)
-                    (values fresh k))
-                   (clojure.set/difference
-                    (values fresh k)
-                    (values cached-reference k))])]
-          (clojure.test/are [k] (= ["#{}" "#{}"] (truncate-#set-display (diff k)))
-            :belt-nodes :range-nodes :node-map))))
-    (clojure.test/run-test cache-aligned-large))
-;; Ran 1 tests containing 16 assertions.
-;; 0 failures, 0 errors.
+(clojure.test/deftest cache-aligned-large
+  (let [n 1337
+        cached (nth manual-algos-cached-large (- (dec n) 1327))
+        cached-reference (state/remap-to-compact cached)
+        fresh (play-algo n false)]
+    ;; test that all keys are present
+    (clojure.test/are [k] (and (k cached) (k fresh)) :node-map :node-array :mergeable-stack :leaf-count :lastP :belt-nodes :root-belt-node :range-nodes)
+    ;; test that all non-map values match
+    (clojure.test/are [k] (= (k cached-reference) (k fresh)) :node-array :mergeable-stack :leaf-count :lastP :root-belt-node)
+    ;; test that all maps match
+    (letfn [(values [m k]
+              (into #{} (vals (k m))))
+            (diff [k]
+              [(clojure.set/difference
+                (values cached-reference k)
+                (values fresh k))
+               (clojure.set/difference
+                (values fresh k)
+                (values cached-reference k))])]
+      (clojure.test/are [k] (= [#{} #{}] (diff k))
+        :belt-nodes :range-nodes :node-map))))
 
 (comment
   (play-algo 20 true)
@@ -1978,82 +2019,72 @@
 
   (identity @state/root-belt-node))
 
-#_{:clj-kondo/ignore [:unresolved-symbol]}
-(do (clojure.test/deftest test-co-path
-      (clojure.test/are [n m] (let [node-index (state/name-lookup (:node m))]
-                                (play-algo n true)
-                                (= (co-path-internal node-index [] (state/name-lookup (:max-node m)) false) (:co-path m)))
-        30 {:node #{1 2}, :max-node #{1 2 3 4} :co-path '(#{3 4})}
-        30 {:node #{1 2}, :max-node #{1 2 3 4 5 6 7 8} :co-path '(#{3 4} #{5 6 7 8})}
-        30 {:node #{9}, :max-node #{9 10 11 12} :co-path '(#{10} #{11 12})}))
-    (clojure.test/run-test test-co-path))
-;; Ran 1 tests containing 3 assertions.
-;; 0 failures, 0 errors.
+;; NOTE: expected hashes are given in #{...} form; state/set-hash->compact (and remap-to-compact
+;; for whole proof maps) translate them to the current compact [lo hi] representation.
+(clojure.test/deftest test-co-path
+  (clojure.test/are [n m] (let [node-index (state/name-lookup (state/set-hash->compact (:node m)))]
+                            (play-algo n true)
+                            (= (co-path-internal node-index [] (state/name-lookup (state/set-hash->compact (:max-node m))) false)
+                               (map state/set-hash->compact (:co-path m))))
+    30 {:node #{1 2}, :max-node #{1 2 3 4} :co-path '(#{3 4})}
+    30 {:node #{1 2}, :max-node #{1 2 3 4 5 6 7 8} :co-path '(#{3 4} #{5 6 7 8})}
+    30 {:node #{9}, :max-node #{9 10 11 12} :co-path '(#{10} #{11 12})}))
 
-#_{:clj-kondo/ignore [:unresolved-symbol]}
-(do (clojure.test/deftest test-membership-proof
-      (clojure.test/are [n m] (let [node-index (state/name-lookup (:node m))]
-                                (play-algo n true)
-                                ;; test both that membership proof has expected shape and passes verification routine
-                                (and (= (membership-proof-node node-index (state/current-atom-states)) m)
-                                     (verify-membership m @state/root-belt-node)))
-        11 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11})}
-        20 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11 12 13 14 15 16} #{17 18 19 20})}
-        30 {:node #{7}, :co-path '(#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}))
-    (clojure.test/run-test test-membership-proof))
-;; Ran 1 tests containing 3 assertions.
-;; 0 failures, 0 errors.
+(clojure.test/deftest test-membership-proof
+  (clojure.test/are [n m] (let [m* (state/remap-to-compact m)
+                                node-index (state/name-lookup (:node m*))]
+                            (play-algo n true)
+                            (and (= (membership-proof-node node-index (state/current-atom-states)) m*)
+                                 (verify-membership m* @state/root-belt-node)))
+    11 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11})}
+    20 {:node #{1 2}, :co-path '(#{3 4} #{5 6 7 8} #{9 10 11 12 13 14 15 16} #{17 18 19 20})}
+    30 {:node #{7}, :co-path '(#{8} #{5 6} #{1 2 3 4} #{9 10 11 12 13 14 15 16} #{17 18 19 20 21 22 23 24} #{25 26 27 28} #{29 30})}))
 
-(let [node-index (state/name-lookup (:node {:node #{7}, :co-path (quote (#{8} #{6 5} #{1 4 3 2} #{15 13 12 11 9 14 16 10} #{20 24 21 22 17 23 19 18} #{27 28 25 26} #{29 30}))}))] (play-algo 30 true) (and (= (membership-proof-node node-index (state/current-atom-states)) {:node #{7}, :co-path (quote (#{8} #{6 5} #{1 4 3 2} #{15 13 12 11 9 14 16 10} #{20 24 21 22 17 23 19 18} #{27 28 25 26} #{29 30}))})))
-
-(do
-  (clojure.test/deftest test-lca
-    (clojure.test/are [leaves lca]
-                      (= lca (nth @node-array (primitives.storage/lowest-common-ancestor-leaves leaves)))
-      [1 2 3] #{1 2 3 4}
-      [1 3] #{1 2 3 4}
-      [5 6] #{5 6}
-      [5 7] #{5 6 7 8}
-      [5 10] #{1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16}
-      [9 10] #{9 10}))
-
-  (clojure.test/run-test test-lca))
+(clojure.test/deftest test-lca
+  (clojure.test/are [leaves lca]
+                    (= (state/set-hash->compact lca) (nth @node-array (primitives.storage/lowest-common-ancestor-leaves leaves)))
+    [1 2 3] #{1 2 3 4}
+    [1 3] #{1 2 3 4}
+    [5 6] #{5 6}
+    [5 7] #{5 6 7 8}
+    [5 10] #{1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16}
+    [9 10] #{9 10}))
 
 ;; check that co-path is correct:
 ;; ensure that we have no intersection of any of the "hashes" in the co-path, and that all leaves are "hashed in" : \sum_{i=1}^n |co-path_i| = |union_{i=1}^n co-path_i| = |leaves| - 1
-(do (clojure.test/deftest co-path-valid
-      (letfn [(co-path-intersection [leaf-number]
-                (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)]
-                  (=
-                   (reduce (fn [acc v] (+ acc (count v))) 0 co-path)
-                   (count (into #{} (apply concat co-path)))
-                   (dec @leaf-count))))]
-        (clojure.test/are [n]
-                          (do (play-algo n false)
-                              (every? true? (map
-                                             (fn [leaf-number]
-                                               (co-path-intersection leaf-number))
-                                             (range 1 @leaf-count))))
-          10
-          50
-          100)))
-
-    (clojure.test/run-test co-path-valid))
+(clojure.test/deftest co-path-valid
+  ;; compact [lo hi]: expand each co-path range to its leaves; the co-path must be
+  ;; disjoint (sum of sizes == union size) and cover every leaf but the proven one
+  (letfn [(leaves-of [h] (if (= [] h) [] (range (first h) (inc (second h)))))
+          (co-path-intersection [leaf-number]
+            (let [co-path (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)
+                  covered (mapcat leaves-of co-path)]
+              (=
+               (count covered)
+               (count (into #{} covered))
+               (dec @leaf-count))))]
+    (clojure.test/are [n]
+                      (do (play-algo n false)
+                          (every? true? (map
+                                         (fn [leaf-number]
+                                           (co-path-intersection leaf-number))
+                                         (range 1 @leaf-count))))
+      10
+      50
+      100)))
 
 ;; check that co-path is correct:
 ;; ensure that we have no intersection of any of the "hashes" in the co-path, and that all leaves are "hashed in" : \sum_{i=1}^n |co-path_i| = |union_{i=1}^n co-path_i| = |leaves| - 1
-(do (clojure.test/deftest co-path-refactor-valid
-      (clojure.test/are [n]
-                        (do (play-algo n false)
-                            (every? true? (map
-                                           (fn [leaf-number]
-                                             (= (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)
-                                                (co-path-internal-v0 (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)))
-                                           (range 1 @leaf-count))))
-        10
-        50
-        100))
-
-    (clojure.test/run-test co-path-refactor-valid))
+(clojure.test/deftest co-path-refactor-valid
+  (clojure.test/are [n]
+                    (do (play-algo n false)
+                        (every? true? (map
+                                       (fn [leaf-number]
+                                         (= (co-path-internal (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)
+                                            (co-path-internal-v0 (primitives.storage/leaf-location leaf-number) [] (count @node-array) true)))
+                                       (range 1 @leaf-count))))
+    10
+    50
+    100))
 
 (println "end:" (new java.util.Date))

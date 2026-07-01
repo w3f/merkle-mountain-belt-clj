@@ -12,9 +12,15 @@
            {:jvm-opts ["-Djava.awt.headless=true"]
             :extra-deps {io.github.cognitect-labs/test-runner
                          {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
-            :main-opts ["-m" "cognitect.test-runner" "-d" "src"]}
+            ;; -d src sets the scan path; the two -n filters select paper-test (figures/lemmas)
+            ;; and linked-peaks (cache-aligned etc., which live in the impl namespace).
+            ;; proof-size runs its deftest at load.
+            :main-opts ["-m" "cognitect.test-runner" "-d" "src" "-n" "linked-peaks" "-n" "paper-test"]}
            :test-thorough
            {:jvm-opts ["-Djava.awt.headless=true" "-Dmmb.thorough=true"]
             :extra-deps {io.github.cognitect-labs/test-runner
                          {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
-            :main-opts ["-m" "cognitect.test-runner" "-d" "src"]}}}
+            ;; -d src sets the scan path; the two -n filters select paper-test (figures/lemmas)
+            ;; and linked-peaks (cache-aligned etc., which live in the impl namespace).
+            ;; proof-size runs its deftest at load.
+            :main-opts ["-m" "cognitect.test-runner" "-d" "src" "-n" "linked-peaks" "-n" "paper-test"]}}}
