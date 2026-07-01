@@ -6,6 +6,7 @@
    [primitives.proof :refer [type-rank parent-type-contenders child-type get-parent get-child get-sibling co-path-ephemeral co-path-internal co-path-internal-v0 sibling-index]]
    [linked-peaks :refer [play-algo membership-proof-leaf verify-membership]]
    [proof-size :refer [range-splits proof-size]]
+   [benchmarks :refer [bench-append-scaling]]
    [state]))
 
 (comment
@@ -225,23 +226,22 @@
          (let [test-ks (range 1 1000)]
            (apply (juxt min max) (pmap #(* -1 (- (amortized-structural proof-size % 50)
                                                  (amortized-mmb-upper-bound %))) test-ks))))
-(comment
-  (defn distance-upper-bound [k p]
-    (- (amortized-mmb-upper-bound k) (amortized-structural proof-size k p)))
+(defn distance-upper-bound [k p]
+  (- (amortized-mmb-upper-bound k) (amortized-structural proof-size k p)))
 
-  (defn spit-csv [header values file]
-    (spit file (str header "\n"
-                    (clojure.string/join "\n"
-                                         (map (fn [[k1 k2]] (clojure.string/join "," [(str k1) (str k2)])) values))
-                    "\n")))
+(defn spit-csv [header values file]
+  (spit file (str header "\n"
+                  (clojure.string/join "\n"
+                                       (map (fn [[k1 k2]] (clojure.string/join "," [(str k1) (str k2)])) values))
+                  "\n")))
 
-  (let [periods 5000
-        test-kss [(range 1 100) [1 2 3 5 7 10 20 50 100 500 1000 1337 2000 5000]]]
-    (map (fn [test-ks]
-           (spit-csv "k,diff-to-upper-bound"
-                     (pmap
-                      (fn [k] [k (distance-upper-bound k periods)]) test-ks) (str "lemma-38-diffs" periods "-periods-" (apply min test-ks) "-" (apply max test-ks) "-k-" (if (every? #{1} (map - (rest test-ks) test-ks)) "sample" nil) " .csv")))
-         test-kss)))
+(comment (let [periods 5000
+               test-kss [(range 1 100) [1 2 3 5 7 10 20 50 100 500 1000 1337 2000]]]
+           (map (fn [test-ks]
+                  (spit-csv "k,diff-to-upper-bound"
+                            (pmap
+                             (fn [k] [k (distance-upper-bound k periods)]) test-ks) (str "lemma-38-diffs" periods "-periods-" (apply min test-ks) "-" (apply max test-ks) "-k" (if (not (every? #{1} (map - (rest test-ks) test-ks))) "-sample" nil) ".csv")))
+                test-kss)))
 
 ;; TODO check min/max of lemma38's diffs
 (comment ((juxt #(apply min %) #(apply max %)) (pmap #(distance-upper-bound % 10000) (range 1 100))))
@@ -267,6 +267,17 @@
     (testing "Lemma 17 (lem:hash-d): amortized value (known overhead, expect ~5 not 4)"
       (is (<= mean 5.0)))))
 
+(deftest append-constant-work-test
+  ;; paper's O(1)-append claim made explicit across orders of magnitude: the work per
+  ;; append (hash-count) is bounded by a constant (5) and doesn't depend on n. So here assert the
+  ;; deterministic hash-count (paper claim) rather than wall-clock — wall-time (see benchmarks/bench-append-scaling)
+  ;; stays ~flat but has mild clojure map/GC overhead growth, unlike the prior O(n) append
+  (let [rows (bench-append-scaling [1000 10000] 200)]
+    (testing "hash-count per append never exceeds 5 at any scale"
+      (is (every? #(<= (:max-hashes %) 5) rows)))
+    (testing "the per-append work bound is n-independent (identical at every scale)"
+      (is (apply = (map :max-hashes rows))))))
+
 (defn k-from-leaf
   "Convert leaf index (1-indexed, 1=oldest) to k (1=newest) at state n."
   [n leaf]
@@ -285,8 +296,9 @@
                        (proof-size n (k-from-leaf n leaf))))
                   (map vector (range 1 (inc n)) proofs))))
     (testing "Tampered root fails verification"
-      (is (not (verify-membership (first proofs)
-                                  (clojure.set/union root #{(inc n)})))))))
+      ;; extend root's upper bound by 1; structurally-valid [lo hi] that's not the real root
+      (let [tampered [(first root) (inc (second root))]]
+        (is (not (verify-membership (first proofs) tampered)))))))
 
 (deftest membership-proofs-large-test
   (let [n 1337
