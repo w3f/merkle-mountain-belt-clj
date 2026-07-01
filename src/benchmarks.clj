@@ -34,15 +34,15 @@
 
 (defn bench-append-scaling
   "per-append cost across scales. one continuous incremental build; at each checkpoint n
-   (ascending), time `batch` appends and report mean wall-time + hash-count stats.
+   (ascending), time `batch` appends and report the median per-append wall-time + hash stats.
    ;; hash-count per append is O(1) (<=5, n-independent); wall-time is O(log n) (node-map
-   ;; depth + the belt-range-count bit scan), so it rises slowly, not constant.
-   two controls: (1) a 20k-append throwaway build first, to JIT the hot path to C2 (level 4,
+   ;; depth + the belt-range-count bit scan), so slow rise in lieu of O(1).
+   median rationale: GC pauses land on individual appends as outliers that wreck the
+   mean at this ms-scale (forcing gc doesn't help); they're filtered with median.
+   a 20k-append throwaway build runs first to JIT the hot path to C2 (level 4,
    https://devblogs.microsoft.com/java/how-tiered-compilation-works-in-openjdk/) before timing,
-   else the first checkpoint pays compilation cost; (2) System/gc + a short settle before each
-   batch, so a collection mid-batch doesn't skew the mean (uncontrolled, the fast-forward to
-   large n often triggers a GC, so bigger n can measure faster: a spurious dip).
-   returns rows {:n :mean-ns :mean-hashes :max-hashes}."
+   else the first checkpoint pays compilation cost.
+   returns rows {:n :median-ns :mean-hashes :max-hashes}."
   [checkpoints batch]
   ;; warmup: exercise the hot path enough to trigger JIT C2, then discard
   (reset-all)
@@ -68,7 +68,7 @@
           (recur (+ n batch)
                  (rest cps)
                  (conj rows {:n n
-                             :mean-ns (double (/ (reduce + (seq ts)) batch))
+                             :median-ns (double (nth (sort (seq ts)) (quot batch 2)))
                              :mean-hashes (double (/ (reduce + (seq hs)) batch))
                              :max-hashes (apply max (seq hs))})))))))
 
@@ -104,5 +104,5 @@
   (spit-csv (bench-append-series [100 500 1000 2000 5000] 10) "stats/append-time.csv")
   (spit-csv (bench-construction-series [100 500 1000 2000 5000]) "stats/construction-time.csv")
  ;; constant-time append across orders of magnitude (10^6 checkpoint takes a couple minutes to build):
-  (bench-append-scaling [1000 10000 100000 1000000] 500)
-  (spit-csv (bench-append-scaling [1000 10000 100000] 500) "stats/append-scaling.csv"))
+  (bench-append-scaling [1000 10000 100000 1000000 10000000] 500)
+  (spit-csv (bench-append-scaling [1000 10000 100000 1000000 10000000] 500) "stats/append-scaling.csv"))
