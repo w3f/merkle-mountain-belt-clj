@@ -276,16 +276,26 @@
        (reduce (fn [acc [k c]] (update-in acc [k c] (fnil inc 0))) {})))
 
 (deftest lemma-17-hash-count-test
-  ;; TODO: lemma proves amortized 4, but implementation averages ~5 due to
-  ;; redundant bagging in new-leaf-range before merge (2 extra hashes when
-  ;; new leaf participates in merge). Deferred fix: defer bagging to after
-  ;; peak-merge.
-  (let [counts (hash-counts-per-append 10000)
-        mean (/ (double (reduce + counts)) (count counts))]
-    (testing "Lemma 17 (lem:hash-d): max 5 hashes per append"
-      (is (every? #(<= % 5) counts)))
-    (testing "Lemma 17 (lem:hash-d): amortized value (known overhead, expect ~5 not 4)"
-      (is (<= mean 5.0)))))
+  ;; lem:hash-d: <=5 hashes worst case, amortized 4. the impl bags each affected node once,
+  ;; post-merge: fresh appends (leaf merges, post-count even) cost merge + range + belt;
+  ;; delayed appends (merge in an older range) additionally bag the new leaf's range and
+  ;; belt. identity absorption (absent child: the node IS its real child, untagged identity
+  ;; encoding) is 0 ops, which is why fresh appends cost <=3 and the amortized (~3.73) lands
+  ;; under the paper's 4 (the paper's bound counts identity sites as ops). NOTE: any further
+  ;; reduction MUST stay valid for an opaque H: value-reuse tricks exploiting the [lo hi]
+  ;; interval model are banned; the lower guard is the tripwire (reuse territory is ~3.25).
+  (let [ledger (hash-count-ledger 10000)
+        mean (/ (double (reduce + (for [[_ cs] ledger [c k] cs] (* c k))))
+                (reduce + (for [[_ cs] ledger [_ k] cs] k)))
+        cmax (fn [cls] (apply max (for [[[c _] cs] ledger :when (= c cls) [cnt _] cs] cnt)))]
+    (testing "lem:hash-d: max 5 hashes per append (worst case)"
+      (is (<= (apply max (for [[_ cs] ledger [cnt _] cs] cnt)) 5)))
+    (testing "fresh appends: at most 3 hashes (paper's n-even schedule)"
+      (is (<= (cmax :fresh) 3)))
+    (testing "delayed appends: at most 5 hashes (paper's n-odd schedule)"
+      (is (<= (cmax :delayed) 5)))
+    (testing "lem:hash-d: amortized under the paper's 4, above the no-reuse tripwire"
+      (is (< 3.5 mean 4.0)))))
 
 (deftest append-constant-work-test
   ;; paper's O(1)-append claim made explicit across orders of magnitude: the work per

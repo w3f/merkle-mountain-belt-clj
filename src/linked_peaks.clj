@@ -141,12 +141,16 @@
    (reduce raw-hash-union (raw-hash-union a b) more)))
 
 (defn hash-union
-  "Counted hash union: same as raw-hash-union but increments state/hash-count.
+  "Counted hash union: same as raw-hash-union but increments state/hash-count when a hash
+   is actually computed. identity absorption (an operand is nil or [] phantom) is 0 ops:
+   under the untagged identity encoding a bag node with an absent child is its actual child.
    Use at every construction site; not in verification."
   ([] [])
-  ([a] (do (swap! state/hash-count inc) a))
+  ([a] a)
   ([a b]
-   (swap! state/hash-count inc)
+   #_{:clj-kondo/ignore [:missing-else-branch]}
+   (if-not (or (nil? a) (= [] a) (nil? b) (= [] b))
+     (swap! state/hash-count inc))
    (raw-hash-union a b))
   ([a b & more]
    (reduce hash-union (hash-union a b) more)))
@@ -156,12 +160,12 @@
  ;; TODO: Remove once have explicit belt-collapse handling in peak-merge
 (defn hash-union-absorb
   [a b]
-  (swap! state/hash-count inc)
   (cond
     (or (nil? a) (= [] a)) (or b [])
     (or (nil? b) (= [] b)) a
     :else (let [[a-lo a-hi] a
                 [b-lo b-hi] b]
+            (swap! state/hash-count inc)
             (cond
               ;; consecutive either way -> normal span
               (= (inc a-hi) b-lo) [a-lo b-hi]
@@ -424,7 +428,7 @@
 (comment
   (get-sibling (get @node-map #{60})))
 
-(defn new-leaf-range [oneshot-bagging? h P fresh-defer?]
+(defn new-leaf-range [oneshot-bagging? h P fresh-defer]
   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:singleton-range]))}
   ;; DONE: if distinct ranges, we're also adding a new belt node for the new leaf
   (if (distinct-ranges? (get @node-map @rightmostP) P)
@@ -450,7 +454,7 @@
           (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
      ;; else new leaf joins last range, i.e. get new range node above new leaf
      ;; TODO: update parent belt node hash, likewise for its left sibling
-    (if (and fresh-defer?
+    (if (and fresh-defer
              (= (:parent (get-parent (get @node-map @rightmostP) :range)) @root-belt-node))
       ;; deferral (lem:hash-d n-even path): this leaf merges immediately and peak-merge
       ;; bags the merged peak's range and belt once, post-merge. building the provisional
@@ -787,7 +791,7 @@
   (get-parent (get @belt-nodes @root-belt-node)))
 
 ;; TODO: check whether the algo here is sufficient for paper definition
-(defn peak-merge [oneshot-bagging? fresh-defer?]
+(defn peak-merge [oneshot-bagging? fresh-defer]
   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:peak-merge]))}
   ;; TODO: consider moving all conditionals into the execution logic of `algo`
   ;;;; if (Pairs is not empty)
@@ -820,11 +824,39 @@
           ;;;; then
           (let [;; check where parent lives: should only exist in one of the maps
                 parent (get-parent Q-old :range)]
-            (if fresh-defer?
-              ;; deferral: parents match because new-leaf-range joined the leaf to L's
-              ;; existing range node instead of building provisionals. bag the merged peak's
-              ;; range and belt here, once, from post-merge state (lem:hash-d n-even
-              ;; schedule: 2 bagging hashes + the merge hash above = 3 total)
+            (case fresh-defer
+              ;; deferral, merged peak joins the range to its left (range join): the last
+              ;; range was exactly {L, leaf}, so parent is a singleton whose :left is the
+              ;; left-neighbor range root. one range hash (join) + belt root: identity when
+              ;; only one range remains, else one more hash
+              :join
+              (let [left-root (:left parent)
+                    rn (hash-union left-root (:hash @Q))
+                    bn-k (get @belt-nodes (:parent parent))
+                    bn-k-1 (get @belt-nodes (:left bn-k))
+                    bn-k-2 (:left bn-k-1)
+                    new-belt (hash-union bn-k-2 rn)]
+                (swap! range-nodes #(dissoc % (:hash parent)))
+                (swap! range-nodes #(assoc % rn (range-node left-root (:hash @Q) rn new-belt)))
+                (swap! range-nodes #(assoc-in % [left-root :parent] rn))
+                (swap! Q #(assoc % :parent rn))
+                (swap! belt-nodes #(dissoc % (:hash bn-k-1)))
+                (swap! belt-nodes #(dissoc % (:hash bn-k)))
+                (swap! belt-nodes #(assoc % new-belt (belt-node bn-k-2 rn new-belt (:parent bn-k))))
+                #_{:clj-kondo/ignore [:missing-else-branch]}
+                (if bn-k-2
+                  (if (contains? @belt-nodes bn-k-2)
+                    (swap! belt-nodes #(assoc-in % [bn-k-2 :parent] new-belt))
+                    (if (contains? @range-nodes bn-k-2)
+                      (swap! range-nodes #(assoc-in % [bn-k-2 :parent] new-belt))
+                      (throw (Exception. (str "join: belt grandchild invalid at leaf count " @leaf-count))))))
+                (reset! root-belt-node new-belt))
+
+              ;; deferral, no range boundary change: parents match because new-leaf-range
+              ;; joined the leaf to L's existing range node instead of building provisionals.
+              ;; bag the merged peak's range and belt here, once, from post-merge state
+              ;; (lem:hash-d n-even schedule)
+              :normal
               (let [distinct-ranges (distinct-ranges? (get @node-map (:left @Q)) @Q)
                     rn (hash-union #_{:clj-kondo/ignore [:missing-else-branch]}
                         (if (not distinct-ranges)
@@ -1081,12 +1113,14 @@
     ;; if P_head != Null && P_head.height==0 then Pairs.push(P_new)
     (let [did-push (and @rightmostP (= (:height (get @node-map @rightmostP)) 0))
           ;; deferral scope (lem:hash-d n-even schedule): the leaf itself merges (did-push;
-          ;; LIFO pops it) and the range count is unchanged (excludes range-join and split,
-          ;; which stay on the provisional path until stage 2)
-          fresh-defer? (boolean (and did-push
-                                     (not oneshot-bagging?)
-                                     (= (primitives.core/belt-range-count @leaf-count)
-                                        (primitives.core/belt-range-count (inc @leaf-count)))))]
+          ;; LIFO pops it). :normal = range count unchanged; :join = the merged peak joins
+          ;; the range to its left (count decreases). splits (count increases) stay on the
+          ;; provisional path
+          fresh-defer (when (and did-push (not oneshot-bagging?))
+                        (let [brc-pre (primitives.core/belt-range-count @leaf-count)
+                              brc-post (primitives.core/belt-range-count (inc @leaf-count))]
+                          (cond (= brc-pre brc-post) :normal
+                                (> brc-pre brc-post) :join)))]
       #_{:clj-kondo/ignore [:missing-else-branch]}
       (if did-push
         (add-mergeable-stack (get @node-map h)))
@@ -1099,14 +1133,14 @@
       ;; its left
       ;; DONE: otherwise, the new node is involved in merge
       ;; #dbg ^{:break/when (not oneshot-bagging?)}
-      (new-leaf-range oneshot-bagging? h P fresh-defer?)
+      (new-leaf-range oneshot-bagging? h P fresh-defer)
 
       ;; 3. reset rightmostP
       ;; Set P_head<-P_new
       (reset! rightmostP h)
 
       ;; 4. merge if mergeable
-      (peak-merge oneshot-bagging? fresh-defer?))
+      (peak-merge oneshot-bagging? fresh-defer))
 
     ;; doc: update counter n++ (actually step 1 in algo, but that's an implementation detail)
     (swap! leaf-count inc)
