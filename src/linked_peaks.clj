@@ -155,26 +155,6 @@
   ([a b & more]
    (reduce hash-union (hash-union a b) more)))
 
- ;; NOTE: the overlap absorbed here is not (only) the provisional re-bag: on range joins
- ;; (~quarter of appends) rn subsumes a sibling belt child (example: n=6: [1 4] union [1 6]).
- ;; TODO: Remove once have explicit belt-collapse handling in peak-merge
-(defn hash-union-absorb
-  [a b]
-  (cond
-    (or (nil? a) (= [] a)) (or b [])
-    (or (nil? b) (= [] b)) a
-    :else (let [[a-lo a-hi] a
-                [b-lo b-hi] b]
-            (swap! state/hash-count inc)
-            (cond
-              ;; consecutive either way -> normal span
-              (= (inc a-hi) b-lo) [a-lo b-hi]
-              (= (inc b-hi) a-lo) [b-lo a-hi]
-              ;; overlapping / one contains the other -> absorb into the covering span
-              (or (<= a-lo b-lo a-hi) (<= b-lo a-lo b-hi)) [(min a-lo b-lo) (max a-hi b-hi)]
-              :else (throw (ex-info (str "hash-union-absorb: disjoint non-consecutive: " a " " b)
-                                    {:a a :b b :leaf-count @state/leaf-count}))))))
-
 (defn expand-hash
   "REPL helper: render [lo hi] as '[lo..hi]' (matching truncate-#set-display)."
   [h]
@@ -784,6 +764,18 @@
   (get-parent (get @belt-nodes @root-belt-node)))
 
 ;; TODO: check whether the algo here is sufficient for paper definition
+(defn repoint-right-neighbor
+  "after rebagging replaces the range node to the left of `right-hash`'s range, repoint
+   that range node's :left to `new-left`. caller is the range-join path (joined rn
+   replaces the merged peak's stale range key); the other caller (plain merge
+   rebag at a range boundary) is unexercised. merge-first invariant: the only unbagged
+   node is this append's leaf (no parent yet); it links itself when new-leaf-range bags
+   it afterwards, so an unbagged neighbor is intentionally skipped here"
+  [right-hash new-left]
+  #_{:clj-kondo/ignore [:missing-else-branch]}
+  (if-let [neighbor-range (and right-hash (:parent (get @node-map right-hash)))]
+    (swap! range-nodes #(assoc-in % [neighbor-range :left] new-left))))
+
 (defn peak-merge [oneshot-bagging? fresh-defer delayed-join?]
   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:peak-merge]))}
   ;; TODO: consider moving all conditionals into the execution logic of `algo`
@@ -922,31 +914,31 @@
                   ;; new-parent-hash SHOULD refer to the parent of the range node
                     [new-grandparent-hash child-leg] (if (= :range grandparent-type)
                                                      ;; if parent is range node, this was its left child (since range nodes don't have other range nodes as right children)
-                                                     ;; hash-union-absorb: rn may already span its right sibling (range join)
-                                                       [(hash-union-absorb rn (:right (get-parent (get-parent Q-old :range) :range))) :right]
+                                                       [(hash-union rn (:right (get-parent (get-parent Q-old :range) :range))) :right]
                                                      ;; else, parent is belt - then we must check whether left or right child
                                                      ;; TODO: this check should only be applicable to left-most belt node - all others have a belt node as their left child and a range node as their right
                                                        (if (= :belt grandparent-type)
                                                          (let [left (:left (get-parent (get-parent Q-old :range) :belt))
                                                                right (:right (get-parent (get-parent Q-old :range) :belt))]
-                                                         ;; hash-union-absorb: rn may already span the belt's other child (range join)
                                                            (if (= left (:parent Q-old))
-                                                             [(hash-union-absorb rn right) :left]
+                                                             [(hash-union rn right) :left]
                                                              (if (= right (:parent Q-old))
-                                                               [(hash-union-absorb left rn) :right])))
+                                                               [(if delayed-join?
+                                                                  ;; range join: the belt folds, so the rebagged belt spans the
+                                                                  ;; grandchild's chunk plus the joined range. left would overlap
+                                                                  ;; rn here (it is absorbed into the join); the strict operands
+                                                                  ;; are the fold's
+                                                                  (hash-union (:left (get @belt-nodes left)) rn)
+                                                                  (hash-union left rn)) :right])))
                                                        ;; if grandparent neither range nor belt, we just leave blank
                                                          [nil nil]))]
               ;; if Q-old's grandparent is a range node, and Q-old's parent is not the left-child of Q-old's grandparent range, then it's the right-child, hence the range node to the right of Q-old's parent is in another range, so need to hop to it via path: Q-old's right's parent, and then update its left reference (without updating hash, since other range)
               ;; #dbg
-                (if (and (:right Q-old)
-                       ;; merge-first: skip when the right neighbor is the still-unbagged
-                       ;; leaf; new-leaf-range sets its :left when it bags afterwards
-                         (:parent (get @node-map (:right Q-old)))
-                         (or (= :no-parent grandparent-type)
-                             (and (= :range grandparent-type)
-                                  (not= (:parent Q-old) (:left (get-parent (get-parent Q-old :range) :range))))))
+                (if (or (= :no-parent grandparent-type)
+                        (and (= :range grandparent-type)
+                             (not= (:parent Q-old) (:left (get-parent (get-parent Q-old :range) :range)))))
                 ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-                  (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right Q-old))) :left] rn)))
+                  (repoint-right-neighbor (:right Q-old) rn))
 
               ;; if Q-old's grandparent is a belt node, then
               ;; TODO: extend to cover when merge does not occur at rightmost edge of range (does that exist?) - it's just easier like this since already have necessary code above
@@ -1006,12 +998,8 @@
                     (swap! range-nodes #(dissoc % (:hash @Q)))
                     (swap! Q #(assoc % :parent rn))
                   ;; if merged peak is not rightmost peak, also update the reference to it from its left neighbour
-                    #_{:clj-kondo/ignore [:missing-else-branch]}
                   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-                  ;; merge-first: skip when the right neighbor is the still-unbagged leaf;
-                  ;; new-leaf-range sets its :left when it bags afterwards
-                    (if (and (:right @Q) (:parent (get @node-map (:right @Q))))
-                      (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right @Q))) :left] (:parent @Q))))
+                    (repoint-right-neighbor (:right @Q) (:parent @Q))
                   ;; UNTRUE: if former range's parent is a range node, then former range was a left child
                   ;; (if (contains? @range-nodes (:parent former-range))
                   ;;   (swap! range-nodes #(assoc-in % [(:parent former-range) :left] (:parent @Q))))
