@@ -428,7 +428,7 @@
 (comment
   (get-sibling (get @node-map #{60})))
 
-(defn new-leaf-range [oneshot-bagging? h P fresh-defer]
+(defn new-leaf-range [oneshot-bagging? h P]
   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:singleton-range]))}
   ;; DONE: if distinct ranges, we're also adding a new belt node for the new leaf
   (if (distinct-ranges? (get @node-map @rightmostP) P)
@@ -454,43 +454,36 @@
           (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
      ;; else new leaf joins last range, i.e. get new range node above new leaf
      ;; TODO: update parent belt node hash, likewise for its left sibling
-    (if (and fresh-defer
-             (= (:parent (get-parent (get @node-map @rightmostP) :range)) @root-belt-node))
-      ;; deferral (lem:hash-d n-even path): this leaf merges immediately and peak-merge
-      ;; bags the merged peak's range and belt once, post-merge. building the provisional
-      ;; nodes here would be discarded work under any hash. joining the existing range node
-      ;; (i.e. parents match) routes peak-merge into its bagging branch. no hash ops here.
-      (swap! node-map #(assoc-in % [h :parent] (:hash (get-parent (get @node-map @rightmostP) :range))))
-      (let [last-range (get-parent (get @node-map @rightmostP) :range)
-            old-belt-parent (get @belt-nodes (:parent last-range))
-            hash-new-range (hash-union (:hash last-range) h)
-            new-belt-parent (hash-union (:left old-belt-parent) hash-new-range)
-            new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)]
+    (let [last-range (get-parent (get @node-map @rightmostP) :range)
+          old-belt-parent (get @belt-nodes (:parent last-range))
+          hash-new-range (hash-union (:hash last-range) h)
+          new-belt-parent (hash-union (:left old-belt-parent) hash-new-range)
+          new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)]
        ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-        (swap! range-nodes #(assoc % (:hash new-range) new-range))
-        (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
+      (swap! range-nodes #(assoc % (:hash new-range) new-range))
+      (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
        ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-        (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
+      (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
        ;; update former range-leader's parent belt to have new range-leader as child
        ;; TODO: following is wrong since old belt node is deleted
-        (comment (swap! belt-nodes #(assoc-in % [(:parent new-range) :right] (:hash new-range)))
+      (comment (swap! belt-nodes #(assoc-in % [(:parent new-range) :right] (:hash new-range)))
                 ;; recalculate belt-node hash since has new right child
                 ;; TODO: delay until last possible moment since left child may be updated too during merge
-                 (swap! belt-nodes #(assoc-in % [(:parent new-range) :hash] (clojure.set/union (:left belt-parent) (:hash new-range)))))
+               (swap! belt-nodes #(assoc-in % [(:parent new-range) :hash] (clojure.set/union (:left belt-parent) (:hash new-range)))))
 
        ;; TODO: assert that old-belt-node is root belt node
-        (swap! belt-nodes #(assoc % new-belt-parent (belt-node (:left old-belt-parent) (:hash new-range) new-belt-parent (:parent old-belt-parent))))
+      (swap! belt-nodes #(assoc % new-belt-parent (belt-node (:left old-belt-parent) (:hash new-range) new-belt-parent (:parent old-belt-parent))))
        ;; update old belt node's left parent pointer to refer to new belt node
-        (if (contains? @belt-nodes (:left old-belt-parent))
-          (swap! belt-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
-          (if (contains? @range-nodes (:left old-belt-parent))
+      (if (contains? @belt-nodes (:left old-belt-parent))
+        (swap! belt-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
+        (if (contains? @range-nodes (:left old-belt-parent))
            ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-            (swap! range-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
-            (throw (Exception. (str "old belt node's left child was invalid at leaf count " @leaf-count)))))
-        (swap! belt-nodes #(dissoc % (:hash old-belt-parent)))
-        (reset! root-belt-node new-belt-parent)
+          (swap! range-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
+          (throw (Exception. (str "old belt node's left child was invalid at leaf count " @leaf-count)))))
+      (swap! belt-nodes #(dissoc % (:hash old-belt-parent)))
+      (reset! root-belt-node new-belt-parent)
         ;; TODO: update siblings around update
-        ))))
+      )))
 
 (defn types
   "returns all types that a given hash has an entry for"
@@ -791,7 +784,7 @@
   (get-parent (get @belt-nodes @root-belt-node)))
 
 ;; TODO: check whether the algo here is sufficient for paper definition
-(defn peak-merge [oneshot-bagging? fresh-defer]
+(defn peak-merge [oneshot-bagging? fresh-defer delayed-join?]
   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:peak-merge]))}
   ;; TODO: consider moving all conditionals into the execution logic of `algo`
   ;;;; if (Pairs is not empty)
@@ -814,16 +807,13 @@
       ;;;; if (P_mrg.prev != Null)
       ;; Q and L (should) have a preexisting parent, either a range or a belt node
       ;; #dbg ^{:break/when (not oneshot-bagging?)}
-      (if (and (not oneshot-bagging?) (:parent Q-old))
-        ;; #dbg
-        ;; just another check to ensure that we're merging
-        ;;;; if (P_mrg.parent == P_mrg.prev.parent))
-        ;;;; NOTE: above is convoluted logic since P_mrg.parent has not been updated yet. That's why I'm using Q-old here for distinction. Maybe can get rid of this check?
-        (if (= (:parent Q-old)
-               (:parent L))
-          ;;;; then
-          (let [;; check where parent lives: should only exist in one of the maps
-                parent (get-parent Q-old :range)]
+      ;; under merge-first ordering a fresh leaf is popped unbagged (no parent), so the
+      ;; deferral modes route on the flag rather than on Q-old's parent
+      (if (and (not oneshot-bagging?) (or fresh-defer (:parent Q-old)))
+        (if fresh-defer
+          ;; the leaf was consumed by its own merge: bag the merged peak's range and belt
+          ;; here, once, from post-merge state. L's range node is the last range
+          (let [parent (get-parent L :range)]
             (case fresh-defer
               ;; deferral, merged peak joins the range to its left (range join): the last
               ;; range was exactly {L, leaf}, so parent is a singleton whose :left is the
@@ -877,16 +867,18 @@
                     (swap! range-nodes #(assoc-in % [(:left bn-old) :parent] new-belt))
                     (throw (Exception. (str "old belt node's left child was invalid at leaf count " @leaf-count)))))
                 (swap! belt-nodes #(dissoc % (:hash bn-old)))
-                (reset! root-belt-node new-belt))
-              ;; legacy path (parents matched without deferral): was unexercised previously
-              (do
-                ;;;; P_mrg.parent ← P_mrg.prev.parent
-                ;;;; NOTE: will be a range node
-                (swap! Q #(assoc % :parent (:parent parent)))
-                ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-                ;;;; RangeNodes.dissoc(P_mrg.parent)
-                ;;;; NOTE: unclear to me why
-                (swap! range-nodes #(dissoc % (:hash parent))))))
+                (reset! root-belt-node new-belt))))
+          (if (= (:parent Q-old)
+                 (:parent L))
+            ;;;; then (legacy: parents matched without deferral; unexercised)
+            (let [parent (get-parent Q-old :range)]
+              ;;;; P_mrg.parent ← P_mrg.prev.parent
+              ;;;; NOTE: will be a range node
+              (swap! Q #(assoc % :parent (:parent parent)))
+              ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
+              ;;;; RangeNodes.dissoc(P_mrg.parent)
+              ;;;; NOTE: unclear to me why
+              (swap! range-nodes #(dissoc % (:hash parent))))
           ;; else
           ;; DONE (should remove): (throw (Exception. (str "parents don't match @ leaf count " @leaf-count)))
           ;; introduce more complicated algorithm: if parents don't match, still valid if their parents are not inside node-map
@@ -898,130 +890,128 @@
           ;; #dbg
           ;;;; else
           ;;;; if
-          (if (and (every? #(contains? @range-nodes %) [(:parent Q-old) (:parent L)])
-                   (= (:parent Q-old) (:parent (get-parent L :range)))
-                   (= (:parent L) (:left (get-parent Q-old :range))))
+            (if (and (every? #(contains? @range-nodes %) [(:parent Q-old) (:parent L)])
+                     (= (:parent Q-old) (:parent (get-parent L :range)))
+                     (= (:parent L) (:left (get-parent Q-old :range))))
             ;; #dbg
 
             ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:merge]))}
-            (let [parent-L (get-parent L :range)
-                  parent-Q-old (get-parent Q-old :range)
+              (let [parent-L (get-parent L :range)
+                    parent-Q-old (get-parent Q-old :range)
                   ;; this is the range node that will replace their former parent range nodes
                   ;; if the range node above former left is not leftmost node, include its left in the hash (otherwise, its left is in another range)
                   ;; DONE: update the nodes referred to to be left: left, right: newly merged peak
                   ;; TODO: should kill old parent range node that's no longer applicable
-                  distinct-ranges (distinct-ranges? (get @node-map (:left @Q)) @Q)
-                  rn (hash-union #_{:clj-kondo/ignore [:missing-else-branch]}
-                      (if (not distinct-ranges)
-                        (:left parent-L))
-                                 (:hash @Q))
+                    distinct-ranges (distinct-ranges? (get @node-map (:left @Q)) @Q)
+                    rn (hash-union #_{:clj-kondo/ignore [:missing-else-branch]}
+                        (if (not distinct-ranges)
+                          (:left parent-L))
+                                   (:hash @Q))
                   ;; DONE (fixed above): the following currently only *preserves* range splits - should check whether the two range nodes should now be in the same range
                   ;; rn (clojure.set/union (if (not= (:hash parent-L) (:right parent-L)) (:left parent-L)) (:hash @Q))
                   ;; Q-old is a peak node, so its immediate parent is certainly a range node. The only unknown is the type of the parent's parent
-                  grandparent-type (if (and (not= (:parent parent-Q-old) (:hash parent-Q-old))
-                                            (contains? @range-nodes (:parent parent-Q-old)))
-                                     :range
-                                     (if (contains? @belt-nodes (:parent parent-Q-old))
-                                       :belt
+                    grandparent-type (if (and (not= (:parent parent-Q-old) (:hash parent-Q-old))
+                                              (contains? @range-nodes (:parent parent-Q-old)))
+                                       :range
+                                       (if (contains? @belt-nodes (:parent parent-Q-old))
+                                         :belt
                                        ;; (throw (Exception. (str "parent neither valid range nor belt node @ leaf count " @leaf-count)))
-                                       :no-parent))
+                                         :no-parent))
                   ;; TODO: check if following TODO is still a TODO?
                   ;; TODO: investigate why when adding the 9th leaf, this new parent hash is the old range nodes hash. Possibly because merge is across ranges?
                   ;; new-parent-hash SHOULD refer to the parent of the range node
-                  [new-grandparent-hash child-leg] (if (= :range grandparent-type)
+                    [new-grandparent-hash child-leg] (if (= :range grandparent-type)
                                                      ;; if parent is range node, this was its left child (since range nodes don't have other range nodes as right children)
                                                      ;; hash-union-absorb: rn may already span its right sibling (range join)
-                                                     [(hash-union-absorb rn (:right (get-parent (get-parent Q-old :range) :range))) :right]
+                                                       [(hash-union-absorb rn (:right (get-parent (get-parent Q-old :range) :range))) :right]
                                                      ;; else, parent is belt - then we must check whether left or right child
                                                      ;; TODO: this check should only be applicable to left-most belt node - all others have a belt node as their left child and a range node as their right
-                                                     (if (= :belt grandparent-type)
-                                                       (let [left (:left (get-parent (get-parent Q-old :range) :belt))
-                                                             right (:right (get-parent (get-parent Q-old :range) :belt))]
+                                                       (if (= :belt grandparent-type)
+                                                         (let [left (:left (get-parent (get-parent Q-old :range) :belt))
+                                                               right (:right (get-parent (get-parent Q-old :range) :belt))]
                                                          ;; hash-union-absorb: rn may already span the belt's other child (range join)
-                                                         (if (= left (:parent Q-old))
-                                                           [(hash-union-absorb rn right) :left]
-                                                           (if (= right (:parent Q-old))
-                                                             [(hash-union-absorb left rn) :right])))
+                                                           (if (= left (:parent Q-old))
+                                                             [(hash-union-absorb rn right) :left]
+                                                             (if (= right (:parent Q-old))
+                                                               [(hash-union-absorb left rn) :right])))
                                                        ;; if grandparent neither range nor belt, we just leave blank
-                                                       [nil nil]))]
+                                                         [nil nil]))]
               ;; if Q-old's grandparent is a range node, and Q-old's parent is not the left-child of Q-old's grandparent range, then it's the right-child, hence the range node to the right of Q-old's parent is in another range, so need to hop to it via path: Q-old's right's parent, and then update its left reference (without updating hash, since other range)
               ;; #dbg
-              (if (and (:right Q-old)
-                       (or (= :no-parent grandparent-type)
-                           (and (= :range grandparent-type)
-                                (not= (:parent Q-old) (:left (get-parent (get-parent Q-old :range) :range))))))
+                (if (and (:right Q-old)
+                       ;; merge-first: skip when the right neighbor is the still-unbagged
+                       ;; leaf; new-leaf-range sets its :left when it bags afterwards
+                         (:parent (get @node-map (:right Q-old)))
+                         (or (= :no-parent grandparent-type)
+                             (and (= :range grandparent-type)
+                                  (not= (:parent Q-old) (:left (get-parent (get-parent Q-old :range) :range))))))
                 ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-                (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right Q-old))) :left] rn)))
+                  (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right Q-old))) :left] rn)))
 
               ;; if Q-old's grandparent is a belt node, then
               ;; TODO: extend to cover when merge does not occur at rightmost edge of range (does that exist?) - it's just easier like this since already have necessary code above
               ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:belt]))}
-              (if (and (= :belt grandparent-type)
-                       ;; belt-range-count is an O(log n) bit scan (no partition built);
-                       ;; compute the two counts once and reuse across the > and = checks below.
-                       (let [range-counts (mapv primitives.core/belt-range-count
-                                                [@leaf-count (inc @leaf-count)])]
-                         (or
-                          (apply > range-counts)
-                          (and (apply = range-counts)
-                               ;; NOTE: remaining issue is that mergeable pair has already been removed from stack
-                               ;; (distinct-ranges? (get @node-map (:left (get @node-map @rightmostP))) (get @node-map @rightmostP))
-                               ;; NOTE: instead, check whether @rightmostP has its own range node
-                               (= @rightmostP (:parent (get @node-map @rightmostP)))))))
+              ;; delayed-join? is computed in algo, pre-merge, from the belt-range-count
+              ;; delta plus whether the leaf starts its own range (which otherwise masks a
+              ;; join at net-zero count change)
+                (if (and (= :belt grandparent-type) delayed-join?)
 
-                (let [old-bn (get-parent (get-parent Q-old :range) :belt)
-                      new-bn (belt-node
+                  (let [old-bn (get-parent (get-parent Q-old :range) :belt)
+                        new-bn (belt-node
                               ;; if "hash" of old and new belt node are the same, then we're dealing with a range join (maybe only for n=6), so old belt node's right child is no longer range leader, so need to use old belt node's
-                              (if (= :left child-leg) rn (if (not= (:hash old-bn) new-grandparent-hash) (:left old-bn) (:left (get @belt-nodes (:left old-bn)))))
-                              (if (= :right child-leg) rn (:right old-bn))
-                              new-grandparent-hash
-                              (:parent old-bn))]
-                  (swap! belt-nodes #(assoc % new-grandparent-hash new-bn))
+                                (if (= :left child-leg) rn (if (not= (:hash old-bn) new-grandparent-hash) (:left old-bn) (:left (get @belt-nodes (:left old-bn)))))
+                                (if (= :right child-leg) rn (:right old-bn))
+                                new-grandparent-hash
+                                (:parent old-bn))]
+                    (swap! belt-nodes #(assoc % new-grandparent-hash new-bn))
                   ;; TODO: this is hacky and simply reasoned from n=6: may not be generally applicable!
-                  (if (not= (:hash old-bn) new-grandparent-hash)
-                    (swap! belt-nodes #(dissoc % (:hash old-bn)))
-                    (let [left-of-old-bn (get @belt-nodes (:left old-bn))]
-                      (if (contains? @belt-nodes (:left left-of-old-bn))
+                    (if (not= (:hash old-bn) new-grandparent-hash)
+                      (swap! belt-nodes #(dissoc % (:hash old-bn)))
+                      (let [left-of-old-bn (get @belt-nodes (:left old-bn))]
+                        (if (contains? @belt-nodes (:left left-of-old-bn))
                         ;; TODO: check if parent should actually be new-bn in general
-                        (swap! belt-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
-                        (if (contains? @range-nodes (:left left-of-old-bn))
+                          (swap! belt-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
+                          (if (contains? @range-nodes (:left left-of-old-bn))
                           ;; (if (and (not (contains? #{1 2 5} @leaf-count)) (contains? @range-nodes (:left left-of-old-bn)))
                           ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-                          (swap! range-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
+                            (swap! range-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
                           ;; (throw (Exception. (str "old belt node's left child didn't have a left child at " @leaf-count)))
-                          ))
-                      (swap! belt-nodes #(dissoc % (:hash left-of-old-bn)))))
+                            ))
+                        (swap! belt-nodes #(dissoc % (:hash left-of-old-bn)))))
                   ;; DONE: cover relatives of old-bn & update their references
-                  ))
+                    ))
               ;; add new parent range node that couples to old parent range's left
               ;; #dbg
               ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-              (swap! range-nodes #(assoc % rn (range-node (:left (get-parent L :range)) (:hash @Q) rn new-grandparent-hash)))
+                (swap! range-nodes #(assoc % rn (range-node (:left (get-parent L :range)) (:hash @Q) rn new-grandparent-hash)))
               ;; update former left's parent's left child to point to rn as a parent
               ;; NOTE: doesn't apply for left-most range node
               ;; #dbg
-              #_{:clj-kondo/ignore [:missing-else-branch]}
-              (if (and (not distinct-ranges)
-                       (:left (get-parent L :range)))
+                #_{:clj-kondo/ignore [:missing-else-branch]}
+                (if (and (not distinct-ranges)
+                         (:left (get-parent L :range)))
                 ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-                (swap! range-nodes #(assoc-in % [(:left (get-parent L :range)) :parent] rn)))
+                  (swap! range-nodes #(assoc-in % [(:left (get-parent L :range)) :parent] rn)))
               ;; remove former left's parent from range nodes
               ;; #dbg
               ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-              (swap! range-nodes #(dissoc % (:parent L)))
+                (swap! range-nodes #(dissoc % (:parent L)))
 
               ;; TODO: integrate this neater!
               ;; if range nodes contains old
-              (if (and (not distinct-ranges) (contains? @range-nodes (:hash @Q)) (not= 4 @leaf-count))
+                (if (and (not distinct-ranges) (contains? @range-nodes (:hash @Q)) (not= 4 @leaf-count))
                 ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-merge-replace]))}
-                (let [former-range (get @range-nodes (:hash @Q))]
+                  (let [former-range (get @range-nodes (:hash @Q))]
                   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-                  (swap! range-nodes #(dissoc % (:hash @Q)))
-                  (swap! Q #(assoc % :parent rn))
+                    (swap! range-nodes #(dissoc % (:hash @Q)))
+                    (swap! Q #(assoc % :parent rn))
                   ;; if merged peak is not rightmost peak, also update the reference to it from its left neighbour
-                  #_{:clj-kondo/ignore [:missing-else-branch]}
+                    #_{:clj-kondo/ignore [:missing-else-branch]}
                   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-                  (if (:right @Q) (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right @Q))) :left] (:parent @Q))))
+                  ;; merge-first: skip when the right neighbor is the still-unbagged leaf;
+                  ;; new-leaf-range sets its :left when it bags afterwards
+                    (if (and (:right @Q) (:parent (get @node-map (:right @Q))))
+                      (swap! range-nodes #(assoc-in % [(:parent (get @node-map (:right @Q))) :left] (:parent @Q))))
                   ;; UNTRUE: if former range's parent is a range node, then former range was a left child
                   ;; (if (contains? @range-nodes (:parent former-range))
                   ;;   (swap! range-nodes #(assoc-in % [(:parent former-range) :left] (:parent @Q))))
@@ -1029,10 +1019,10 @@
                   ;; (swap! range-nodes #(assoc-in % [(:left former-range) :parent] (:parent @Q)))
                   ;; (swap! range-nodes #(assoc-in % [(:left former-range) :parent] (:parent @Q)))
                   ;; (swap! range-nodes #(assoc-in % [(:parent former-range) :right] (:parent @Q)))
-                  ))
+                    ))
               ;; TODO: update parent's child reference, and update the parent's other child's parent pointer, and recurse over chain of parents (note: children of parents only need their parent pointer updated - doesn't affect their hash [and hence also not the hash of anything referring to said children])
-              )
-            (throw (Exception. (str "not handling range nodes with distinct belt nodes above yet @ leaf count " @leaf-count))))))
+                )
+              (throw (Exception. (str "not handling range nodes with distinct belt nodes above yet @ leaf count " @leaf-count)))))))
 
       ;; add new leaf to node-map
       (swap! node-map #(assoc % (:hash @Q) @Q))
@@ -1082,7 +1072,11 @@
 
       #_{:clj-kondo/ignore [:unresolved-symbol]}
       (comment #_{:clj-kondo/ignore [:syntax]}
-       (if upgrade?)))
+       (if upgrade?))
+
+      ;; return the merged peak's hash (algo uses it to reset rightmostP when the leaf
+      ;; was consumed by its own merge)
+      (:hash @Q))
     nil))
 
 ;; (play-algo 5 false)
@@ -1112,15 +1106,24 @@
     ;; if rightmostP != nil && rightmostP.height==0 then M.add(P)
     ;; if P_head != Null && P_head.height==0 then Pairs.push(P_new)
     (let [did-push (and @rightmostP (= (:height (get @node-map @rightmostP)) 0))
-          ;; deferral scope (lem:hash-d n-even schedule): the leaf itself merges (did-push;
-          ;; LIFO pops it). :normal = range count unchanged; :join = the merged peak joins
-          ;; the range to its left (count decreases). splits (count increases) stay on the
-          ;; provisional path
-          fresh-defer (when (and did-push (not oneshot-bagging?))
-                        (let [brc-pre (primitives.core/belt-range-count @leaf-count)
-                              brc-post (primitives.core/belt-range-count (inc @leaf-count))]
-                          (cond (= brc-pre brc-post) :normal
-                                (> brc-pre brc-post) :join)))]
+          ;; belt-range-count at current leaf-count
+          brc-pre (primitives.core/belt-range-count @leaf-count)
+          ;; belt-range-count at next leaf-count
+          brc-post (primitives.core/belt-range-count (inc @leaf-count))
+          ;; the leaf itself merges (did-push; LIFO pops it): lem:hash-d n-even schedule.
+          ;; :normal = range count unchanged; :join = the merged peak joins the range to
+          ;; its left (count decreases). splits (count increases) would stay provisional
+          fresh-defer (when did-push
+                        (cond (= brc-pre brc-post) :normal
+                              (> brc-pre brc-post) :join))
+          ;; a delayed merge joins ranges when the net count decreases, or when it holds
+          ;; steady only because the leaf simultaneously starts a range of its own
+          delayed-join? (boolean (and (not did-push)
+                                      (pos? (count @mergeable-stack))
+                                      (or (> brc-pre brc-post)
+                                          (and (= brc-pre brc-post)
+                                               @rightmostP
+                                               (distinct-ranges? (get @node-map @rightmostP) P)))))]
       #_{:clj-kondo/ignore [:missing-else-branch]}
       (if did-push
         (add-mergeable-stack (get @node-map h)))
@@ -1128,19 +1131,21 @@
       ;; prelim: set right pointer of rightmostP to h
       #_{:clj-kondo/ignore [:missing-else-branch]}
       (if @rightmostP (swap! node-map #(assoc-in % [@rightmostP :right] h)))
-      ;; prelim: create range node for newly appended node if its height difference
-      ;; to the last peak is 2, or the last peak can be merged with the mountain to
-      ;; its left
-      ;; DONE: otherwise, the new node is involved in merge
-      ;; #dbg ^{:break/when (not oneshot-bagging?)}
-      (new-leaf-range oneshot-bagging? h P fresh-defer)
 
-      ;; 3. reset rightmostP
-      ;; Set P_head<-P_new
-      (reset! rightmostP h)
-
-      ;; 4. merge if mergeable
-      (peak-merge oneshot-bagging? fresh-defer))
+      (if oneshot-bagging?
+        ;; oneshot keeps the legacy order (bag provisionally, then merge): it is the
+        ;; verification reference and its range/belt state is rebuilt from scratch below
+        (do
+          (new-leaf-range oneshot-bagging? h P)
+          (reset! rightmostP h)
+          (peak-merge oneshot-bagging? nil false))
+        ;; incremental: merge first, then bag (the paper's schedule). a pushed leaf is
+        ;; consumed by its own merge and bagged there; otherwise the leaf is bagged after
+        ;; the merge so its range and belt see post-merge state
+        (let [merged (peak-merge oneshot-bagging? fresh-defer delayed-join?)]
+          (when-not did-push
+            (new-leaf-range oneshot-bagging? h P))
+          (reset! rightmostP (if did-push merged h)))))
 
     ;; doc: update counter n++ (actually step 1 in algo, but that's an implementation detail)
     (swap! leaf-count inc)
