@@ -255,6 +255,26 @@
                          (linked-peaks/algo false)
                          @state/hash-count))))
 
+(defn hash-count-ledger
+  "per-append hash counts, classified per lem:hash-d's proof classes (post = count after
+   the append): :no-merge (post = 2^k - 1), :fresh (leaf participates in the merge, post
+   even), :delayed (merge in an older range, post odd). crossed with :range-join when the
+   append joins two ranges (belt-range-count decreases, else :normal. returns {[class join] {hash-count occurrences}}."
+  [n]
+  (linked-peaks/reset-all)
+  (->> (range 1 (inc n))
+       (mapv (fn [post]
+               (reset! state/hash-count 0)
+               (linked-peaks/algo false)
+               (let [no-merge? (= (inc post) (Long/highestOneBit (inc post)))
+                     range-join? (> (primitives.core/belt-range-count (dec post))
+                                    (primitives.core/belt-range-count post))
+                     class (cond no-merge? :no-merge
+                                 (even? post) :fresh
+                                 :else :delayed)]
+                 [[class (if range-join? :range-join :normal)] @state/hash-count])))
+       (reduce (fn [acc [k c]] (update-in acc [k c] (fnil inc 0))) {})))
+
 (deftest lemma-17-hash-count-test
   ;; TODO: lemma proves amortized 4, but implementation averages ~5 due to
   ;; redundant bagging in new-leaf-range before merge (2 extra hashes when
