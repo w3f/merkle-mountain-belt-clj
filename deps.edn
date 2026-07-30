@@ -17,7 +17,7 @@
             ;; proof-size runs its deftest at load.
             :main-opts ["-m" "cognitect.test-runner" "-d" "src" "-n" "linked-peaks" "-n" "paper-test"]}
            :test-thorough
-           {:jvm-opts ["-Djava.awt.headless=true" "-Dmmb.thorough=true"]
+           {:jvm-opts ["-Djava.awt.headless=true" "-Dmmb.thorough=true" "-Xmx48g"]
             :extra-deps {io.github.cognitect-labs/test-runner
                          {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
             ;; -d src sets the scan path; the two -n filters select paper-test (figures/lemmas)
