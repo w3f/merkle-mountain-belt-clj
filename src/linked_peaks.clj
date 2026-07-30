@@ -7,6 +7,7 @@
    [clojure.string]
    [clojure.test]
    [clojure.walk :as walk]
+   [hashing]
    [primitives.core]
    [primitives.storage :refer [leaf-location storage-maps]]
    [primitives.visualization :refer [style truncate-#set-display]]
@@ -124,34 +125,27 @@
                          conj coll items)) (concat (repeat zero-leaves 0) (list item)))))
 
 (defn raw-hash-union
-  "Combine two compact hashes [lo hi] without counting. Used by verification."
-  ([] [])
+  "Combine two child hashes without counting. Used by verification. Delegates to the active
+   backend (hashing/*backend*): the [lo hi] interval proxy asserts adjacency, keccak256
+   concatenates digests. An absent child is the identity."
+  ([] hashing/phantom)
   ([a] a)
-  ([a b]
-   (cond
-     (or (nil? a) (= [] a)) (or b [])
-     (or (nil? b) (= [] b)) a
-     :else (let [[a-lo a-hi] a
-                 [b-lo b-hi] b]
-             (when-not (= (inc a-hi) b-lo)
-               (throw (ex-info (str "raw-hash-union: not consecutive: " a " " b)
-                               {:a a :b b :leaf-count @state/leaf-count})))
-             [a-lo b-hi])))
+  ([a b] (hashing/node-hash a b))
   ([a b & more]
    (reduce raw-hash-union (raw-hash-union a b) more)))
 
 (defn hash-union
   "Counted hash union: same as raw-hash-union but increments state/hash-count when a hash
-   is actually computed. identity absorption (an operand is nil or [] phantom) is 0 ops:
+   is actually computed. identity absorption (an operand is nil or phantom) is 0 ops:
    under the untagged identity encoding a bag node with an absent child is its actual child.
    Use at every construction site; not in verification."
-  ([] [])
+  ([] hashing/phantom)
   ([a] a)
   ([a b]
    #_{:clj-kondo/ignore [:missing-else-branch]}
-   (if-not (or (nil? a) (= [] a) (nil? b) (= [] b))
+   (if (hashing/real-union? a b)
      (swap! state/hash-count inc))
-   (raw-hash-union a b))
+   (hashing/node-hash a b))
   ([a b & more]
    (reduce hash-union (hash-union a b) more)))
 
@@ -171,9 +165,9 @@
   (reset! mergeable-stack [])
   (reset! leaf-count 0)
   (reset! rightmostP [])
-  ;; phantom belt-node's parent is [1 1] (compact equiv of the original #{1}):
-  ;; oneshot bagging reconstructs it as [1 1], so incremental must match for the two to agree
-  (reset! belt-nodes {[] (belt-node nil [] [] [1 1])})
+  ;; phantom belt-node's parent is the first leaf's hash: oneshot bagging reconstructs it
+  ;; that way (the phantom's only child is leaf 1), so incremental must match to agree
+  (reset! belt-nodes {[] (belt-node nil [] [] (hashing/leaf-hash 1))})
   (reset! root-belt-node [])
   (reset! range-nodes {[] (range-node nil [] [] [])})
   (reset! state/hash-count 0))
@@ -1026,7 +1020,7 @@
 (defn algo [oneshot-bagging?]
   (let [;; let h be the hash of the new item: compact [n n] for single leaf
         next-leaf (inc @leaf-count)
-        h [next-leaf next-leaf]
+        h (hashing/leaf-hash next-leaf)
         ;; pointer (get-pointer)
         ;; create new object P, set P.hash<-h, set P.height<-0, set P.left<-rightmostP
         P (peak-node (:hash (get @node-map @rightmostP)) nil 0 h)]
@@ -1225,15 +1219,19 @@
          ;; if the left child is a range node and its parent is a belt node, then the set of children of the left-child and the node must be disjoint
          (or
           (and (= :range (:type node)) (= :range (:type left-child)) (= :belt (:type (get-parent left-child)))
-               ;; [lo hi] hashes are disjoint iff one ends strictly before the other begins;
-               ;; a phantom hash [] is the empty set, trivially disjoint from anything
-               (let [nh (:hash node) lh (:hash left-child)]
-                 (or (= [] nh) (= [] lh)
-                     (let [[a-lo a-hi] nh [b-lo b-hi] lh]
-                       (or (< a-hi b-lo) (< b-hi a-lo))))))
+               ;; distinct-ranges case: the left neighbour is in another range, so the two
+               ;; must cover disjoint leaves. only checkable in the interval proxy, where a
+               ;; hash is its leaf span (disjoint iff one ends before the other begins;
+               ;; phantom [] is empty => trivially disjoint). opaque digests carry no span,
+               ;; so under :keccak the pointer checks below are the available evidence
+               (or (not= :interval hashing/*backend*)
+                   (let [nh (:hash node) lh (:hash left-child)]
+                     (or (hashing/phantom? nh) (hashing/phantom? lh)
+                         (let [[a-lo a-hi] nh [b-lo b-hi] lh]
+                           (or (< a-hi b-lo) (< b-hi a-lo)))))))
           (parent-child-mutual-acknowledgement node left-child))
          ;; if left child is nil, then must be phantom node
-         (= [] (:hash node))))
+         (hashing/phantom? (:hash node))))
      ;; verify right child
      (parent-child-mutual-acknowledgement node (get-child node :right)))))
 
