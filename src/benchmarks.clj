@@ -39,6 +39,9 @@
    ;; depth + the belt-range-count bit scan), so slow rise in lieu of O(1).
    median rationale: GC pauses land on individual appends as outliers that wreck the
    mean at this ms-scale (forcing gc doesn't help); they're filtered with median.
+   caveat: because the median filters those pauses, :median-ns is per-append work excl.
+   collection, i.e. only comparing the appends themselves. shouldn't be mistaken for build
+   throughput.
    a 20k-append throwaway build runs first to JIT the hot path to C2 (level 4,
    https://devblogs.microsoft.com/java/how-tiered-compilation-works-in-openjdk/) before timing,
    else the first checkpoint pays compilation cost.

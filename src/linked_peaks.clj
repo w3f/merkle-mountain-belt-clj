@@ -2057,14 +2057,26 @@
                              (:node-array-samples snap)))))
 
 (clojure.test/deftest cache-aligned-xxl
-  ;; n=30M reference snapshot (src/cached-xxl.edn), same shape as the xl one. ~4min build
-  ;; and ~12GB live heap, so it runs only under -Dmmb.thorough (whose alias raises -Xmx)
+  ;; n=30M reference snapshot (src/cached-xxl.edn), same shape as the xl one. ~12GB live
+  ;; heap, so it runs only under -Dmmb.xxl (the :test-xxl alias), on demand.
+  ;; NOTE: builds with dotimes rather than play-algo: play-algo's (doall (repeatedly n ...))
+  ;; retains a 30M-element lazy seq it then discards, which dominates runtime at this scale
   #_{:clj-kondo/ignore [:missing-else-branch]}
-  (if (System/getProperty "mmb.thorough")
+  (if (System/getProperty "mmb.xxl")
     (let [snap (with-open [r (java.io.PushbackReader. (clojure.java.io/reader "src/cached-xxl.edn"))]
                  (clojure.edn/read r))
           n (:n snap)
-          fresh (play-algo n false)
+          t0 (System/nanoTime)
+          fresh (do (reset-all)
+                    (dotimes [i n]
+                      #_{:clj-kondo/ignore [:missing-else-branch]}
+                      (if (and (pos? i) (zero? (mod i 1000000)))
+                        (do (println (format "  build %dM/%dM leaves (%.0fs)"
+                                             (quot i 1000000) (quot n 1000000)
+                                             (/ (- (System/nanoTime) t0) 1e9)))
+                            (flush)))
+                      (algo false))
+                    (state/current-atom-states))
           nm (:node-map fresh)]
       (clojure.test/are [k] (= (k snap) (k fresh))
         :leaf-count :rightmostP :root-belt-node :range-nodes :belt-nodes :mergeable-stack)
