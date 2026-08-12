@@ -970,6 +970,15 @@
               ;; #dbg
               ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                 (swap! range-nodes #(dissoc % (:parent L)))
+              ;; the merged peak now hangs under the rebuilt range node, and the range node it
+              ;; superseded is gone. in interval model, both are no-ops (rn equals the old
+              ;; key there, since a merge does not change the range's leaf span), which is why
+              ;; neither was needed before; the dissoc must stay guarded or it would delete the
+              ;; entry just written
+                (swap! Q #(assoc % :parent rn))
+                #_{:clj-kondo/ignore [:missing-else-branch]}
+                (if (not= rn (:hash parent-Q-old))
+                  (swap! range-nodes #(dissoc % (:hash parent-Q-old))))
 
               ;; TODO: integrate this neater!
               ;; if range nodes contains old
