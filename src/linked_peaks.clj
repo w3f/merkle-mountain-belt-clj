@@ -919,7 +919,41 @@
                         (if (contains? @range-nodes (:left left-of-old-bn))
                           ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                           (swap! range-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))))
-                      (swap! belt-nodes #(dissoc % (:hash left-of-old-bn))))))
+                      (swap! belt-nodes #(dissoc % (:hash left-of-old-bn)))))
+
+                ;; if no join -> the range node was rebuilt under a new key -> the belt node above
+                ;; it needs re-keying & re-hashing, and that change propagated up to the
+                ;; root. in the interval model, a rebag never changes a key (same leaf span),
+                ;; so this block is no-op there
+                  #_{:clj-kondo/ignore [:missing-else-branch]}
+                  (if (not= (:hash grandparent-bn) new-grandparent-hash)
+                    (do
+                      (swap! belt-nodes #(assoc % new-grandparent-hash
+                                                (belt-node (:left grandparent-bn) rn
+                                                           new-grandparent-hash (:parent grandparent-bn))))
+                      (swap! belt-nodes #(dissoc % (:hash grandparent-bn)))
+                      #_{:clj-kondo/ignore [:missing-else-branch]}
+                      (if-let [lc (:left grandparent-bn)]
+                        (if (contains? @belt-nodes lc)
+                          (swap! belt-nodes #(assoc-in % [lc :parent] new-grandparent-hash))
+                          #_{:clj-kondo/ignore [:missing-else-branch]}
+                          (if (contains? @range-nodes lc)
+                            (swap! range-nodes #(assoc-in % [lc :parent] new-grandparent-hash)))))
+                    ;; propagation: re-hash each ancestor with its updated child. lem:close puts
+                    ;; the merge peak in the rightmost or second-rightmost range -> at
+                    ;; most two levels
+                      (loop [child-old (:hash grandparent-bn)
+                             child-new new-grandparent-hash
+                             parent-key (:parent grandparent-bn)]
+                        (if (nil? parent-key)
+                          (reset! root-belt-node child-new)
+                          (let [pn (get @belt-nodes parent-key)
+                                pl (if (= (:left pn) child-old) child-new (:left pn))
+                                pr (if (= (:right pn) child-old) child-new (:right pn))
+                                ph (hash-union pl pr)]
+                            (swap! belt-nodes #(assoc % ph (belt-node pl pr ph (:parent pn))))
+                            (swap! belt-nodes #(dissoc % parent-key))
+                            (recur parent-key ph (:parent pn))))))))
               ;; add new parent range node that couples to old parent range's left
               ;; #dbg
               ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
