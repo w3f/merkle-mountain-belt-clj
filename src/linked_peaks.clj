@@ -750,7 +750,16 @@
 (comment
   (get-parent (get @belt-nodes @root-belt-node)))
 
-;; TODO: check whether the algo here is sufficient for paper definition
+(defn update-parent
+  "point `child` node at its new parent hash. a node knows its own :type, and
+   storage-maps resolves that to the owning atom. using node rather than hash since:
+   under the identity convention, a belt node and its range child share a key while
+   being different nodes with different parents. this has same dispatch oneshot-bagging uses"
+  [child parent]
+  #_{:clj-kondo/ignore [:missing-else-branch]}
+  (if (:type child)
+    (swap! (get storage-maps (:type child)) #(assoc-in % [(:hash child) :parent] parent))))
+
 (defn repoint-right-neighbor
   "after rebagging replaces the range node to the left of `right-hash`'s range, repoint
    that range node's :left to `new-left`. caller is the range-join path (joined rn
@@ -763,6 +772,7 @@
   (if-let [neighbor-range (and right-hash (:parent (get @node-map right-hash)))]
     (swap! range-nodes #(assoc-in % [neighbor-range :left] new-left))))
 
+;; TODO: check whether the algo here is sufficient for paper definition
 (defn peak-merge [oneshot-bagging? fresh-defer delayed-join?]
   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:peak-merge]))}
   ;; TODO: consider moving all conditionals into the execution logic of `algo`
@@ -932,16 +942,12 @@
                                                 (belt-node (:left grandparent-bn) rn
                                                            new-grandparent-hash (:parent grandparent-bn))))
                       (swap! belt-nodes #(dissoc % (:hash grandparent-bn)))
-                      #_{:clj-kondo/ignore [:missing-else-branch]}
-                      (if-let [lc (:left grandparent-bn)]
-                        (if (contains? @belt-nodes lc)
-                          (swap! belt-nodes #(assoc-in % [lc :parent] new-grandparent-hash))
-                          #_{:clj-kondo/ignore [:missing-else-branch]}
-                          (if (contains? @range-nodes lc)
-                            (swap! range-nodes #(assoc-in % [lc :parent] new-grandparent-hash)))))
+                      (update-parent (get @belt-nodes (:left grandparent-bn)) new-grandparent-hash)
                     ;; propagation: re-hash each ancestor with its updated child. lem:close puts
                     ;; the merge peak in the rightmost or second-rightmost range -> at
-                    ;; most two levels
+                    ;; most two levels. NOTE both children must be repointed, not just the one
+                    ;; that changed: re-keying the parent invalidates the unchanged sibling's
+                    ;; parent pointer too
                       (loop [child-old (:hash grandparent-bn)
                              child-new new-grandparent-hash
                              parent-key (:parent grandparent-bn)]
@@ -953,6 +959,9 @@
                                 ph (hash-union pl pr)]
                             (swap! belt-nodes #(assoc % ph (belt-node pl pr ph (:parent pn))))
                             (swap! belt-nodes #(dissoc % parent-key))
+                            ;; belt chain: left child is the previous belt node, right child a range root
+                            (update-parent (get @belt-nodes pl) ph)
+                            (update-parent (get @range-nodes pr) ph)
                             (recur parent-key ph (:parent pn))))))))
               ;; add new parent range node that couples to old parent range's left
               ;; #dbg
@@ -970,15 +979,10 @@
               ;; #dbg
               ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                 (swap! range-nodes #(dissoc % (:parent L)))
-              ;; the merged peak now hangs under the rebuilt range node, and the range node it
-              ;; superseded is gone. in interval model, both are no-ops (rn equals the old
-              ;; key there, since a merge does not change the range's leaf span), which is why
-              ;; neither was needed before; the dissoc must stay guarded or it would delete the
-              ;; entry just written
+              ;; the merged peak now hangs under the rebuilt range node. no-op in the interval
+              ;; model, where rn equals the old parent key (a merge does not change the range's
+              ;; leaf span), which is why it was never needed before
                 (swap! Q #(assoc % :parent rn))
-                #_{:clj-kondo/ignore [:missing-else-branch]}
-                (if (not= rn (:hash parent-Q-old))
-                  (swap! range-nodes #(dissoc % (:hash parent-Q-old))))
 
               ;; TODO: integrate this neater!
               ;; if range nodes contains old
