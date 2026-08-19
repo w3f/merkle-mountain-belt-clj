@@ -897,76 +897,61 @@
                   ;; (:range/:no-parent grandparents and the left-leg case never occur)
                     _ (when-not (and grandparent-bn (= (:right grandparent-bn) (:parent Q-old)))
                         (throw (Exception. (str "unreachable: merge peak's grandparent is not a belt with its range as right child at leaf count " @leaf-count))))
-                    new-grandparent-hash (if delayed-join?
-                                           ;; range join: the belt folds, so the rebagged belt
-                                           ;; spans the grandchild's chunk plus the joined
-                                           ;; range ((:left grandparent-bn) would overlap rn:
-                                           ;; it is absorbed into the join)
-                                           (hash-union (:left (get @belt-nodes (:left grandparent-bn))) rn)
-                                           (hash-union (:left grandparent-bn) rn))]
+                  ;; a join folds grandparent-bn's left sibling into the rebagged belt, so
+                  ;; the new left child is the belt grandchild; otherwise unchanged
+                    new-belt-left (if delayed-join?
+                                    (:left (get @belt-nodes (:left grandparent-bn)))
+                                    (:left grandparent-bn))
+                    new-grandparent-hash (hash-union new-belt-left rn)]
               ;; delayed-join? is computed in algo, pre-merge, from the belt-range-count
-              ;; delta plus whether the leaf starts its own range (which otherwise masks a
-              ;; join at net-zero count change)
-                (if delayed-join?
-                  (let [old-bn grandparent-bn
-                        new-bn (belt-node
-                                (:left (get @belt-nodes (:left old-bn)))
-                                rn
-                                new-grandparent-hash
-                                (:parent old-bn))]
-                    (swap! belt-nodes #(assoc % new-grandparent-hash new-bn))
-                    ;; the fold replaces the two collapsed belt nodes with one; in the
-                    ;; interval model the folded key equals old-bn's (spans are merge
-                    ;; invariant), so old-bn is overwritten by the assoc above and only
-                    ;; its left sibling is dissoc'd
-                    (when (not= (:hash old-bn) new-grandparent-hash)
-                      (throw (Exception. (str "unreachable: fold changed the belt key at leaf count " @leaf-count))))
-                    (let [left-of-old-bn (get @belt-nodes (:left old-bn))]
-                      (if (contains? @belt-nodes (:left left-of-old-bn))
-                        ;; TODO: check if parent should actually be new-bn in general
-                        (swap! belt-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))
-                        #_{:clj-kondo/ignore [:missing-else-branch]}
-                        (if (contains? @range-nodes (:left left-of-old-bn))
-                          ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-                          (swap! range-nodes #(assoc-in % [(:left left-of-old-bn) :parent] (:hash new-bn)))))
-                      (swap! belt-nodes #(dissoc % (:hash left-of-old-bn)))))
-
-                ;; if no join -> the range node was rebuilt under a new key -> the belt node above
-                ;; it needs re-keying & re-hashing, and that change propagated up to the
-                ;; root. in the interval model, a rebag never changes a key (same leaf span),
-                ;; so this block is no-op there
+              ;; delta plus whether the leaf starts its own range (otherwise masks a
+              ;; join at net-zero count change). both cases rebuild the belt node above the
+              ;; merge peak's range and propagate upward; they differ only in which left
+              ;; child it takes, since join folds grandparent-bn's left sibling into it
+                (let [old-bn grandparent-bn
+                      left-of-old-bn (get @belt-nodes (:left old-bn))]
+                  (swap! belt-nodes #(assoc % new-grandparent-hash
+                                            (belt-node new-belt-left rn
+                                                       new-grandparent-hash (:parent old-bn))))
+                  ;; the consumed sibling always goes on a join; old-bn goes only when its key
+                  ;; actually moved (when it did not, the assoc above already replaced it, and
+                  ;; a dissoc would delete the entry just written)
                   #_{:clj-kondo/ignore [:missing-else-branch]}
-                  (if (not= (:hash grandparent-bn) new-grandparent-hash)
-                    (do
-                      (swap! belt-nodes #(assoc % new-grandparent-hash
-                                                (belt-node (:left grandparent-bn) rn
-                                                           new-grandparent-hash (:parent grandparent-bn))))
-                      (swap! belt-nodes #(dissoc % (:hash grandparent-bn)))
-                      (update-parent (get @belt-nodes (:left grandparent-bn)) new-grandparent-hash)
-                    ;; propagation: re-hash each ancestor with its updated child. lem:close puts
-                    ;; the merge peak in the rightmost or second-rightmost range -> at
-                    ;; most two levels. NOTE both children must be repointed, not just the one
-                    ;; that changed: re-keying the parent invalidates the unchanged sibling's
-                    ;; parent pointer too
-                      (loop [child-old (:hash grandparent-bn)
-                             child-new new-grandparent-hash
-                             parent-key (:parent grandparent-bn)]
-                        (if (nil? parent-key)
-                          (reset! root-belt-node child-new)
-                          (let [pn (get @belt-nodes parent-key)
-                                pl (if (= (:left pn) child-old) child-new (:left pn))
-                                pr (if (= (:right pn) child-old) child-new (:right pn))
-                                ph (hash-union pl pr)]
-                            (swap! belt-nodes #(assoc % ph (belt-node pl pr ph (:parent pn))))
-                            (swap! belt-nodes #(dissoc % parent-key))
-                            ;; belt chain: left child is the previous belt node, right child a range root
-                            (update-parent (get @belt-nodes pl) ph)
-                            (update-parent (get @range-nodes pr) ph)
-                            (recur parent-key ph (:parent pn))))))))
+                  (if delayed-join?
+                    (swap! belt-nodes #(dissoc % (:hash left-of-old-bn))))
+                  #_{:clj-kondo/ignore [:missing-else-branch]}
+                  (if (not= (:hash old-bn) new-grandparent-hash)
+                    (swap! belt-nodes #(dissoc % (:hash old-bn))))
+                  (update-parent (get @belt-nodes new-belt-left) new-grandparent-hash)
+                  ;; propagation: re-hash each ancestor with its updated child. lem:close puts
+                  ;; the merge peak in the rightmost or second-rightmost range -> at most two
+                  ;; levels. both children must be repointed, not just the one that changed:
+                  ;; re-keying the parent invalidates the unchanged sibling's pointer too
+                  #_{:clj-kondo/ignore [:missing-else-branch]}
+                  (if (not= (:hash old-bn) new-grandparent-hash)
+                    (loop [child-old (:hash old-bn)
+                           child-new new-grandparent-hash
+                           parent-key (:parent old-bn)]
+                      (if (nil? parent-key)
+                        (reset! root-belt-node child-new)
+                        (let [pn (get @belt-nodes parent-key)
+                              pl (if (= (:left pn) child-old) child-new (:left pn))
+                              pr (if (= (:right pn) child-old) child-new (:right pn))
+                              ph (hash-union pl pr)]
+                          (swap! belt-nodes #(assoc % ph (belt-node pl pr ph (:parent pn))))
+                          (swap! belt-nodes #(dissoc % parent-key))
+                          ;; belt chain: left child is the previous belt node, right a range root
+                          (update-parent (get @belt-nodes pl) ph)
+                          (update-parent (get @range-nodes pr) ph)
+                          (recur parent-key ph (:parent pn)))))))
               ;; add new parent range node that couples to old parent range's left
               ;; #dbg
               ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
                 (swap! range-nodes #(assoc % rn (range-node (:left (get-parent L :range)) (:hash @Q) rn new-grandparent-hash)))
+              ;; the range to the right holds a neighbour pointer to this range's root, and that
+              ;; root just changed. it feeds the next rebag's hash, so a stale one corrupts a
+              ;; later rn (invisible under the interval proxy: old and new share a span)
+                (repoint-right-neighbor (:right @Q) rn)
               ;; update former left's parent's left child to point to rn as a parent
               ;; NOTE: doesn't apply for left-most range node
               ;; #dbg
