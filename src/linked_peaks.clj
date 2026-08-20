@@ -237,6 +237,16 @@
 
 (comment (map #(get @node-map (nth @node-array (- (first %) 0))) (primitives.storage/parent-less-nodes-sorted-height (primitives.storage/parent-less-nodes @leaf-count))))
 
+(defn update-parent
+  "point `child` node at its new parent hash. a node knows its own :type, and
+   storage-maps resolves that to the owning atom. using node rather than hash since:
+   under the identity convention, a belt node and its range child share a key while
+   being different nodes with different parents"
+  [child parent]
+  #_{:clj-kondo/ignore [:missing-else-branch]}
+  (if (:type child)
+    (swap! (get storage-maps (:type child)) #(assoc-in % [(:hash child) :parent] parent))))
+
 (defn oneshot-bagging
   "performs a oneshot nesting of ephemeral range and belt nodes. takes flag `singleton-ranges?` to specify whether singleton peaks should also have a range node above them"
   [singleton-ranges?]
@@ -252,11 +262,6 @@
         ]
     (reset! range-nodes {})
     (reset! belt-nodes {})
-    (letfn [;; takes type of child to find its storage map, and then updates its parent
-            (update-parent [parent child]
-              (if (:type child) (swap! (get storage-maps (:type child)) (fn [storage-map] (assoc-in storage-map [(:hash child) :parent] (:hash parent))))
-                  ;; (println child "does not have a type key!")
-                  ))]
       ;; #dbg
       (let [belt-children (doall (map (fn [belt-range-count]
                                         (reduce (fn [left-child right-child]
@@ -268,7 +273,7 @@
                                                                                    (:hash right-child))
                                                                        nil)]
                                                     (doall (map
-                                                            (partial update-parent rn)
+                                                            #(update-parent % (:hash rn))
                                                             (if (and singleton-ranges? left-most) [right-child] [left-child right-child])))
                                                     (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
                                                     rn))
@@ -295,7 +300,7 @@
                                (let [bn (belt-node (:hash left-child) (:hash right-child)
                                                    (hash-union (or (:hash left-child) []) (:hash right-child)) nil)]
                                  (doall (map
-                                         (partial update-parent bn)
+                                         #(update-parent % (:hash bn))
                                          [left-child right-child]))
                                  (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
                                  bn))
@@ -309,7 +314,7 @@
          :root-belt-node @root-belt-node
          ;; :node-map node-map
          ;; :node-array node-array
-         }))))
+         })))
 
 (map-indexed #(identity [%1 (count (cons [] (primitives.core/belt-ranges %2)))]) (range 100))
 
@@ -401,16 +406,6 @@
 
 (comment
   (get-sibling (get @node-map #{60})))
-
-(defn update-parent
-  "point `child` node at its new parent hash. a node knows its own :type, and
-   storage-maps resolves that to the owning atom. using node rather than hash since:
-   under the identity convention, a belt node and its range child share a key while
-   being different nodes with different parents. this has same dispatch oneshot-bagging uses"
-  [child parent]
-  #_{:clj-kondo/ignore [:missing-else-branch]}
-  (if (:type child)
-    (swap! (get storage-maps (:type child)) #(assoc-in % [(:hash child) :parent] parent))))
 
 (defn repoint-belt-child
   "point a belt node's left child at its new parent hash. that child is ALWAYS in the belt
