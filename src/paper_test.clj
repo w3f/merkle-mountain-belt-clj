@@ -289,11 +289,13 @@
   ;; belt. identity absorption (absent child: the node IS its real child, untagged identity
   ;; encoding) is 0 ops, as is a rebag whose operands are unchanged (reuse-belt-hash), which
   ;; is why fresh appends cost <=3 and the amortized lands under the paper's 4 (the paper's
-  ;; bound counts identity sites as ops). NOTE: measured under keccak, and that is load
-  ;; bearing. every saving counted here MUST hold for an opaque H. under the [lo hi] proxy
-  ;; the same code reports ~3.36, because its spans collide where digests do not and it
-  ;; hands out rebag skips a real hash would have to pay for. the lower guard is the
-  ;; tripwire: if this ever measures the proxy again, it trips.
+  ;; bound counts identity sites as ops).
+  ;; every bound here has an external source: the paper. no fitted lower bound, which would
+  ;; be n-dependent (mean rises with n) and would need refitting after each real improvement.
+  ;; measuring a real hash is asserted structurally instead: hash-count-ledger pins :keccak
+  ;; itself, so its result must not move with the ambient backend. under the [lo hi] proxy the
+  ;; same code counts materially fewer ops, since its spans can collide where legitimate digests
+  ;; do not.
   (let [ledger (hash-count-ledger 10000)
         mean (/ (double (reduce + (for [[_ cs] ledger [c k] cs] (* c k))))
                 (reduce + (for [[_ cs] ledger [_ k] cs] k)))
@@ -304,8 +306,12 @@
       (is (<= (cmax :fresh) 3)))
     (testing "delayed appends: at most 5 hashes (paper's n-odd schedule)"
       (is (<= (cmax :delayed) 5)))
-    (testing "lem:hash-d: amortized under the paper's 4, above the interval-proxy tripwire"
-      (is (< 3.5 mean 4.0)))))
+    (testing "lem:hash-d: amortized is below paper's 4"
+      (is (< mean 4.0)))
+    (testing "counts a real hash: the ledger pins keccak, so the ambient backend cannot move it"
+      (is (= (hash-count-ledger 2000)
+             (hashing/with-backend :interval (hash-count-ledger 2000)))))))
+
 (deftest append-constant-work-test
   ;; paper's O(1)-append claim made explicit across orders of magnitude: the work per
   ;; append (hash-count) is bounded by a constant (5) and doesn't depend on n. So here assert the
