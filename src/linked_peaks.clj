@@ -263,58 +263,58 @@
     (reset! range-nodes {})
     (reset! belt-nodes {})
       ;; #dbg
-      (let [belt-children (doall (map (fn [belt-range-count]
-                                        (reduce (fn [left-child right-child]
-                                                  (let [left-most (:intruder left-child)
-                                                        rn (range-node (:hash left-child) (:hash right-child)
+    (let [belt-children (doall (map (fn [belt-range-count]
+                                      (reduce (fn [left-child right-child]
+                                                (let [left-most (:intruder left-child)
+                                                      rn (range-node (:hash left-child) (:hash right-child)
                                                                        ;; left-child first, right-child second (left-to-right adjacency)
-                                                                       (hash-union #_{:clj-kondo/ignore [:missing-else-branch]}
-                                                                        (if-not (and singleton-ranges? left-most) (:hash left-child))
-                                                                                   (:hash right-child))
-                                                                       nil)]
-                                                    (doall (map
-                                                            #(update-parent % (:hash rn))
-                                                            (if (and singleton-ranges? left-most) [right-child] [left-child right-child])))
-                                                    (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
-                                                    rn))
+                                                                     (hash-union #_{:clj-kondo/ignore [:missing-else-branch]}
+                                                                      (if-not (and singleton-ranges? left-most) (:hash left-child))
+                                                                                 (:hash right-child))
+                                                                     nil)]
+                                                  (doall (map
+                                                          #(update-parent % (:hash rn))
+                                                          (if (and singleton-ranges? left-most) [right-child] [left-child right-child])))
+                                                  (swap! range-nodes (fn [range-nodes] (assoc range-nodes (:hash rn) rn)))
+                                                  rn))
                                                 ;; returns all peaks that are in the given range.
                                                 ;; for every iteration, include the last node from the prior range, to make a linked list of all range nodes.
-                                                (update (into [] (if singleton-ranges?
-                                                                   (let [[dropped remainder] (split-at (inc belt-range-count) @sorted-peaks)
-                                                                         new-leader (apply hash-union (map :hash (rest dropped)))]
+                                              (update (into [] (if singleton-ranges?
+                                                                 (let [[dropped remainder] (split-at (inc belt-range-count) @sorted-peaks)
+                                                                       new-leader (apply hash-union (map :hash (rest dropped)))]
                                                                      ;; NOTE: since sorted-peaks is never read again after last step, the (if (empty? remainder) ..) check is in fact superfluous, but putting it in nonetheless, in case this features as a bug later
-                                                                     (reset! sorted-peaks (if (empty? remainder) remainder (cons {:hash new-leader} remainder)))
-                                                                     (if (< 1 (count dropped))
-                                                                       dropped
-                                                                       (conj dropped {})))
-                                                                   (take belt-range-count
-                                                                         (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))))
+                                                                   (reset! sorted-peaks (if (empty? remainder) remainder (cons {:hash new-leader} remainder)))
+                                                                   (if (< 1 (count dropped))
+                                                                     dropped
+                                                                     (conj dropped {})))
+                                                                 (take belt-range-count
+                                                                       (first (swap-vals! sorted-peaks (fn [current] (drop belt-range-count current)))))))
                                                         ;; DONE: first value shouldn't be last peak, but the actual range node's hash, i.e. the concatenation of hashes of the entire range
                                                         ;; tags the first node as NOT being in the same range
-                                                        0 #(if singleton-ranges? (assoc % :intruder true) %))))
+                                                      0 #(if singleton-ranges? (assoc % :intruder true) %))))
                                       ;; returns number of nodes in each range
-                                      (map count (cons [] (primitives.core/belt-ranges @leaf-count)))))
+                                    (map count (cons [] (primitives.core/belt-ranges @leaf-count)))))
             ;; belt-children ()
-            root-bn (doall
-                     (reduce (fn [left-child right-child]
-                               (let [bn (belt-node (:hash left-child) (:hash right-child)
-                                                   (hash-union (or (:hash left-child) []) (:hash right-child)) nil)]
-                                 (doall (map
-                                         #(update-parent % (:hash bn))
-                                         [left-child right-child]))
-                                 (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
-                                 bn))
+          root-bn (doall
+                   (reduce (fn [left-child right-child]
+                             (let [bn (belt-node (:hash left-child) (:hash right-child)
+                                                 (hash-union (or (:hash left-child) []) (:hash right-child)) nil)]
+                               (doall (map
+                                       #(update-parent % (:hash bn))
+                                       [left-child right-child]))
+                               (swap! belt-nodes (fn [belt-nodes] (assoc belt-nodes (:hash bn) bn)))
+                               bn))
                              ;; TODO: ugly hack - integrate neater eventually (but not strictly necessary since oneshot algorithm is not intended for production - only to verify construction of incremental algorithm)
-                             (cons {:hash nil} belt-children)))]
+                           (cons {:hash nil} belt-children)))]
 
-        (reset! root-belt-node (:hash root-bn))
-        {:belt-children belt-children
-         :range-nodes @range-nodes
-         :belt-nodes @belt-nodes
-         :root-belt-node @root-belt-node
+      (reset! root-belt-node (:hash root-bn))
+      {:belt-children belt-children
+       :range-nodes @range-nodes
+       :belt-nodes @belt-nodes
+       :root-belt-node @root-belt-node
          ;; :node-map node-map
          ;; :node-array node-array
-         })))
+       })))
 
 (map-indexed #(identity [%1 (count (cons [] (primitives.core/belt-ranges %2)))]) (range 100))
 
