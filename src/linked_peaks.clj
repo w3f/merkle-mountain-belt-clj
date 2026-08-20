@@ -960,6 +960,12 @@
               ;; model, where rn equals the old parent key (a merge does not change the range's
               ;; leaf span), which is why it was never needed before
                 (swap! Q #(assoc % :parent rn))
+              ;; rn supersedes the merged peak's own range node. the proxy leaves its key
+              ;; unchanged, so the assoc above already replaced it; a real hash re-keys it and
+              ;; the old entry lingered (range-nodes grew O(n) in lieu of O(log n))
+                #_{:clj-kondo/ignore [:missing-else-branch]}
+                (if (not= rn (:parent Q-old))
+                  (swap! range-nodes #(dissoc % (:parent Q-old))))
 
               ;; TODO: integrate this neater!
               ;; if range nodes contains old
@@ -2200,9 +2206,11 @@
 ;; these regression tests catch mis-shaped rebags
 (defn keccak-oneshot-mismatches
   "build incrementally under keccak & after every append rebuild the bagging layers from the
-   peaks with oneshot-bagging and compare roots. snapshot/restore is O(1) (persistent state),
-   so this check costs O(log n) per append rather than an O(n) rebuild.
-   returns the seq of n where incremental disagreed with the reference"
+   peaks with oneshot-bagging and compare. snapshot/restore is O(1) (persistent state), so this
+   check costs O(log n) per append rather than an O(n) rebuild.
+   compares the whole range/belt maps, not just the root: equal roots state the live tree agrees,
+   but elide potentially superseded entries left behind as garbage.
+   returns the seq of n where they disagreed"
   [n-max]
   (hashing/with-backend :keccak
     (reset-all)
@@ -2212,11 +2220,11 @@
                  nm @node-map rn @range-nodes bn @belt-nodes rt @root-belt-node
                  na @state/node-array ms @mergeable-stack rp @rightmostP lc @leaf-count
                  _ (oneshot-bagging true)
-                 reference @root-belt-node
+                 reference [@root-belt-node @range-nodes @belt-nodes]
                  _ (do (reset! node-map nm) (reset! range-nodes rn) (reset! belt-nodes bn)
                        (reset! root-belt-node rt) (reset! state/node-array na)
                        (reset! mergeable-stack ms) (reset! rightmostP rp) (reset! leaf-count lc))]
-           :when (not= rt reference)]
+           :when (not= [rt rn bn] reference)]
        n))))
 
 (clojure.test/deftest keccak-oneshot-equivalence
