@@ -504,25 +504,17 @@
 
       (swap! node-map #(assoc-in % [h :parent] h)))
      ;; else new leaf joins last range, i.e. get new range node above new leaf
-     ;; TODO: update parent belt node hash, likewise for its left sibling
     (let [last-range (get-parent (get @node-map @rightmostP) :range)
           old-belt-parent (get @belt-nodes (:parent last-range))
           hash-new-range (hash-union (:hash last-range) h)
-          new-belt-parent (hash-union (:left old-belt-parent) hash-new-range)
+          ;; the belt above the last range is rebuilt as a rebag: same left child,
+          ;; the new range root on the right. it's the belt root (since above last range),
+          ;; so no further rebags needed
+          new-belt-parent (rebag-belt! old-belt-parent hash-new-range false false)
           new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)]
-       ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
       (swap! range-nodes #(assoc % (:hash new-range) new-range))
       (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
-       ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-      (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range)))
-       ;; TODO: assert that old-belt-node is root belt node
-      (swap! belt-nodes #(assoc % new-belt-parent (belt-node (:left old-belt-parent) (:hash new-range) new-belt-parent (:parent old-belt-parent))))
-       ;; update old belt node's left parent pointer to refer to new belt node
-      (repoint-belt-child (:left old-belt-parent) new-belt-parent)
-      (swap! belt-nodes #(dissoc % (:hash old-belt-parent)))
-      (reset! root-belt-node new-belt-parent)
-        ;; TODO: update siblings around update
-      )))
+      (swap! range-nodes #(assoc-in % [(:hash last-range) :parent] (:hash new-range))))))
 
 (defn types
   "returns all types that a given hash has an entry for"
