@@ -1,0 +1,7 @@
+;; keccak256 root digests, verified against from-scratch oneshot builder at every append up to n=15M (no mismatches).
+;; leaf = keccak256(SCALE(u64 index)), interior = keccak256(l||r), untagged (uses identity convention for an absent child)
+{100000   "63f928832b17f4e4498af4f5bf6b9fdd84c54d5c46e92f41477b5bfc5d11ab1f"
+ 1000000  "c5a99416e6d27839d9080188a04e31052e697b2e0c0d5a0ab508c790cfc64a30"
+ 5000000  "e3cc2f6bdf90d4c2be24a3c3a10f7c8b327b002d56b0c18457ef342a1b97ff3f"
+ 10000000 "f12610d51ac4634dac132d00a33d9db0701930e7acb08092be4e6600c77ea41d"
+ 15000000 "e5fff80c24ab2333985d8db4f3fc3e41a4e080694c68045b1f85bb3388270084"}
