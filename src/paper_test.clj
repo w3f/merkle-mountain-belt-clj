@@ -7,6 +7,7 @@
    [linked-peaks :refer [play-algo membership-proof-leaf verify-membership]]
    [proof-size :refer [range-splits proof-size]]
    [benchmarks :refer [bench-append-scaling]]
+   [hashing]
    [state]))
 
 (comment
@@ -247,43 +248,52 @@
 (comment ((juxt #(apply min %) #(apply max %)) (pmap #(distance-upper-bound % 10000) (range 1 100))))
 
 (defn hash-counts-per-append
-  "Returns seq of hash counts for n appends in incremental mode."
+  "Returns seq of hash counts for n appends in incremental mode. keccak, not the interval
+   proxy: the proxy is a visualisation aid, and its span identities make some rebags look
+   free that a real hash must pay for (see reuse-belt-hash)."
   [n]
-  (linked-peaks/reset-all)
-  (doall (repeatedly n (fn []
-                         (reset! state/hash-count 0)
-                         (linked-peaks/algo false)
-                         @state/hash-count))))
+  (hashing/with-backend :keccak
+    (linked-peaks/reset-all)
+    (doall (repeatedly n (fn []
+                           (reset! state/hash-count 0)
+                           (linked-peaks/algo false)
+                           @state/hash-count)))))
 
 (defn hash-count-ledger
   "per-append hash counts, classified per lem:hash-d's proof classes (post = count after
    the append): :no-merge (post = 2^k - 1), :fresh (leaf participates in the merge, post
    even), :delayed (merge in an older range, post odd). crossed with :range-join when the
-   append joins two ranges (belt-range-count decreases, else :normal. returns {[class join] {hash-count occurrences}}."
+   append joins two ranges (belt-range-count decreases, else :normal. returns {[class join]
+   {hash-count occurrences}}. counted under keccak: hash counts are a claim about a real
+   hash, and the [lo hi] proxy undercounts them (its spans collide where digests do not)."
   [n]
-  (linked-peaks/reset-all)
-  (->> (range 1 (inc n))
-       (mapv (fn [post]
-               (reset! state/hash-count 0)
-               (linked-peaks/algo false)
-               (let [no-merge? (= (inc post) (Long/highestOneBit (inc post)))
-                     range-join? (> (primitives.core/belt-range-count (dec post))
-                                    (primitives.core/belt-range-count post))
-                     class (cond no-merge? :no-merge
-                                 (even? post) :fresh
-                                 :else :delayed)]
-                 [[class (if range-join? :range-join :normal)] @state/hash-count])))
-       (reduce (fn [acc [k c]] (update-in acc [k c] (fnil inc 0))) {})))
+  (hashing/with-backend :keccak
+    (linked-peaks/reset-all)
+    (->> (range 1 (inc n))
+         (mapv (fn [post]
+                 (reset! state/hash-count 0)
+                 (linked-peaks/algo false)
+                 (let [no-merge? (= (inc post) (Long/highestOneBit (inc post)))
+                       range-join? (> (primitives.core/belt-range-count (dec post))
+                                      (primitives.core/belt-range-count post))
+                       class (cond no-merge? :no-merge
+                                   (even? post) :fresh
+                                   :else :delayed)]
+                   [[class (if range-join? :range-join :normal)] @state/hash-count])))
+         (reduce (fn [acc [k c]] (update-in acc [k c] (fnil inc 0))) {}))))
 
 (deftest lemma-17-hash-count-test
   ;; lem:hash-d: <=5 hashes worst case, amortized 4. the impl bags each affected node once,
   ;; post-merge: fresh appends (leaf merges, post-count even) cost merge + range + belt;
   ;; delayed appends (merge in an older range) additionally bag the new leaf's range and
   ;; belt. identity absorption (absent child: the node IS its real child, untagged identity
-  ;; encoding) is 0 ops, which is why fresh appends cost <=3 and the amortized (~3.73) lands
-  ;; under the paper's 4 (the paper's bound counts identity sites as ops). NOTE: any further
-  ;; reduction MUST stay valid for an opaque H: value-reuse tricks exploiting the [lo hi]
-  ;; interval model are banned; the lower guard is the tripwire (reuse territory is ~3.25).
+  ;; encoding) is 0 ops, as is a rebag whose operands are unchanged (reuse-belt-hash), which
+  ;; is why fresh appends cost <=3 and the amortized lands under the paper's 4 (the paper's
+  ;; bound counts identity sites as ops). NOTE: measured under keccak, and that is load
+  ;; bearing. every saving counted here MUST hold for an opaque H. under the [lo hi] proxy
+  ;; the same code reports ~3.36, because its spans collide where digests do not and it
+  ;; hands out rebag skips a real hash would have to pay for. the lower guard is the
+  ;; tripwire: if this ever measures the proxy again, it trips.
   (let [ledger (hash-count-ledger 10000)
         mean (/ (double (reduce + (for [[_ cs] ledger [c k] cs] (* c k))))
                 (reduce + (for [[_ cs] ledger [_ k] cs] k)))
@@ -294,15 +304,14 @@
       (is (<= (cmax :fresh) 3)))
     (testing "delayed appends: at most 5 hashes (paper's n-odd schedule)"
       (is (<= (cmax :delayed) 5)))
-    (testing "lem:hash-d: amortized under the paper's 4, above the no-reuse tripwire"
+    (testing "lem:hash-d: amortized under the paper's 4, above the interval-proxy tripwire"
       (is (< 3.5 mean 4.0)))))
-
 (deftest append-constant-work-test
   ;; paper's O(1)-append claim made explicit across orders of magnitude: the work per
   ;; append (hash-count) is bounded by a constant (5) and doesn't depend on n. So here assert the
   ;; deterministic hash-count (paper claim) rather than wall-clock — wall-time (see benchmarks/bench-append-scaling)
   ;; stays ~flat but has mild clojure map/GC overhead growth, unlike the prior O(n) append
-  (let [rows (bench-append-scaling [1000 10000] 200)]
+  (let [rows (hashing/with-backend :keccak (bench-append-scaling [1000 10000] 200))]
     (testing "hash-count per append never exceeds 5 at any scale"
       (is (every? #(<= (:max-hashes %) 5) rows)))
     (testing "the per-append work bound is n-independent (identical at every scale)"
