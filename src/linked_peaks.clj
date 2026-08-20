@@ -509,14 +509,7 @@
          ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
         (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @rightmostP)) h h new-belt-root))))
 
-      (swap! node-map #(assoc-in % [h :parent] h))
-       ;; TODO: conditional here is a temporary hack since I don't wanna bother with implementing correct logic yet
-      #_{:clj-kondo/ignore [:missing-else-branch]}
-      (if (>= @leaf-count 8)
-        (let [last-range-node-hash (:parent (get @node-map @rightmostP))
-              last-belt-node-hash (:parent (get @range-nodes last-range-node-hash))
-              new-belt-hash (hash-union (or last-belt-node-hash last-range-node-hash) h)]
-          (swap! belt-nodes #(assoc % new-belt-hash (belt-node (or last-belt-node-hash last-range-node-hash) h new-belt-hash nil))))))
+      (swap! node-map #(assoc-in % [h :parent] h)))
      ;; else new leaf joins last range, i.e. get new range node above new leaf
      ;; TODO: update parent belt node hash, likewise for its left sibling
     (let [last-range (get-parent (get @node-map @rightmostP) :range)
@@ -1099,12 +1092,14 @@
       (if @rightmostP (swap! node-map #(assoc-in % [@rightmostP :right] h)))
 
       (if oneshot-bagging?
-        ;; oneshot keeps the legacy order (bag provisionally, then merge): it is the
+        ;; ---
+        ;; oneshot: keeps the legacy order (bag provisionally, then merge): it is the
         ;; verification reference and its range/belt state is rebuilt from scratch below
         (do
           (new-leaf-range oneshot-bagging? h P)
           (reset! rightmostP h)
           (peak-merge oneshot-bagging? nil false false))
+        ;; ---
         ;; incremental: merge first, then bag (the paper's schedule). a pushed leaf is
         ;; consumed by its own merge and bagged there; otherwise the leaf is bagged after
         ;; the merge so its range and belt see post-merge state
