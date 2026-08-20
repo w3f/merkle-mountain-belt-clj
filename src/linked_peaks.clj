@@ -2127,10 +2127,12 @@
 ;; NOTE: expected hashes are given in #{...} form; state/set-hash->compact (and remap-to-compact
 ;; for whole proof maps) translate them to the current compact [lo hi] representation.
 (clojure.test/deftest test-co-path
-  (clojure.test/are [n m] (let [node-index (state/name-lookup (state/set-hash->compact (:node m)))]
+  (clojure.test/are [n m] (do
+                            ;; build state first to avoid implicit dependence on whatever prior test left behind in the name-lookup search in node-array
                             (play-algo n true)
-                            (= (co-path-internal node-index [] (state/name-lookup (state/set-hash->compact (:max-node m))) false)
-                               (map state/set-hash->compact (:co-path m))))
+                            (let [node-index (state/name-lookup (state/set-hash->compact (:node m)))]
+                              (= (co-path-internal node-index [] (state/name-lookup (state/set-hash->compact (:max-node m))) false)
+                                 (map state/set-hash->compact (:co-path m)))))
     30 {:node #{1 2}, :max-node #{1 2 3 4} :co-path '(#{3 4})}
     30 {:node #{1 2}, :max-node #{1 2 3 4 5 6 7 8} :co-path '(#{3 4} #{5 6 7 8})}
     30 {:node #{9}, :max-node #{9 10 11 12} :co-path '(#{10} #{11 12})}))
@@ -2192,4 +2194,53 @@
     50
     100))
 
+;; ---
+;; keccak-mode structural verification
+;;
+;; the [lo hi] proxy cannot see tree shape: a node's value is its leaf span, and a span is
+;; invariant under re-assoc, so a wrongly-shaped tree compares equal to a correct one
+;; these regression tests catch mis-shaped rebags
+(defn keccak-oneshot-mismatches
+  "build incrementally under keccak & after every append rebuild the bagging layers from the
+   peaks with oneshot-bagging and compare roots. snapshot/restore is O(1) (persistent state),
+   so this check costs O(log n) per append rather than an O(n) rebuild.
+   returns the seq of n where incremental disagreed with the reference"
+  [n-max]
+  (hashing/with-backend :keccak
+    (reset-all)
+    (doall
+     (for [n (range 1 (inc n-max))
+           :let [_ (algo false)
+                 nm @node-map rn @range-nodes bn @belt-nodes rt @root-belt-node
+                 na @state/node-array ms @mergeable-stack rp @rightmostP lc @leaf-count
+                 _ (oneshot-bagging true)
+                 reference @root-belt-node
+                 _ (do (reset! node-map nm) (reset! range-nodes rn) (reset! belt-nodes bn)
+                       (reset! root-belt-node rt) (reset! state/node-array na)
+                       (reset! mergeable-stack ms) (reset! rightmostP rp) (reset! leaf-count lc))]
+           :when (not= rt reference)]
+       n))))
+
+(clojure.test/deftest keccak-oneshot-equivalence
+  ;; incremental bagging must equal from-scratch reference at every append.
+  (let [n (if (System/getProperty "mmb.thorough") 5000 300)]
+    (clojure.test/is (= [] (keccak-oneshot-mismatches n))
+                     (str "keccak incremental diverged from oneshot within n<=" n))))
+
+(clojure.test/deftest keccak-reference-roots
+  ;; conformance digests: full keccak256 roots at fixed n, each verified against the oneshot
+  ;; reference at every append.
+  ;; NOTE the interval-mode cached-*.edn snapshots cannot serve this purpose: they were minted
+  ;; from pre-rework main, whose tree was structurally wrong, albeit span-identical
+  (let [refs (clojure.edn/read-string (slurp "src/cached-keccak-roots.edn"))
+        upto (if (System/getProperty "mmb.thorough") 1000000 100000)]
+    (hashing/with-backend :keccak
+      (reset-all)
+      (let [checked (atom 0)]
+        (doseq [n (sort (keys refs)) :while (<= n upto)]
+          (dotimes [_ (- n @leaf-count)] (algo false))
+          (clojure.test/is (= (get refs n) @root-belt-node)
+                           (str "keccak root mismatch at n=" n))
+          (swap! checked inc))
+        (clojure.test/is (pos? @checked) "no reference roots were checked")))))
 (println "end:" (new java.util.Date))
