@@ -459,21 +459,21 @@
         new-hash (if reusable?
                    (reuse-belt-hash bn-old new-left rn)
                    (hash-union new-left rn))
-        moved? (not= (:hash bn-old) new-hash)]
+        bn-hash-changed? (not= (:hash bn-old) new-hash)]
     (swap! belt-nodes #(assoc % new-hash (belt-node new-left rn new-hash (:parent bn-old))))
         ;; the consumed left child always goes on a join; bn-old goes only when its key actually
         ;; moved (when it did not, the assoc above already replaced it, and a dissoc would
         ;; delete the entry just written)
     (when join?
       (swap! belt-nodes #(dissoc % (:left bn-old))))
-    (when moved?
+    (when bn-hash-changed?
       (swap! belt-nodes #(dissoc % (:hash bn-old))))
     (repoint-belt-child new-left new-hash)
         ;; propagation: re-hash each ancestor with its updated child. lem:close puts the merge
         ;; peak in the rightmost or second-rightmost range, so this climbs at most two levels,
         ;; and none at all when bn-old was already the root. both children are repointed, not
         ;; just the one that changed: re-keying the parent invalidates the sibling's pointer too
-    (when moved?
+    (when bn-hash-changed?
       (loop [child-old (:hash bn-old) child-new new-hash parent-key (:parent bn-old)]
         (if (nil? parent-key)
           (reset! root-belt-node child-new)
