@@ -501,10 +501,8 @@
        ;; create new root belt node with new leaf's parent range node as right child and former root node as left child
       (let [new-belt-root (hash-union @root-belt-node h)]
         (swap! belt-nodes #(assoc % new-belt-root (belt-node @root-belt-node h new-belt-root nil)))
-         ;; TODO: skipping #{} because don't have phantom #{} belt node yet -> fix once added
-        #_{:clj-kondo/ignore [:missing-else-branch]}
-        (if (not= [] @root-belt-node) (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root)))
-         ;; (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
+        ;; the phantom is a real belt entry, so it takes a :parent like any other node
+        (swap! belt-nodes #(assoc-in % [@root-belt-node :parent] new-belt-root))
         (reset! root-belt-node new-belt-root)
          ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
         (swap! range-nodes #(assoc % h (range-node (:parent (get @node-map @rightmostP)) h h new-belt-root))))
