@@ -402,6 +402,27 @@
 (comment
   (get-sibling (get @node-map #{60})))
 
+(defn update-parent
+  "point `child` node at its new parent hash. a node knows its own :type, and
+   storage-maps resolves that to the owning atom. using node rather than hash since:
+   under the identity convention, a belt node and its range child share a key while
+   being different nodes with different parents. this has same dispatch oneshot-bagging uses"
+  [child parent]
+  #_{:clj-kondo/ignore [:missing-else-branch]}
+  (if (:type child)
+    (swap! (get storage-maps (:type child)) #(assoc-in % [(:hash child) :parent] parent))))
+
+(defn repoint-belt-child
+      "point a belt node's left child at its new parent hash. that child is ALWAYS in the belt
+   layer: another belt node, or the phantom [] for the leftmost belt.
+       the phantom is repointed like any other real entry.
+   NOTE the leftmost belt node's own key equals its right child's (a range root) under the
+   identity convention"
+      [h parent]
+      (if-let [node (get @belt-nodes h)]
+          (update-parent node parent)
+        (throw (Exception. (str "belt child missing from belt layer: " h " at leaf count " @leaf-count)))))
+
 (defn new-leaf-range [oneshot-bagging? h P]
   ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:singleton-range]))}
   ;; DONE: if distinct ranges, we're also adding a new belt node for the new leaf
@@ -441,12 +462,7 @@
        ;; TODO: assert that old-belt-node is root belt node
       (swap! belt-nodes #(assoc % new-belt-parent (belt-node (:left old-belt-parent) (:hash new-range) new-belt-parent (:parent old-belt-parent))))
        ;; update old belt node's left parent pointer to refer to new belt node
-      (if (contains? @belt-nodes (:left old-belt-parent))
-        (swap! belt-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
-        (if (contains? @range-nodes (:left old-belt-parent))
-           ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:range-phantom]))}
-          (swap! range-nodes #(assoc-in % [(:left old-belt-parent) :parent] new-belt-parent))
-          (throw (Exception. (str "old belt node's left child was invalid at leaf count " @leaf-count)))))
+      (repoint-belt-child (:left old-belt-parent) new-belt-parent)
       (swap! belt-nodes #(dissoc % (:hash old-belt-parent)))
       (reset! root-belt-node new-belt-parent)
         ;; TODO: update siblings around update
@@ -750,16 +766,6 @@
 (comment
   (get-parent (get @belt-nodes @root-belt-node)))
 
-(defn update-parent
-  "point `child` node at its new parent hash. a node knows its own :type, and
-   storage-maps resolves that to the owning atom. using node rather than hash since:
-   under the identity convention, a belt node and its range child share a key while
-   being different nodes with different parents. this has same dispatch oneshot-bagging uses"
-  [child parent]
-  #_{:clj-kondo/ignore [:missing-else-branch]}
-  (if (:type child)
-    (swap! (get storage-maps (:type child)) #(assoc-in % [(:hash child) :parent] parent))))
-
 (defn repoint-right-neighbor
   "after rebagging replaces the range node to the left of `right-hash`'s range, repoint
    that range node's :left to `new-left`. caller is the range-join path (joined rn
@@ -822,13 +828,7 @@
                 (swap! belt-nodes #(dissoc % (:hash bn-k-1)))
                 (swap! belt-nodes #(dissoc % (:hash bn-k)))
                 (swap! belt-nodes #(assoc % new-belt (belt-node bn-k-2 rn new-belt (:parent bn-k))))
-                #_{:clj-kondo/ignore [:missing-else-branch]}
-                (if bn-k-2
-                  (if (contains? @belt-nodes bn-k-2)
-                    (swap! belt-nodes #(assoc-in % [bn-k-2 :parent] new-belt))
-                    (if (contains? @range-nodes bn-k-2)
-                      (swap! range-nodes #(assoc-in % [bn-k-2 :parent] new-belt))
-                      (throw (Exception. (str "join: belt grandchild invalid at leaf count " @leaf-count))))))
+                (repoint-belt-child bn-k-2 new-belt)
                 (reset! root-belt-node new-belt))
 
               ;; deferral, no range boundary change: parents match because new-leaf-range
@@ -850,11 +850,7 @@
                   (swap! range-nodes #(assoc-in % [(:left parent) :parent] rn)))
                 (swap! Q #(assoc % :parent rn))
                 (swap! belt-nodes #(assoc % new-belt (belt-node (:left bn-old) rn new-belt (:parent bn-old))))
-                (if (contains? @belt-nodes (:left bn-old))
-                  (swap! belt-nodes #(assoc-in % [(:left bn-old) :parent] new-belt))
-                  (if (contains? @range-nodes (:left bn-old))
-                    (swap! range-nodes #(assoc-in % [(:left bn-old) :parent] new-belt))
-                    (throw (Exception. (str "old belt node's left child was invalid at leaf count " @leaf-count)))))
+                (repoint-belt-child (:left bn-old) new-belt)
                 (swap! belt-nodes #(dissoc % (:hash bn-old)))
                 (reset! root-belt-node new-belt))))
           (if (= (:parent Q-old)
@@ -922,7 +918,7 @@
                   #_{:clj-kondo/ignore [:missing-else-branch]}
                   (if (not= (:hash old-bn) new-grandparent-hash)
                     (swap! belt-nodes #(dissoc % (:hash old-bn))))
-                  (update-parent (get @belt-nodes new-belt-left) new-grandparent-hash)
+                  (repoint-belt-child new-belt-left new-grandparent-hash)
                   ;; propagation: re-hash each ancestor with its updated child. lem:close puts
                   ;; the merge peak in the rightmost or second-rightmost range -> at most two
                   ;; levels. both children must be repointed, not just the one that changed:
@@ -941,7 +937,7 @@
                           (swap! belt-nodes #(assoc % ph (belt-node pl pr ph (:parent pn))))
                           (swap! belt-nodes #(dissoc % parent-key))
                           ;; belt chain: left child is the previous belt node, right a range root
-                          (update-parent (get @belt-nodes pl) ph)
+                          (repoint-belt-child pl ph)
                           (update-parent (get @range-nodes pr) ph)
                           (recur parent-key ph (:parent pn)))))))
               ;; add new parent range node that couples to old parent range's left
