@@ -1304,6 +1304,18 @@
 
 (comment (truncate-#set-display (get (:range-nodes (play-algo-oneshot-end 1337)) [])))
 
+(defn verify-layer-typing
+  "each bag node's left child sits in its own layer, its right child one layer down: belt left
+   is a belt entry (the phantom, for the leftmost), belt right a range root, range left a range
+   entry, range right a peak. repoint-belt-child resolves a left child in one layer on the
+   back of this invariant. the oneshot comparison cannot see it: a shared violation compares equal"
+  []
+  (let [bn @belt-nodes rn @range-nodes nm @node-map]
+    (and (every? (fn [[_ v]] (and (contains? bn (:left v)) (contains? rn (:right v))))
+                 (dissoc bn hashing/phantom))
+         (every? (fn [[_ v]] (and (contains? rn (:left v)) (contains? nm (:right v))))
+                 (dissoc rn hashing/phantom)))))
+
 (defn verify-parenting
   "verifies that all parent hashes are calculated correctly"
   ([cached]
@@ -1314,7 +1326,8 @@
    (if (= 0 (mod @state/leaf-count 100)) (println "verify parenting at" @state/leaf-count))
    (and
     (verify-range-node-parenting)
-    (verify-belt-node-parenting)))
+    (verify-belt-node-parenting)
+    (verify-layer-typing)))
   ([]
    (verify-parenting nil)))
 
