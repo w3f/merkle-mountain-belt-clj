@@ -870,28 +870,18 @@
             (when (and (not distinct-ranges) (:left parent))
               (swap! range-nodes #(assoc-in % [(:left parent) :parent] rn)))
             (swap! Q #(assoc % :parent rn)))
-          (if (= (:parent Q-old)
-                 (:parent L))
+          (do
             ;; distinct peaks each have their own immediate range node, so merge partners
-            ;; can never share a range parent (never observed; was dead legacy handling)
-            (throw (Exception. (str "unreachable: merge partners share a range parent at leaf count " @leaf-count)))
-          ;; else
-          ;; DONE (should remove): (throw (Exception. (str "parents don't match @ leaf count " @leaf-count)))
-          ;; introduce more complicated algorithm: if parents don't match, still valid if their parents are not inside node-map
-          ;; DONE
-          ;; already know that they're distinct
-          ;; check whether the parents are sibling range nodes
-          ;; TODO: first condition superfluous given second
-          ;; TODO: jump up chain of parents. once parent is belt node, also jump to child, then to its right sibling, then to its parent (range node in other range), and update its left pointer (doesn't change hash since still in distinct ranges)
-          ;; #dbg
-          ;;;; else
-          ;;;; if
-            (if (and (every? #(contains? @range-nodes %) [(:parent Q-old) (:parent L)])
-                     (= (:parent Q-old) (:parent (get-parent L :range)))
-                     (= (:parent L) (:left (get-parent Q-old :range))))
-            ;; #dbg
-
-            ;; #dbg ^{:break/when (and (not oneshot-bagging?) (debugging [:merge]))}
+            ;; can never share a range parent
+            (when (= (:parent Q-old) (:parent L))
+              (throw (Exception. (str "unreachable: merge partners share a range parent at leaf count " @leaf-count))))
+            ;; the partners' range nodes are siblings: Q-old's parent is the parent of L's
+            ;; range node, and L's parent is that node's left child. the remaining case,
+            ;; distinct belt nodes above, has never been observed (keccak build to n=15M)
+            (when-not (and (every? #(contains? @range-nodes %) [(:parent Q-old) (:parent L)])
+                           (= (:parent Q-old) (:parent (get-parent L :range)))
+                           (= (:parent L) (:left (get-parent Q-old :range))))
+              (throw (Exception. (str "not handling range nodes with distinct belt nodes above yet @ leaf count " @leaf-count))))
               (let [parent-L (get-parent L :range)
                     parent-Q-old (get-parent Q-old :range)
                   ;; this is the range node that will replace their former parent range nodes
@@ -960,7 +950,7 @@
                     (repoint-right-neighbor (:right @Q) (:parent @Q))))
               ;; TODO: update parent's child reference, and update the parent's other child's parent pointer, and recurse over chain of parents (note: children of parents only need their parent pointer updated - doesn't affect their hash [and hence also not the hash of anything referring to said children])
                 )
-              (throw (Exception. (str "not handling range nodes with distinct belt nodes above yet @ leaf count " @leaf-count)))))))
+                )))
 
       ;; add new leaf to node-map
       (swap! node-map #(assoc % (:hash @Q) @Q))
