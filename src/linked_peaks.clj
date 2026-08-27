@@ -328,7 +328,8 @@
    (= 2 (- (:height M) (:height M')))
    ;; O(log(n))
    ;; TODO: might be able to check if M is just the first/last element the mergeable stack
-   (contains? (into #{} @mergeable-stack) (:hash M))
+   ;; scan instead of building throwaway set
+   (some #(= (:hash M) %) @mergeable-stack)
    ;; TODO: might be able to remove the following if/once have unified rules independent of singleton-ness of new leaf
    ;; NOTE: the following two lines are equivalent, only cater for presence of singleton-ranges
    (nil? (:hash M))
