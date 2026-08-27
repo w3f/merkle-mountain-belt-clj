@@ -26,6 +26,12 @@
 
 ;; generic tooling
 (def global-debugging (atom false))
+
+(def ^:dynamic *verify-shortcuts*
+  "run the slow path alongside every fast path; throw if they disagree.
+   -Dmmb.verify-shortcuts=true is set by both test aliases."
+  (= "true" (System/getProperty "mmb.verify-shortcuts")))
+
 (defn toggle-debugging [] (swap! global-debugging #(not %)))
 (comment (toggle-debugging))
 (def debugging-flags (atom #{:singleton-range :merge :belt-merge :range-merge-replace :range-phantom}))
@@ -322,14 +328,28 @@
 (apply > (map (comp count primitives.core/belt-ranges) [12 13]))
 (apply > (map (comp count primitives.core/belt-ranges) [14 15]))
 
+(defn mergeable-stack-top?
+  "is M the peak awaiting merge? the stack is LIFO -> if M is on
+   it at all, it's the last entry (O(1)). under
+   *verify-shortcuts* scan too and throw if M turns up anywhere but the top"
+  [M]
+  (let [top? (and (seq @mergeable-stack) (= (:hash M) (peek @mergeable-stack)))]
+    #_{:clj-kondo/ignore [:missing-else-branch]}
+    (if *verify-shortcuts*
+      (let [scanned (boolean (some #(= (:hash M) %) @mergeable-stack))]
+        #_{:clj-kondo/ignore [:missing-else-branch]}
+        (if (not= (boolean top?) scanned)
+          (throw (Exception. (str "mergeable-stack peek/scan disagree at leaf count " @leaf-count
+                                  ": peek " (boolean top?) " scan " scanned
+                                  " for hash " (:hash M) " stack " @mergeable-stack))))))
+    top?))
+
 (defn distinct-ranges? [M M']
   (or
    ;; O(1)
    (= 2 (- (:height M) (:height M')))
-   ;; O(log(n))
-   ;; TODO: might be able to check if M is just the first/last element the mergeable stack
-   ;; scan instead of building throwaway set
-   (some #(= (:hash M) %) @mergeable-stack)
+   ;; O(1)
+   (mergeable-stack-top? M)
    ;; TODO: might be able to remove the following if/once have unified rules independent of singleton-ness of new leaf
    ;; NOTE: the following two lines are equivalent, only cater for presence of singleton-ranges
    (nil? (:hash M))
@@ -419,18 +439,13 @@
     (update-parent node parent)
     (throw (Exception. (str "belt child missing from belt layer: " h " at leaf count " @leaf-count)))))
 
-(def ^:dynamic *verify-reuse*
-  "recompute at every hash-reuse site and assert the reuse held. -Dmmb.verify-reuse=true,
-   set by both test aliases."
-  (= "true" (System/getProperty "mmb.verify-reuse")))
-
 (defn reuse-belt-hash
   "bn-old's operands are unchanged, so H returns its stored key. rests on H being a function,
-   not on the backend, so it holds for an opaque hash. under *verify-reuse* recompute
+   not on the backend, so it holds for an opaque hash. under *verify-shortcuts* recompute
    (uncounted) and throw on mismatch, so a stale operand gets caught."
   [bn-old new-left rn]
   #_{:clj-kondo/ignore [:missing-else-branch]}
-  (if *verify-reuse*
+  (if *verify-shortcuts*
     (let [recomputed (raw-hash-union new-left rn)]
       #_{:clj-kondo/ignore [:missing-else-branch]}
       (if (not= recomputed (:hash bn-old))
