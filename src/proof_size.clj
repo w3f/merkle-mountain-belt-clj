@@ -160,8 +160,8 @@
     (clojure.test/run-test test-range-splits))
 
 (let [n 2000
-      S-n (p/S-n n)
-      range-splits (range-splits S-n)]
+        S-n (p/S-n n)
+        range-splits (range-splits S-n)]
   [(println (into [] S-n))
    (println (first range-splits))
    (= S-n (flatten range-splits))])

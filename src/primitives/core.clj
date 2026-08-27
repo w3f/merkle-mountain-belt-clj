@@ -162,9 +162,9 @@
   :ret (s/? (s/cat :left :core/left :right :core/right))
   :fn #(if (has-children? (second (:node (:args %))))
          (= 2 (count (:ret %)))
-         ;; (do
-         ;;   (if (not= 0 (count (:ret %))) (println %))
-         ;;  true)
+               ;; (do
+               ;;   (if (not= 0 (count (:ret %))) (println %))
+               ;;  true)
          (= 0 (count (:ret %)))))
 
 ;; TODO: align spec with new impl
