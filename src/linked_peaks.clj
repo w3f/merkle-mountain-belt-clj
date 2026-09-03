@@ -344,16 +344,17 @@
                                   " for hash " (:hash M) " stack " @mergeable-stack))))))
     top?))
 
-(defn distinct-ranges? [M M']
-  (or
-   ;; O(1)
-   (= 2 (- (:height M) (:height M')))
-   ;; O(1)
-   (mergeable-stack-top? M)
-   ;; TODO: might be able to remove the following if/once have unified rules independent of singleton-ness of new leaf
-   ;; NOTE: the following two lines are equivalent, only cater for presence of singleton-ranges
-   (nil? (:hash M))
-   (= [] (:hash M))))
+(defn distinct-ranges?
+  "are M and M' in distinct ranges (where M is peak immediately to the left of M')?
+   the answer's implication is sensitive to when the question is asked:
+   1. if bagging already settled, true=>diff(height(M),height(M'2))=2
+   2. if M is at the top of the mergeable stack, then this tells us 1. will hold after the merge
+   3. if M' initiates the first range, then M is the phantom range node, so trivially true
+   all three invocations O(1)"
+  [M M']
+  (or (= 2 (- (:height M) (:height M')))
+      (mergeable-stack-top? M)
+      (hashing/phantom? (:hash M))))
 
 (comment
   (distinct-ranges? (get @node-map (:left (get @node-map @rightmostP))) (get @node-map @rightmostP))
