@@ -460,9 +460,10 @@
    and promotes that child's own left child: for a chain b1, b2(b1, R2), bn-old(b2, R3)
    the result is (b1, rn), where rn is the root of the range the join produced from R2's and
    R3's. rn is H(R2, merged-peak), which equals H(R2, R3) only on a delayed join, where the
-   merged peak takes over R3's hash. `defer-root?` leaves the root to new-leaf-range, which
-   rebuilds it from its children right after. returns the new hash."
-  [bn-old rn join? defer-root?]
+   merged peak takes over R3's hash. on reaching the belt root the cascade only repoints it
+   to its new children without recalculating the hash (leaving that step to `new-leaf-range`).
+   returns the new hash."
+  [bn-old rn join?]
   (let [new-left (if join?
                    (:left (get @belt-nodes (:left bn-old)))
                    (:left bn-old))
@@ -492,9 +493,11 @@
           (let [pn (get @belt-nodes parent-key)
                 pl (if (= (:left pn) child-old) child-new (:left pn))
                 pr (if (= (:right pn) child-old) child-new (:right pn))]
-            (if (and defer-root? (nil? (:parent pn)))
-                      ;; new-leaf-range rebuilds the root from these children next, so only repoint:
-                      ;; hashing here would be thrown away. the root is bagged once per append
+            (if (nil? (:parent pn))
+                      ;; the root: only repoint, since new-leaf-range rebuilds it from these
+                      ;; children next and hashing here would be thrown away (bagged once per
+                      ;; append). only a delayed merge cascades this far, and delayed implies the
+                      ;; leaf was not consumed, so `new-leaf-range` always follows
               (swap! belt-nodes #(assoc % parent-key (assoc pn :left pl :right pr)))
               (let [ph (hash-union pl pr)]
                 (swap! belt-nodes #(assoc % ph (belt-node pl pr ph (:parent pn))))
@@ -524,10 +527,9 @@
     (let [last-range (get-parent (get @node-map @rightmostP) :range)
           old-belt-parent (get @belt-nodes (:parent last-range))
           hash-new-range (hash-union (:hash last-range) h)
-          ;; the belt above the last range is rebuilt as a rebag: same left child,
-          ;; the new range root on the right. it's the belt root (since above last range),
-          ;; so no further rebags needed
-          new-belt-parent (rebag-belt! old-belt-parent hash-new-range false false)
+          ;; the belt above the last range (i.e., the belt root) is rebuilt via rebag: same left child, the new range
+          ;; root on the right.
+          new-belt-parent (rebag-belt! old-belt-parent hash-new-range false)
           new-range (range-node (:hash last-range) h hash-new-range new-belt-parent)]
       (swap! range-nodes #(assoc % (:hash new-range) new-range))
       (swap! node-map #(assoc-in % [h :parent] (:hash new-range)))
@@ -876,7 +878,7 @@
           :else :delayed-normal)))
 
 ;; TODO: check whether the algo here is sufficient for paper definition
-(defn peak-merge [oneshot-bagging? append-case defer-root?]
+(defn peak-merge [oneshot-bagging? append-case]
   ;; TODO: consider moving all conditionals into the execution logic of `algo`
   ;;;; if (Pairs is not empty)
   (if (not (zero? (count @mergeable-stack)))
@@ -912,7 +914,7 @@
                 _ (when (and join? distinct-ranges)
                     (throw (Exception. (str "unreachable: range join across distinct ranges at leaf count " @leaf-count))))
                 rn (hash-union (if distinct-ranges nil (:left parent)) (:hash @Q))
-                new-belt (rebag-belt! (get @belt-nodes (:parent parent)) rn join? false)]
+                new-belt (rebag-belt! (get @belt-nodes (:parent parent)) rn join?)]
             (swap! range-nodes #(dissoc % (:hash parent)))
             (swap! range-nodes #(assoc % rn (range-node (:left parent) (:hash @Q) rn new-belt)))
             (when (and (not distinct-ranges) (:left parent))
@@ -946,7 +948,7 @@
                   ;; (:range/:no-parent grandparents and the left-leg case never occur)
                   _ (when-not (and grandparent-bn (= (:right grandparent-bn) (:parent Q-old)))
                       (throw (Exception. (str "unreachable: merge peak's grandparent is not a belt with its range as right child at leaf count " @leaf-count))))
-                  new-grandparent-hash (rebag-belt! grandparent-bn rn join? defer-root?)]
+                  new-grandparent-hash (rebag-belt! grandparent-bn rn join?)]
               ;; add new parent range node that couples to old parent range's left
               (swap! range-nodes #(assoc % rn (range-node (:left (get-parent L :range)) (:hash @Q) rn new-grandparent-hash)))
               ;; the range to the right holds a neighbour pointer to this range's root, and that
@@ -1058,11 +1060,7 @@
           ;; does the new leaf start its own range, or join the last one? decided pre-merge
           ;; and stable across it, so peak-merge can act on what new-leaf-range will do
           leaf-splits? (boolean (and @rightmostP (distinct-ranges? (get @node-map @rightmostP) P)))
-          append-case (classify-append did-push brc-pre brc-post leaf-splits?)
-          ;; not a property of the append but of who bags: when the leaf joins the last range,
-          ;; new-leaf-range rebuilds the belt root straight after the merge, so the merge
-          ;; leaves it alone rather than hashing a root that gets discarded
-          defer-root? (boolean (and (delayed-cases append-case) (not leaf-splits?)))]
+          append-case (classify-append did-push brc-pre brc-post leaf-splits?)]
       #_{:clj-kondo/ignore [:missing-else-branch]}
       (if did-push
         (add-mergeable-stack (get @node-map h)))
@@ -1078,12 +1076,12 @@
         (do
           (new-leaf-range oneshot-bagging? h P)
           (reset! rightmostP h)
-          (peak-merge oneshot-bagging? append-case defer-root?))
+          (peak-merge oneshot-bagging? append-case))
         ;; ---
         ;; incremental: merge first, then bag (the paper's schedule). a pushed leaf is
         ;; consumed by its own merge and bagged there; otherwise the leaf is bagged after
         ;; the merge so its range and belt see post-merge state
-        (let [merged (peak-merge oneshot-bagging? append-case defer-root?)]
+        (let [merged (peak-merge oneshot-bagging? append-case)]
           (when-not did-push
             (new-leaf-range oneshot-bagging? h P))
           (reset! rightmostP (if did-push merged h)))))
