@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="data:,">
+  <title>Merkle Mountain Belt — implementation artifact</title>
+  <style>/*__STYLES__*/</style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="intro">
+      <h1>Merkle Mountain Belt</h1>
+      <p class="subtitle">Supplementary implementation artifact</p>
+      <p>Browser computation of append operations, membership paths, and Keccak-256 hashes for the Merkle Mountain Belt.</p>
+      <p class="scope">JavaScript implementation checked against the Clojure reference. Leaf values are their indices. Interactive limit: 100,000 leaves; no server is required.</p>
+    </header>
+    <nav class="tabs" aria-label="Artifact views">
+      <button id="explorer-tab" class="tab active" aria-current="page" data-view="explorer">Structure and hash counts</button>
+      <button id="checks-tab" class="tab" data-view="checks">Numerical checks</button>
+    </nav>
+    <section id="explorer-view" aria-labelledby="explorer-tab">
+      <div class="control-bar">
+        <div class="state-label"><span>Leaves:</span><span id="state-n" class="state-number">11</span></div>
+        <div class="transport"><button id="reset" class="button">Reset</button><button id="back" class="button" aria-label="Previous state">Previous</button><button id="append" class="button">Append leaf</button></div>
+        <label class="scrubber" for="position"><span>Append number <output id="position-label">11 / 64</output></span><input id="position" type="range" min="0" max="64" value="11"></label>
+      </div>
+      <form id="compute-form" class="compute-controls"><label for="target-n">Compute to leaf count</label><input id="target-n" type="number" min="0" max="100000" step="1" value="128" required><button id="compute" class="button" type="submit">Compute</button><button id="cancel-compute" class="button" type="button" hidden>Cancel</button><span id="compute-status" class="small muted" role="status" aria-live="polite"></span></form>
+      <div class="metrics">
+        <div><span class="metric-label">Structural hashes this append</span><strong id="hash-now">0</strong><small id="leaf-cost">+ 1 leaf hash</small></div>
+        <div><span class="metric-label">Maximum structural hashes per append</span><strong id="hash-max">0</strong><small>Observed prefix; paper’s bound: ≤ 5</small></div>
+        <div><span class="metric-label">Mean structural hashes per append</span><strong id="hash-mean">0</strong><small id="hash-total">0 structural hashes in total</small></div>
+      </div>
+      <div id="explorer-grid" class="explorer-grid">
+        <section class="panel graph-panel" aria-labelledby="graph-heading">
+          <div class="panel-heading"><h2 id="graph-heading">Append 10 → 11</h2><span id="append-case" class="case-label">Delayed merge</span></div>
+          <p id="state-description" class="panel-description"></p>
+          <div class="graph-options"><label class="path-toggle"><input id="show-membership" type="checkbox" aria-controls="proof-panel graph graph-before"> Show membership paths</label><span id="graph-mode-description">Mountains are collapsed to their peaks.</span></div>
+          <div id="transition-grid" class="transition-grid">
+            <section class="transition-stage" aria-labelledby="before-heading">
+              <div class="stage-heading"><span class="stage-label">Before</span><h3 id="before-heading">MMB with <span id="before-n">10</span> <span id="before-unit">leaves</span></h3></div>
+              <div id="graph-before-viewport" class="graph-viewport" tabindex="0" aria-label="Scrollable MMB before append"><svg id="graph-before" role="img" aria-labelledby="before-heading"></svg></div>
+              <p id="before-sequence" class="stage-sequence"></p><p id="before-proof-note" class="stage-proof-note" hidden></p>
+            </section>
+            <section class="transition-stage" aria-labelledby="after-heading">
+              <div class="stage-heading"><span class="stage-label">After</span><h3 id="after-heading">MMB with <span id="after-n">11</span> <span id="after-unit">leaves</span></h3></div>
+              <div id="graph-viewport" class="graph-viewport" tabindex="0" aria-label="Scrollable MMB after append"><svg id="graph" role="img" aria-labelledby="after-heading"></svg></div>
+              <p id="after-sequence" class="stage-sequence"></p><p id="after-proof-note" class="stage-proof-note" hidden></p>
+            </section>
+          </div>
+          <div class="legend"><span><i class="symbol triangle"></i>Peak height</span><span><i class="symbol rhombus"></i>Range</span><span><i class="symbol circle"></i>Belt</span><span><i class="swatch new-leaf"></i>New leaf</span><span><i class="swatch merged-peak"></i>Merged peak</span><span><i class="swatch updated-bag"></i>Updated bag / root</span><span><i class="identity-dot"></i>Absent input</span><span id="mountain-node-legend" hidden><i class="symbol square"></i>Node height</span><span id="collapsed-legend" hidden><svg width="14" height="23" viewBox="0 0 14 23" aria-hidden="true"><rect x="3" y="1" width="8" height="8" fill="none" stroke="currentColor"/><text x="7" y="21" text-anchor="middle" font-size="15" fill="currentColor">…</text></svg>Collapsed subtree</span><span id="sibling-legend" hidden><i class="dot sibling"></i>Proof sibling</span></div>
+          <div class="structure-note"><span id="graph-note">Triangle numbers are mountain heights. Black dots mark absent inputs; their bagging nodes reuse the right child without hashing.</span></div>
+        </section>
+        <aside id="proof-panel" class="panel proof-panel" aria-labelledby="proof-heading" hidden>
+          <h2 id="proof-heading">Membership path</h2>
+          <label id="leaf-label" for="leaf-select">Leaf to inspect</label><select id="leaf-select"></select><input id="leaf-number" type="number" min="1" step="1" required hidden><p id="leaf-range" class="small muted" hidden></p>
+          <div class="proof-summary"><span>Proof length</span><strong id="proof-length">—</strong><span id="proof-prediction"></span></div>
+          <p class="small">Proof for the after state. Select a leaf above, or choose a collapsed subtree to follow a leaf inside it. Gold nodes supply sibling values.</p>
+          <ol id="proof-steps" class="proof-steps"></ol>
+          <label class="tamper-label"><input id="tamper" type="checkbox"> Alter the first sibling digest</label>
+          <button id="verify" class="button full">Check membership path</button>
+          <div id="proof-result" class="result muted" role="status" aria-live="polite">Select a leaf to inspect its path.</div>
+          <p class="small muted">Recomputes the Keccak-256 root from the leaf index and sibling digests, and checks interval adjacency and coverage.</p>
+        </aside>
+      </div>
+      <section class="panel hash-panel" aria-labelledby="ledger-heading">
+        <div class="panel-heading"><h2 id="ledger-heading">Hash operations</h2><label class="history-control" for="history-range">Plot range <select id="history-range"><option value="64">64 appends</option><option value="256">256 appends</option><option value="1024">1,024 appends</option><option value="all">All computed appends</option></select></label></div>
+        <div class="ledger-grid"><div><svg id="history" role="img" aria-label="Structural hashes per append"></svg><p id="history-caption" class="small muted"></p></div><div id="ledger"></div></div>
+        <details class="root-details"><summary>Keccak-256 commitment</summary><code id="root-hash"></code><p class="small muted">Computed in this browser. Each leaf is its index encoded as an 8-byte little-endian integer. Internal nodes hash the ordered pair of child digests. An absent child is an identity operation and costs no hash.</p></details>
+      </section>
+    </section>
+    <section id="checks-view" aria-labelledby="checks-tab" hidden>
+      <div class="checks-intro"><div><h2>Checks on browser-computed states</h2><p>Checks evaluate the generated structures and compare their roots and hash counts with Clojure reference values where available. These finite checks do not constitute formal proofs.</p></div><div class="check-actions"><label for="check-limit">Check states 1 through</label><select id="check-limit"><option>8</option><option>16</option><option>32</option><option selected>64</option><option>128</option><option>256</option><option>512</option><option>1024</option></select><button id="run-checks" class="button">Run checks</button><button id="cancel-checks" class="button" hidden>Cancel</button></div></div>
+      <p id="check-status" role="status" aria-live="polite" class="result muted">Choose a range and run the checks.</p>
+      <div id="check-results" class="check-cards"></div>
+      <section class="panel amortized-panel">
+        <div class="panel-heading"><h2>Mean proof size by recency</h2><label class="k-control" for="recency">Recency k <select id="recency"></select></label></div>
+        <p class="panel-description">The browser generates membership paths over a full sampling period for each k, then compares their mean length with the structural prediction and the paper’s bound.</p>
+        <div class="amortized-grid"><div><svg id="proof-chart" role="img" aria-label="Recorded proof sizes over the sampling period"></svg><p id="sampling-window" class="small muted"></p></div><div id="amortized-values"></div></div>
+      </section>
+      <section class="panel source-panel"><div class="panel-heading"><h2>Source test results at export</h2><span class="small muted">Clojure / JVM</span></div><div id="source-tests"></div><p class="small muted">Results for selected tests from <code>src/paper_test.clj</code>; this is not a report for the full repository test suite.</p></section>
+    </section>
+    <footer><details><summary>Reproduction and scope</summary><p>From the repository root, run <code>clojure -M reviewer/export.clj</code>. The generator produces this standalone <code>docs/index.html</code>, including Clojure reference fixtures. See <code>reviewer/README.md</code> for validation and anonymous Pages setup.</p><p>The browser implements the append schedule and reuses range/belt hashes when their operands are unchanged. Structural counts exclude the one leaf hash per append, layout, proof generation, and verification. They measure hash work, not browser execution time. Previous states are retained for navigation.</p><p>Clojure reference checks cover all 64 initial roots and paths, hash counts through 4,096 appends, selected larger roots, and recency samples 1–16. Source test results above are recorded during export, not executed in this browser. Lemma numbers may differ between paper revisions.</p></details><p>This page is self-contained and makes no network requests.</p></footer>
+  </main>
+  <script id="artifact-data" type="application/json">/*__DATA__*/</script>
+  <script>/*__LIVE__*/
+/*__STRUCTURE__*/
+/*__APP__*/</script>
+</body>
+</html>
