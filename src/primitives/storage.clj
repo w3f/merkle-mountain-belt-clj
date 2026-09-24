@@ -251,7 +251,7 @@
   (sort #(compare (nth %2 1) (nth %1 1))
         (map (juxt identity node-height-literal) (sort nodes))))
 
-;; this is the L2R bagging from https://hackmd.io/4k2wjlWfTVqgW0Mp4bLSSQ?view
+;; Bag range nodes from left to right.
 (defn range-node-edges
   "creates a list of the edges between `nodes`, optionally starting names from `starting-index` in lieu of 0"
   ([nodes]

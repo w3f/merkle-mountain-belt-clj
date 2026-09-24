@@ -315,8 +315,7 @@
 (= (dec (count (primitives.core/binary-repr-of-n @primitives.storage/leaf-count)))
    (count @parent-less-nodes-cache))
 
-;; see https://hackmd.io/4k2wjlWfTVqgW0Mp4bLSSQ?view#An-initial-description-without-bagging
-;; to get mountain heights
+;; Mountain heights are given by the unbagged peak sequence.
 ;; (defn s-i )
 
 (identity @parent-less-nodes-cache)

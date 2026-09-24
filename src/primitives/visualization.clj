@@ -4,7 +4,6 @@
    [rhizome.viz :as viz]
    [tangle.core :as tangle]))
 
-;; create colorscheme for sub0
 (def style {
             ;; :background "#ffffff"
             :background "transparent"
