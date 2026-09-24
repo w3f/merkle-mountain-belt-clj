@@ -34,7 +34,10 @@ for(const file of [...manifest.files].sort()){
     clean=clean.replace(pattern,'[redacted]');
   }
   assert.ok(!/\/(?:home|Users)\/[A-Za-z0-9_.-]+\//.test(clean),`Home directory in ${file}`);
-  assert.ok(!/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(clean),`Email address in ${file}`);
+  // Search bounded email-sized windows around @; the unbounded expression over
+  // a multi-megabyte packed digest string otherwise backtracks quadratically.
+  const email=/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+  assert.ok(![...clean.matchAll(/@/g)].some(({index})=>email.test(clean.slice(Math.max(0,index-64),index+255))),`Email address in ${file}`);
   assert.ok(!/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(clean),`Private key in ${file}`);
   if(clean!==text)redacted.push(file);
   contents.set(file,Buffer.from(clean));originals.set(source,original);

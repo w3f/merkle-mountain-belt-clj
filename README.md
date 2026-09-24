@@ -16,7 +16,9 @@ paths, and hash counts in the browser. It shows the structure before and after
 each append, supports up to 100,000 leaves, and includes numerical checks against
 the Clojure implementation. Enable **Show membership paths** to select a leaf and
 verify its proof. The browser code is a JavaScript implementation validated
-against Clojure reference results; the Clojure source tests are recorded at export.
+against Clojure reference roots and append hash counts for every state through
+100,000 leaves; the Clojure source tests are recorded at export. The selected
+state's root and count are compared with those references during navigation.
 
 See [reviewer/README.md](reviewer/README.md) for the conventions, validation
 coverage, and reproduction instructions.
@@ -32,9 +34,10 @@ node reviewer/live-test.mjs
 ```
 
 The first Clojure run may download dependencies. Export runs selected paper
-tests and rebuilds `docs/index.html`. The JavaScript check compares roots,
-topologies, paths, and hash counts with those reference values, then exercises
-construction through the browser's leaf-count limit.
+tests, constructs the full 100,000-leaf Clojure reference, and rebuilds
+`docs/index.html`. The JavaScript check compares every root and append hash count
+through that limit, plus detailed topologies, membership paths, and hash events
+at the smaller reference states and additional event checkpoints.
 
 The repository's broader Clojure tests can be run with `clojure -M:test`.
 Those are separate from the selected tests reported by the page. Cached EDN

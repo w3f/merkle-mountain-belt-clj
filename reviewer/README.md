@@ -52,8 +52,11 @@ selected leaf is retained. Large graphs scroll horizontally.
 
 The **Numerical checks** view evaluates peak schedules, merge locality, membership
 path structure, proof-size predictions, and hash-work bounds over computed
-prefixes up to 1,024 leaves. A separate result compares computed roots and hash
-counts with the Clojure fixtures. These checks generate paths and inspect their
+prefixes up to 1,024 leaves. A separate result compares every computed root and
+append hash count in that prefix with the Clojure fixtures. The reference
+construction covers every prefix through 100,000 leaves; the explorer also
+compares the selected state's root and count during navigation. These checks
+generate paths and inspect their
 intervals; the membership panel additionally recomputes the selected proof's
 Keccak root. Recency settings 1–16, 32, 64, 128, and 256 generate fresh paths and
 compare their mean lengths with the formulas in `src/paper_test.clj`.
@@ -72,6 +75,10 @@ The exporter uses the existing `deps.edn`; it adds no JVM dependencies. The firs
 run may download those dependencies. The Node check uses only built-in modules.
 The generator rebuilds `docs/index.html` and writes `docs/.nojekyll` using the
 source files in this copy of the artifact.
+Export constructs all 100,000 prefixes in Clojure. Its root and count references
+are embedded in the page, which remains self-contained. Rerun export before the
+Node checks when the Clojure source changes; those checks read the exported
+references rather than launching Clojure themselves.
 
 The Clojure export:
 
@@ -87,9 +94,12 @@ The Clojure export:
   `membership-proofs-test`, and `membership-proofs-large-test`. The initial
   artifact reports 30 passing assertions from those tests. It does not claim
   that the full repository test suite ran.
-- Exports all construction hash counts through 4,096 appends, selected larger
-  roots and hash events (including binary boundaries and n = 1,337), and Bouncy
-  Castle Keccak vectors spanning single- and multi-block inputs.
+- Executes the incremental construction with the Keccak backend through 100,000
+  appends, exporting every root and structural hash count. Roots are stored as
+  concatenated 64-character hexadecimal digests, in increasing prefix order.
+  The exporter retains detailed hash events at additional checkpoints around
+  binary boundaries and at n = 1,337, 50,000, 99,999, and 100,000. It also exports
+  Bouncy Castle Keccak vectors spanning single- and multi-block inputs.
 
 Generation fails on a root, counter, proof, schedule, or selected-test mismatch.
 The Node check validates the exported graph, all 2,080 membership paths, altered
@@ -101,16 +111,19 @@ visible exactly once, and the collapsed frontier still covers all leaves.
 
 `live-test.mjs` independently runs the JavaScript engine and compares every
 initial root, node digest, edge, proof, and hash operation with the Clojure
-fixtures. It verifies all 4,096 reference counts and the larger root/event
-checkpoints, checks Keccak vectors (including rate-block boundaries), and
+fixtures. It verifies every root and append hash count through 100,000 leaves
+and the checkpoint hash events, checks Keccak vectors (including rate-block boundaries), and
 reproduces the Clojure recency samples. It also checks valid and altered
 cryptographic proofs, history preservation, input bounds, and construction
 through the 100,000-leaf limit. The sparse rendering snapshots are compared with
 the full topology projection for all 2,080 reference paths; larger snapshots
 are checked to contain only the visible route, siblings, and bagging nodes.
-Construction beyond 4,096 is checked for
-structural invariants and proof consistency, not against an additional
-Clojure root for every state.
+The test requires the Clojure reference range to equal the browser limit, so
+increasing that limit without extending the references fails validation.
+Full topology and all membership co-paths are cross-checked for the first 64
+states; larger prefixes have complete root/count coverage and selected proof
+checks. This finite comparison uses leaf-index payloads and is not a proof of
+equivalence for arbitrary inputs.
 
 For optional browser regression tests, install Playwright and its Chromium
 browser in a test environment, then run:
@@ -126,13 +139,14 @@ node reviewer/browser-test.mjs
 exercises both display modes and their toggle, the initial before/after transitions,
 triangular peaks, focused paths, absent-before handling for new leaves,
 keyboard selection, altered paths,
-live computation beyond the fixtures through 100,000 leaves, cancellation,
+live computation through 100,000 leaves and its Clojure root/count comparison, cancellation,
 automatic vertical layout, large-state leaf input, full-history plot coverage,
 checks and recency samples beyond the exported ranges, mobile page width, offline file viewing, and
 the sandboxed web preview's content security policy. It serves the policy test through
 local Playwright interception.
-It also corrupts a reference root and confirms that the live display remains
-correct while the reference comparison reports the mismatch.
+It also corrupts reference roots and counts, including beyond 4,096 leaves,
+and confirms that the live display remains correct while the reference
+comparison reports the mismatch.
 
 ## What the prototype demonstrates
 

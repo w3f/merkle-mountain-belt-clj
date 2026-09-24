@@ -4,7 +4,7 @@
    :interval (default) - the [lo hi] leaf-span proxy the verification suite is built on.
      a node's value is the contiguous leaf range it covers, so unions assert adjacency and
    spans are directly readable. NOTE: NOT a real hash: it is associative and span-determined,
-     which is why no optimization may exploit it (see feedback_no_model_exploits).
+     which is why no optimization may exploit it.
 
    :keccak - BEEFY MMR compatible, i.e. what production would compute:
      leaf     = keccak256(SCALE(leaf payload))

@@ -13,6 +13,7 @@
             [state :as state]))
 
 (def max-n 64)
+(def reference-limit 100000)
 
 (defn ensure! [ok message data]
   (when-not ok (throw (ex-info message data))))
@@ -75,11 +76,11 @@
     (lp/reset-all)
     (mapv (fn [n] (lp/algo false) (structural-state n)) (range 1 (inc max-n)))))
 
-(defn keccak-traces []
+(defn reduce-keccak-traces [limit consume initial]
   (h/with-backend :keccak
     (lp/reset-all)
     (let [original lp/hash-union]
-      (mapv (fn [n]
+      (reduce (fn [result n]
               (let [events (atom [])]
                 (reset! state/hash-count 0)
                 ;; Observe the counted construction wrapper, preserving its behavior.
@@ -92,11 +93,15 @@
                                   result))]
                   (lp/algo false))
                 (ensure! (= @state/hash-count (count @events)) "Trace differs from implementation counter" {:n n})
-                {:n n :root @state/root-belt-node :leafHash (h/leaf-hash n)
-                 :hashes @state/hash-count :events @events
-                 :case (cond (= (inc n) (Long/highestOneBit (inc n))) "no-merge"
-                             (even? n) "fresh" :else "delayed")}))
-            (range 1 (inc max-n))))))
+                (consume result
+                         {:n n :root @state/root-belt-node :leafHash (h/leaf-hash n)
+                          :hashes @state/hash-count :events @events
+                          :case (cond (= (inc n) (Long/highestOneBit (inc n))) "no-merge"
+                                      (even? n) "fresh" :else "delayed")})))
+              initial (range 1 (inc limit))))))
+
+(defn keccak-traces []
+  (reduce-keccak-traces max-n conj []))
 
 (defn amortized-samples []
   (mapv (fn [k]
@@ -128,16 +133,29 @@
         test-symbols))
 
 (defn live-reference []
-  (let [limit 4096
-        checkpoints #{65 127 128 129 255 256 257 511 512 513 1023 1024 1025
-                      1337 2047 2048 2049 4095 4096}
-        traces (with-redefs [max-n limit] (keccak-traces))]
-    {:maxN limit :hashCounts (mapv :hashes traces)
-     :checkpoints (filterv #(contains? checkpoints (:n %)) traces)
+  (let [checkpoints (set (concat [1337 50000 99999 reference-limit]
+                                (for [power (range 6 17) delta [-1 0 1]
+                                      :let [n (+ (bit-shift-left 1 power) delta)]
+                                      :when (< max-n n (inc reference-limit))] n)))
+        roots (StringBuilder. (* 64 reference-limit))
+        ;; Keep one root and count per prefix, not a full tree or event history.
+        reference (reduce-keccak-traces
+                   reference-limit
+                   (fn [result {:keys [n root hashes] :as trace}]
+                     (ensure! (re-matches #"[0-9a-f]{64}" root) "Invalid reference root" {:n n})
+                     (.append roots ^String root)
+                     (when (zero? (mod n 10000))
+                       (println "Clojure reference construction:" n "/" reference-limit))
+                     (cond-> (update result :hashCounts conj hashes)
+                       (contains? checkpoints n) (update :checkpoints conj trace)))
+                   {:maxN reference-limit :hashCounts [] :checkpoints []})]
+    (assoc reference
+     ;; Root for n occupies [(n-1)*64, n*64); fixed-width hex avoids JSON array overhead.
+     :rootsHex (str roots)
      :hashVectors (mapv (fn [length]
                          (let [bytes (byte-array (map unchecked-byte (range length)))]
                            {:input (h/->hex bytes) :digest (h/->hex (h/keccak256 bytes))}))
-                       [0 1 8 64 135 136 137 272])}))
+                       [0 1 8 64 135 136 137 272]))))
 
 (defn build! []
   (println "Exporting" max-n "incremental states with independent Keccak graph checks")
@@ -150,7 +168,7 @@
                        (ensure! (= (:hashes actual) (nth expected-counts (dec (:n actual)))) "Counter disagrees with paper-test" {:n (:n actual)})
                        (merge (dissoc structure :graphRoot) (dissoc actual :n)))
                      structures crypto)
-        data {:formatVersion 2 :maxN max-n :states states :amortized (amortized-samples)
+        data {:formatVersion 3 :maxN max-n :states states :amortized (amortized-samples)
               :liveReference (live-reference)
               :sourceTests (source-test-results)
               :scope "Clojure reference fixtures for the independent browser calculator. Source test results are recorded at export; they are not browser executions of the JVM suite."}

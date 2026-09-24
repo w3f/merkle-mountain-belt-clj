@@ -12,6 +12,7 @@ const screenshotDir=process.env.MMB_SCREENSHOTS;
 if(screenshotDir)mkdirSync(screenshotDir,{recursive:true});
 async function exercise(page,extended=false){
   assert.equal(await page.locator('#state-n').textContent(),'11');
+  assert.match(await page.locator('#state-reference').textContent(),/root and append hash count match at n = 11/);
   assert.equal(await page.locator('#show-membership').isChecked(),false);
   const initialStages=await page.locator('.transition-stage').evaluateAll(nodes=>nodes.map(node=>({x:node.getBoundingClientRect().x,y:node.getBoundingClientRect().y})));
   assert.equal(initialStages[0].y,initialStages[1].y,'Small collapsed MMBs fit side by side');
@@ -61,6 +62,7 @@ async function exercise(page,extended=false){
   assert.match(await page.locator('#before-proof-note').textContent(),/introduced by this append/);
   assert.equal(await page.locator('#graph [data-leaf="11"] polygon').count(),1,'Selected height-zero peak stays triangular');
   await page.locator('#reset').click();assert.equal(await page.locator('#state-n').textContent(),'0');assert.ok(await page.locator('#back').isDisabled());
+  assert.equal(await page.locator('#state-reference').textContent(),'No commitment to compare.');
   assert.ok(await page.locator('#verify').isDisabled());
   await page.locator('#append').click();await page.locator('#verify').click();assert.match(await page.locator('#proof-result').textContent(),/accepted/);
   assert.ok(await page.locator('#tamper').isDisabled());
@@ -139,6 +141,9 @@ async function exercise(page,extended=false){
     assert.ok(Number(await page.locator('#state-n').textContent())<100000,'Long computation can be cancelled');
     await page.locator('#compute').click();
     await page.waitForFunction(()=>document.getElementById('state-n').textContent==='100000',null,{timeout:180000});
+    assert.equal(await page.locator('#root-hash').textContent(),reference.liveReference.rootsHex.slice(99999*64,100000*64));
+    assert.equal(await page.locator('#hash-now').textContent(),String(reference.liveReference.hashCounts[99999]));
+    assert.match(await page.locator('#state-reference').textContent(),/root and append hash count match at n = 100000/);
     assert.ok(await page.locator('#append').isDisabled(),'Interactive resource limit enforced');
     assert.equal(await page.locator('#leaf-select option').count(),0,'Large states do not create one option per leaf');
     for(const leaf of ['1','50000','100000']){
@@ -170,6 +175,7 @@ async function exercise(page,extended=false){
     await page.waitForFunction(()=>!document.getElementById('run-checks').disabled);
     assert.match(await page.locator('#check-status').textContent(),/7 \/ 7 checks passed/);
     assert.equal(await page.locator('.check-card').count(),7);
+    assert.equal(await page.locator('.check-card').last().locator('.check-value').textContent(),`✓ ${limit} counts; ${limit} roots`);
   }
   for(const k of [...Array.from({length:16},(_,i)=>i+1),32,64,128,256]){
     await page.locator('#recency').selectOption(String(k));
@@ -205,14 +211,23 @@ try{
   await sandboxPage.setViewportSize({width:1280,height:1000});
   await sandboxPage.goto('https://mmb-artifact.invalid/');await exercise(sandboxPage);
   // A corrupted reference must be reported, not used to supply the live root.
-  const fixture=JSON.parse(await sandboxPage.locator('#artifact-data').textContent()),expectedRoot=fixture.states[10].root;
-  fixture.states[10].root='0'.repeat(64);
-  servedHTML=html.replace(/(<script id="artifact-data" type="application\/json">)[\s\S]*?(<\/script>)/,(_,a,b)=>a+JSON.stringify(fixture)+b);
-  await sandboxPage.reload();
-  assert.equal(await sandboxPage.locator('#root-hash').textContent(),expectedRoot,'Displayed root is independently computed');
-  await sandboxPage.locator('#checks-tab').click();await sandboxPage.locator('#run-checks').click();
-  await sandboxPage.waitForFunction(()=>!document.getElementById('run-checks').disabled);
-  assert.match(await sandboxPage.locator('#check-status').textContent(),/6 \/ 7 checks passed/,'Reference mismatch is detected');
+  for(const [n,field] of [[11,'root'],[4097,'root'],[4097,'count']]){
+    const fixture=JSON.parse(html.match(/<script id="artifact-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+    const refs=fixture.liveReference,offset=(n-1)*64,expectedRoot=refs.rootsHex.slice(offset,offset+64);
+    if(field==='root')refs.rootsHex=refs.rootsHex.slice(0,offset)+'0'.repeat(64)+refs.rootsHex.slice(offset+64);
+    else refs.hashCounts[n-1]=(refs.hashCounts[n-1]+1)%6;
+    servedHTML=html.replace(/(<script id="artifact-data" type="application\/json">)[\s\S]*?(<\/script>)/,(_,a,b)=>a+JSON.stringify(fixture)+b);
+    await sandboxPage.reload();
+    if(n!==11){
+      await sandboxPage.locator('#target-n').fill(String(n));await sandboxPage.locator('#compute').click();
+      await sandboxPage.waitForFunction(n=>document.getElementById('state-n').textContent===String(n),n);
+    }
+    assert.equal(await sandboxPage.locator('#root-hash').textContent(),expectedRoot,'Displayed root is independently computed');
+    assert.match(await sandboxPage.locator('#state-reference').textContent(),new RegExp(`mismatch at n = ${n}`),`Corrupt ${field} detected in reference comparison`);
+    await sandboxPage.locator('#checks-tab').click();await sandboxPage.locator('#run-checks').click();
+    await sandboxPage.waitForFunction(()=>!document.getElementById('run-checks').disabled);
+    assert.match(await sandboxPage.locator('#check-status').textContent(),n===11?/6 \/ 7 checks passed/:/7 \/ 7 checks passed/,'Prefix check reports only mismatches within its selected range');
+  }
   await context.close();
   assert.deepEqual(errors,[],'No browser exceptions');
   console.log('Browser checks passed: live computation through 100000 leaves, stacked large diagrams, sparse proof rendering, full-history coverage, cancellation, Keccak verification and tampering, recency through 256, reference mismatch detection, offline/mobile, and anonymous Pages CSP.');

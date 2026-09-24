@@ -9,6 +9,9 @@
   const equal = (a,b) => JSON.stringify(a) === JSON.stringify(b);
   const mean = values => values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0;
   const fmt = n => Number.isInteger(n) ? String(n) : n.toFixed(3).replace(/0+$/,'').replace(/\.$/,'');
+  const matchesReference = state => state.n<=reference.liveReference.maxN
+    &&state.root===reference.liveReference.rootsHex.slice((state.n-1)*64,state.n*64)
+    &&state.hashes===reference.liveReference.hashCounts[state.n-1];
   let position = 11;
   let selectedLeaf = 6;
   let busy=false,cancelled=false;
@@ -193,6 +196,11 @@
 
   function renderLedger() {
     const state=engine.snapshot(position,null);
+    const comparison=$('state-reference'),matches=state&&matchesReference(state);
+    comparison.className=`small ${state?(matches?'pass':'fail'):'muted'}`;
+    comparison.textContent=!state?'No commitment to compare.':matches
+      ?`Clojure reference: root and append hash count match at n = ${position}.`
+      :`Clojure reference mismatch at n = ${position}: root or append hash count differs.`;
     if (!state) {$('ledger').innerHTML='<p class="small muted">No hashes have been performed.</p>';$('root-hash').textContent='No commitment yet.';return;}
     const nodes=new Map(state.nodes.map(n=>[n.digest,n]));
     $('ledger').innerHTML=state.events.map((event,i)=>{
@@ -291,8 +299,7 @@
       }
     }
     const states=engine.states.slice(0,limit);
-    const rootRefs=[...reference.states,...reference.liveReference.checkpoints].filter(s=>s.n<=limit);
-    const referenceOK=states.every(s=>s.hashes===reference.liveReference.hashCounts[s.n-1])&&rootRefs.every(s=>engine.states[s.n-1].root===s.root);
+    const referenceOK=states.every(matchesReference);
     const max=Math.max(...states.map(s=>s.hashes)), average=mean(states.map(s=>s.hashes));
     const results=[
       ['Peak schedule',states.every(s=>equal(s.peaks,s.expectedPeaks)),`${limit} states`,'Observed peak heights equal S(n).','paper-figures-test / S-n'],
@@ -301,7 +308,7 @@
       ['Proof-size prediction',sizesOK,`${proofCount} comparisons`,'Generated co-path lengths match the structural formula.','proof-size / membership-proofs-test'],
       ['Worst-case hash work',max<=5,`${max} ≤ 5`,'Maximum observed structural hashes per append. Leaf hashing is additional.','lemma-17-hash-count-test'],
       ['Mean hash work',average<4,`${average.toFixed(3)} < 4`,'Observed mean on this finite prefix. This is not an asymptotic proof.','lemma-17-hash-count-test'],
-      ['Clojure reference',referenceOK,`${limit} counts; ${rootRefs.length} roots`,'Browser results match the independently exported Clojure values at the reference states.','reviewer/export.clj']
+      ['Clojure reference',referenceOK,`${limit} counts; ${limit} roots`,'Every root and append hash count in this prefix matches the Clojure construction. References cover all 100,000 supported states.','reviewer/export.clj']
     ];
     $('check-results').innerHTML=results.map(([title,pass,value,detail,source])=>`<article class="check-card"><h3>${esc(title)}</h3><div class="check-value${pass?'':' fail'}">${pass?'✓':'✕'} ${esc(value)}</div><p>${esc(detail)}</p><code>${esc(source)}</code></article>`).join('');
     const passed=results.filter(r=>r[1]).length;$('check-status').className=`result ${passed===results.length?'pass':'fail'}`;

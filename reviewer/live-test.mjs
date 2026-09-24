@@ -8,6 +8,12 @@ const data=JSON.parse(readFileSync(new URL('../docs/index.html',import.meta.url)
   .match(/<script id="artifact-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
 const plain=value=>JSON.parse(JSON.stringify(value));
 const bytes=hex=>Uint8Array.from(hex.match(/../g)||[],x=>parseInt(x,16));
+assert.equal(data.formatVersion,3);
+assert.equal(data.liveReference.maxN,L.MAX_LEAVES,'Clojure reference covers the entire interactive range');
+assert.equal(data.liveReference.hashCounts.length,L.MAX_LEAVES);
+assert.equal(data.liveReference.rootsHex.length,64*L.MAX_LEAVES);
+assert.match(data.liveReference.rootsHex,/^[0-9a-f]+$/);
+const referenceRoot=n=>data.liveReference.rootsHex.slice((n-1)*64,n*64);
 assert.equal(L.keccak256(new Uint8Array()),'c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470');
 assert.equal(L.keccak256(new TextEncoder().encode('abc')),'4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45');
 for(const vector of data.liveReference.hashVectors)assert.equal(L.keccak256(bytes(vector.input)),vector.digest,'Bouncy Castle hash vector');
@@ -45,7 +51,10 @@ for(const expected of data.states){
   }
 }
 engine.ensure(data.liveReference.maxN);
-for(let i=0;i<data.liveReference.maxN;i++)assert.equal(engine.states[i].hashes,data.liveReference.hashCounts[i],`Clojure hash count at ${i+1}`);
+for(let i=0;i<data.liveReference.maxN;i++){
+  assert.equal(engine.states[i].hashes,data.liveReference.hashCounts[i],`Clojure hash count at ${i+1}`);
+  assert.equal(engine.states[i].root,referenceRoot(i+1),`Clojure root at ${i+1}`);
+}
 for(const ref of data.liveReference.checkpoints){
   const state=engine.states[ref.n-1];
   assert.equal(state.root,ref.root,`Clojure root at ${ref.n}`);
@@ -79,4 +88,4 @@ for(const n of [-1,NaN,1.5,Infinity,L.MAX_LEAVES+1])assert.throws(()=>engine.ens
 assert.throws(()=>engine.append(),/Interactive limit/);
 assert.equal(engine.proof(0,1),null);
 assert.equal(engine.proof(5,6),null);
-console.log(`Live computation verified: Keccak vectors, ${proofCount} Clojure paths and sparse projections, 4096 reference counts, larger roots/events, recency samples, altered proofs, cumulative counts, and ${L.MAX_LEAVES} appends.`);
+console.log(`Live computation verified: every Clojure root and hash count through ${L.MAX_LEAVES} appends; Keccak vectors, ${proofCount} paths and sparse projections, checkpoint hash events, recency samples, altered proofs, and cumulative counts.`);

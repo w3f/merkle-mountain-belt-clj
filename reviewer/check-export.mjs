@@ -7,9 +7,19 @@ const html=readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
 const match=html.match(/<script id="artifact-data" type="application\/json">([\s\S]*?)<\/script>/);
 assert.ok(match,'Embedded data is present');
 const data=JSON.parse(match[1]);
-assert.equal(data.formatVersion,2);
+assert.equal(data.formatVersion,3);
+const {MAX_LEAVES}=runInNewContext(readFileSync(new URL('./live.js',import.meta.url),'utf8')+';MMBLive');
+assert.equal(data.liveReference.maxN,MAX_LEAVES,'Reference covers the browser limit');
+assert.equal(data.liveReference.hashCounts.length,MAX_LEAVES);
+assert.ok(data.liveReference.hashCounts.every(n=>Number.isInteger(n)&&n>=0&&n<=5));
+assert.equal(data.liveReference.rootsHex.length,64*MAX_LEAVES);
+assert.match(data.liveReference.rootsHex,/^[0-9a-f]+$/);
+for(const state of [...data.states,...data.liveReference.checkpoints]){
+  assert.equal(state.root,data.liveReference.rootsHex.slice((state.n-1)*64,state.n*64),'Detailed and full-range references agree');
+  assert.equal(state.hashes,data.liveReference.hashCounts[state.n-1]);
+}
 assert.equal(data.states.length,data.maxN);
-assert.ok(Buffer.byteLength(html)<8*1024*1024,'Artifact fits the documented 8 MB file limit');
+assert.ok(Buffer.byteLength(html)<8*1024*1024,'Standalone artifact stays within the 8 MiB size budget');
 assert.ok(!html.includes('/*__'),'All template slots are filled');
 assert.ok(!/<(?:script|link|img|iframe)[^>]+(?:src|href)\s*=\s*["']https?:/i.test(html),'No external assets');
 assert.ok(!/\/home\/|\/Users\/|mailto:|github\.com\//i.test(html),'No local home paths, email links, or source repository links');
@@ -119,4 +129,4 @@ for(const sample of data.amortized){
   assert.ok(sample.mmbObserved<=sample.mmbBound);
 }
 assert.ok(data.sourceTests.every(t=>t.passed&&t.assertions>0));
-console.log(`Export verified: ${data.maxN} states, ${proofs} focused membership paths, ${data.amortized.length} recency samples; paper topology, collapse coverage, negative paths, bounds, and asset checks passed.`);
+console.log(`Export verified: ${MAX_LEAVES} reference roots and counts; ${data.maxN} detailed states, ${proofs} focused membership paths, ${data.amortized.length} recency samples; topology, bounds, and asset checks passed (${Buffer.byteLength(html)} bytes).`);
