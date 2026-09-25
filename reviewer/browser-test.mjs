@@ -169,20 +169,6 @@ async function exercise(page,extended=false){
     await page.setViewportSize({width:1440,height:1050});
     await page.locator('#history-range').selectOption('64');
   }
-  await page.locator('#checks-tab').click();
-  for(const limit of ['8','16','32','64','128']){
-    await page.locator('#check-limit').selectOption(limit);await page.locator('#run-checks').click();
-    await page.waitForFunction(()=>!document.getElementById('run-checks').disabled);
-    assert.match(await page.locator('#check-status').textContent(),/7 \/ 7 checks passed/);
-    assert.equal(await page.locator('.check-card').count(),7);
-    assert.equal(await page.locator('.check-card').last().locator('.check-value').textContent(),`✓ ${limit} counts; ${limit} roots`);
-  }
-  for(const k of [...Array.from({length:16},(_,i)=>i+1),32,64,128,256]){
-    await page.locator('#recency').selectOption(String(k));
-    assert.ok(!(await page.locator('#amortized-values').textContent()).includes('✕'));
-  }
-  if(screenshotDir)await page.screenshot({path:`${screenshotDir}/checks.png`,fullPage:true});
-  await page.locator('#explorer-tab').click();
   await page.locator('#show-membership').uncheck();
   await page.locator('#position').evaluate(el=>{el.value=11;el.dispatchEvent(new Event('input',{bubbles:true}));});
 }
@@ -224,11 +210,8 @@ try{
     }
     assert.equal(await sandboxPage.locator('#root-hash').textContent(),expectedRoot,'Displayed root is independently computed');
     assert.match(await sandboxPage.locator('#state-reference').textContent(),new RegExp(`mismatch at n = ${n}`),`Corrupt ${field} detected in reference comparison`);
-    await sandboxPage.locator('#checks-tab').click();await sandboxPage.locator('#run-checks').click();
-    await sandboxPage.waitForFunction(()=>!document.getElementById('run-checks').disabled);
-    assert.match(await sandboxPage.locator('#check-status').textContent(),n===11?/6 \/ 7 checks passed/:/7 \/ 7 checks passed/,'Prefix check reports only mismatches within its selected range');
   }
   await context.close();
   assert.deepEqual(errors,[],'No browser exceptions');
-  console.log('Browser checks passed: live computation through 100000 leaves, stacked large diagrams, sparse proof rendering, full-history coverage, cancellation, Keccak verification and tampering, recency through 256, reference mismatch detection, offline/mobile, and anonymous Pages CSP.');
+  console.log('Browser checks passed: live computation through 100000 leaves, stacked large diagrams, sparse proof rendering, full-history coverage, cancellation, Keccak verification and tampering, reference mismatch detection, offline/mobile, and anonymous Pages CSP.');
 }finally{await browser.close();}

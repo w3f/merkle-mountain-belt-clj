@@ -13,19 +13,29 @@ hosted web preview supplied with the artifact.
 
 The demonstration computes append operations, Keccak-256 commitments, membership
 paths, and hash counts in the browser. It shows the structure before and after
-each append, supports up to 100,000 leaves, and includes numerical checks against
-the Clojure implementation. Enable **Show membership paths** to select a leaf and
-verify its proof. The browser code is a JavaScript implementation validated
+each append and supports up to 100,000 leaves. Enable **Show membership paths**
+to select a leaf and verify its proof. The browser code is a JavaScript implementation validated
 against Clojure reference roots and append hash counts for every state through
-100,000 leaves; the Clojure source tests are recorded at export. The selected
-state's root and count are compared with those references during navigation.
+100,000 leaves. The selected state's root and count are compared with those
+references during navigation.
 
 See [reviewer/README.md](reviewer/README.md) for the conventions, validation
 coverage, and reproduction instructions.
 
-## Reproduce the artifact
+## Tests and reproduction
 
-Use the Clojure CLI with JDK 21 and Node.js 18 or newer. From the repository root:
+Use the Clojure CLI with JDK 21 and Node.js 18 or newer. Run the following commands
+from the repository root.
+
+Run the Clojure test suite for the paper's numerical checks, including peak
+schedules, merge locality, membership proofs, proof-size formulas, and hash-work
+bounds:
+
+```sh
+clojure -M:test
+```
+
+To regenerate the demonstration and run the JavaScript validation suite:
 
 ```sh
 clojure -J-Xmx2g -J-Djava.awt.headless=true -J-Dmmb.verify-shortcuts=true -M reviewer/export.clj
@@ -38,16 +48,18 @@ tests, constructs the full 100,000-leaf Clojure reference, and rebuilds
 `docs/index.html`. The JavaScript check compares every root and append hash count
 through that limit, plus detailed topologies, membership paths, and hash events
 at the smaller reference states and additional event checkpoints.
-
-The repository's broader Clojure tests can be run with `clojure -M:test`.
+The JavaScript suite also checks merge locality, hash-work bounds, every
+membership path's interval coverage and predicted size through 1,024 leaves,
+and proof-size averages for recencies 1–16, 32, 64, 128, and 256.
+These numerical checks run in the test suites; the browser page focuses on the
+append demonstration and interactive membership proofs.
+Cached EDN fixtures in `src/` are required by the Clojure tests and are included.
 
 The empirical Snowbridge study behind the paper's bridge table lives in
 `studies/snowbridge/` (see its `README.org`): shipped data, unit tests, and
 `python3 analyse.py --force-mmb`, which recomputes MMB proof sizes through
 `clojure -M:mmb-sizes` and regenerates the figures. The Nix development shell
 provides the Python packages it needs.
-Those are separate from the selected tests reported by the page. Cached EDN
-fixtures in `src/` are required by the existing Clojure test code and are included.
 
 ## Source layout
 

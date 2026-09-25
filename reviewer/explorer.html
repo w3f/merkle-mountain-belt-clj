@@ -16,11 +16,7 @@
       <p>Browser computation of append operations, membership paths, and Keccak-256 hashes for the Merkle Mountain Belt.</p>
       <p class="scope">JavaScript implementation checked against the Clojure reference. Leaf values are their indices. Interactive limit: 100,000 leaves; no server is required.</p>
     </header>
-    <nav class="tabs" aria-label="Artifact views">
-      <button id="explorer-tab" class="tab active" aria-current="page" data-view="explorer">Structure and hash counts</button>
-      <button id="checks-tab" class="tab" data-view="checks">Numerical checks</button>
-    </nav>
-    <section id="explorer-view" aria-labelledby="explorer-tab">
+    <section id="explorer-view" aria-label="Append operations and membership paths">
       <div class="control-bar">
         <div class="state-label"><span>Leaves:</span><span id="state-n" class="state-number">11</span></div>
         <div class="transport"><button id="reset" class="button">Reset</button><button id="back" class="button" aria-label="Previous state">Previous</button><button id="append" class="button">Append leaf</button></div>
@@ -71,18 +67,7 @@
         <details class="root-details"><summary>Keccak-256 commitment</summary><code id="root-hash"></code><p class="small muted">Computed in this browser. Each leaf is its index encoded as an 8-byte little-endian integer. Internal nodes hash the ordered pair of child digests. An absent child is an identity operation and costs no hash.</p></details>
       </section>
     </section>
-    <section id="checks-view" aria-labelledby="checks-tab" hidden>
-      <div class="checks-intro"><div><h2>Checks on browser-computed states</h2><p>Checks evaluate every membership path in the selected prefix and compare every root and append hash count with Clojure reference values. Exhaustive path checks are limited to 1,024 leaves; Clojure roots and counts cover all 100,000 supported states. These finite checks do not constitute formal proofs.</p></div><div class="check-actions"><label for="check-limit">Check states 1 through</label><select id="check-limit"><option>8</option><option>16</option><option>32</option><option selected>64</option><option>128</option><option>256</option><option>512</option><option>1024</option></select><button id="run-checks" class="button">Run checks</button><button id="cancel-checks" class="button" hidden>Cancel</button></div></div>
-      <p id="check-status" role="status" aria-live="polite" class="result muted">Choose a range and run the checks.</p>
-      <div id="check-results" class="check-cards"></div>
-      <section class="panel amortized-panel">
-        <div class="panel-heading"><h2>Mean proof size by recency</h2><label class="k-control" for="recency">Recency k <select id="recency"></select></label></div>
-        <p class="panel-description">The browser generates membership paths over a full sampling period for each k, then compares their mean length with the structural prediction and the paper’s bound.</p>
-        <div class="amortized-grid"><div><svg id="proof-chart" role="img" aria-label="Recorded proof sizes over the sampling period"></svg><p id="sampling-window" class="small muted"></p></div><div id="amortized-values"></div></div>
-      </section>
-      <section class="panel source-panel"><div class="panel-heading"><h2>Source test results at export</h2><span class="small muted">Clojure / JVM</span></div><div id="source-tests"></div><p class="small muted">Results for selected tests from <code>src/paper_test.clj</code>; this is not a report for the full repository test suite.</p></section>
-    </section>
-    <footer><details><summary>Reproduction and scope</summary><p>The generator produces this standalone <code>docs/index.html</code>, including Clojure reference fixtures. See <code>reviewer/README.md</code> for reproduction commands and validation coverage.</p><p>The browser implements the append schedule and reuses range/belt hashes when their operands are unchanged. Structural counts exclude the one leaf hash per append, layout, proof generation, and verification. They measure hash work, not browser execution time. Previous states are retained for navigation.</p><p>Clojure reference construction covers every root and append hash count through 100,000 leaves. Detailed topology and all membership paths are cross-checked for the first 64 states, hash operations at additional checkpoints, and recency samples for k = 1–16. The selected state is compared with its Clojure root and count during navigation. Source test results above are recorded during export, not executed in this browser. Lemma numbers may differ between paper revisions.</p></details><p>This page is self-contained and makes no network requests.</p></footer>
+    <footer><details><summary>Reproduction and scope</summary><p>The generator produces this standalone <code>docs/index.html</code>, including Clojure reference fixtures. See <code>reviewer/README.md</code> for reproduction commands and validation coverage.</p><p>The browser implements the append schedule and reuses range/belt hashes when their operands are unchanged. Structural counts exclude the one leaf hash per append, layout, proof generation, and verification. They measure hash work, not browser execution time. Previous states are retained for navigation.</p><p>Clojure reference construction covers every root and append hash count through 100,000 leaves. Detailed topology and all membership paths are cross-checked for the first 64 states, hash operations at additional checkpoints, and recency samples for k = 1–16. The selected state is compared with its Clojure root and count during navigation. Run the numerical checks and Clojure paper tests using the commands in the README.</p></details><p>This page is self-contained and makes no network requests.</p></footer>
   </main>
   <script id="artifact-data" type="application/json">/*__DATA__*/</script>
   <script>/*__LIVE__*/

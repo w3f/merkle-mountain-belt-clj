@@ -1,14 +1,11 @@
 (() => {
   'use strict';
   const reference = JSON.parse(document.getElementById('artifact-data').textContent);
-  const engine = new MMBLive.Engine(), sampleEngine = new MMBLive.Engine();
-  const samples = new Map();
+  const engine = new MMBLive.Engine();
   const $ = id => document.getElementById(id);
   const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const span = pair => pair[0] === pair[1] ? String(pair[0]) : `${pair[0]}–${pair[1]}`;
-  const equal = (a,b) => JSON.stringify(a) === JSON.stringify(b);
   const mean = values => values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0;
-  const fmt = n => Number.isInteger(n) ? String(n) : n.toFixed(3).replace(/0+$/,'').replace(/\.$/,'');
   const matchesReference = state => state.n<=reference.liveReference.maxN
     &&state.root===reference.liveReference.rootsHex.slice((state.n-1)*64,state.n*64)
     &&state.hashes===reference.liveReference.hashCounts[state.n-1];
@@ -18,17 +15,6 @@
   let diagramWidth=360;
   const current = () => engine.ensure(position);
   const yieldUI = () => new Promise(resolve=>setTimeout(resolve,0));
-
-  function verifyInterval(n, leaf, siblings) {
-    let acc = [leaf,leaf];
-    for (const s of siblings) {
-      if (!Array.isArray(s) || s.length !== 2 || s[0] > s[1]) return false;
-      if (acc[1]+1 === s[0]) acc = [acc[0],s[1]];
-      else if (s[1]+1 === acc[0]) acc = [s[0],acc[1]];
-      else return false;
-    }
-    return equal(acc,[1,n]);
-  }
 
   function proofForSelection() {
     return engine.proof(position,selectedLeaf);
@@ -244,8 +230,8 @@
 
   function setBusy(value){
     busy=value;
-    for(const id of ['position','target-n','compute','run-checks','check-limit','recency'])$(id).disabled=value;
-    $('cancel-compute').hidden=!value;$('cancel-checks').hidden=!value;
+    for(const id of ['position','target-n','compute'])$(id).disabled=value;
+    $('cancel-compute').hidden=!value;
     $('append').disabled=value||position===MMBLive.MAX_LEAVES;
     $('back').disabled=value||position===0;$('reset').disabled=value||position===0;
   }
@@ -271,77 +257,9 @@
     selectedLeaf=leaf;$('tamper').checked=false;$('leaf-select').value=leaf;$('leaf-number').value=leaf;renderGraph();renderProof();
   }
 
-  function locality(state) {
-    const previous=state.n===1?[]:engine.states[state.n-2].peaks;
-    if (previous.length!==state.peaks.length) return state.case==='no-merge';
-    const index=previous.findIndex((h,i)=>h!==state.peaks[i]);
-    let total=0, rangeIndex=-1;
-    state.ranges.forEach((range,i)=>{if(index>=total&&index<total+range.length) rangeIndex=i;total+=range.length;});
-    return index>=0&&state.peaks[index]===previous[index]+1&&rangeIndex>=state.ranges.length-2;
-  }
-
-  async function runChecks() {
-    if(busy)return;
-    const limit=Number($('check-limit').value);
-    cancelled=false;setBusy(true);
-    $('check-status').className='result muted';$('check-results').innerHTML='';
-    try{
-    let proofCount=0,pathsOK=true,sizesOK=true;
-    for(let n=1;n<=limit;n++){
-      engine.ensure(n);
-      for(let leaf=1;leaf<=n;leaf++){
-        const proof=engine.proof(n,leaf);proofCount++;
-        pathsOK=pathsOK&&verifyInterval(n,leaf,proof.siblings);
-        sizesOK=sizesOK&&proof.siblings.length===proof.expectedSize;
-      }
-      if(n%8===0){
-        $('check-status').textContent=`Checking browser-computed state ${n} / ${limit}…`;
-        await yieldUI();
-        if(cancelled){$('check-status').textContent=`Checks cancelled after state ${n}; no complete result.`;$('check-results').innerHTML='';return;}
-      }
-    }
-    const states=engine.states.slice(0,limit);
-    const referenceOK=states.every(matchesReference);
-    const max=Math.max(...states.map(s=>s.hashes)), average=mean(states.map(s=>s.hashes));
-    const results=[
-      ['Peak schedule',states.every(s=>equal(s.peaks,s.expectedPeaks)),`${limit} states`,'Observed peak heights equal S(n).','paper-figures-test / S-n'],
-      ['Merge locality',states.every(locality),`${limit} appends`,'The merge falls in one of the last two ranges. No-merge cases are checked separately.','lemma-16-test'],
-      ['Membership path structure',pathsOK,`${proofCount} paths`,'Generated sibling intervals cover [1, n]. Individual Keccak verification is available in the membership panel.','membership-proofs-test'],
-      ['Proof-size prediction',sizesOK,`${proofCount} comparisons`,'Generated co-path lengths match the structural formula.','proof-size / membership-proofs-test'],
-      ['Worst-case hash work',max<=5,`${max} ≤ 5`,'Maximum observed structural hashes per append. Leaf hashing is additional.','lemma-17-hash-count-test'],
-      ['Mean hash work',average<4,`${average.toFixed(3)} < 4`,'Observed mean on this finite prefix. The paper amortizes to 4, and to 3.25 with unary identities and the cached merge hash, over full periods of 2^k − 1 appends. This is not an asymptotic proof.','lemma-17-hash-count-test'],
-      ['Clojure reference',referenceOK,`${limit} counts; ${limit} roots`,'Every root and append hash count in this prefix matches the Clojure construction. References cover all 100,000 supported states.','reviewer/export.clj']
-    ];
-    $('check-results').innerHTML=results.map(([title,pass,value,detail,source])=>`<article class="check-card"><h3>${esc(title)}</h3><div class="check-value${pass?'':' fail'}">${pass?'✓':'✕'} ${esc(value)}</div><p>${esc(detail)}</p><code>${esc(source)}</code></article>`).join('');
-    const passed=results.filter(r=>r[1]).length;$('check-status').className=`result ${passed===results.length?'pass':'fail'}`;
-    $('check-status').textContent=`${passed} / ${results.length} checks passed · n = 1…${limit} · ${proofCount} generated membership paths. Computed in this browser.`;
-    }catch(error){$('check-status').className='result fail';$('check-status').textContent=`Checks failed: ${error.message}`;}
-    finally{setBusy(false);render();}
-  }
-
-  function renderAmortized() {
-    const k=Number($('recency').value);
-    if(!samples.has(k))samples.set(k,sampleEngine.sample(k));
-    const sample=samples.get(k);
-    const width=550,height=170,base=135,max=Math.max(...sample.sizes,sample.mmbBound)+1, scale=110/max;
-    const step=480/sample.sizes.length;
-    let html=`<title>Computed membership proof sizes for recency ${k}</title><line x1="35" x2="523" y1="${base-sample.mmbBound*scale}" y2="${base-sample.mmbBound*scale}" stroke="#bd8754" stroke-dasharray="4 4"/><text x="524" y="${base-sample.mmbBound*scale-5}" text-anchor="end" font-size="9" fill="#946a3e">mean bound ${fmt(sample.mmbBound)}</text>`;
-    sample.sizes.forEach((size,i)=>{html+=`<rect x="${35+i*step}" y="${base-size*scale}" width="${Math.max(1,step-2)}" height="${size*scale}" rx="1" fill="#7b858d"><title>n=${k+i}, k=${k}: ${size} sibling hashes</title></rect>`;});
-    html+=`<text x="35" y="156" font-size="10" fill="#666">n = ${k}</text><text x="520" y="156" text-anchor="end" font-size="10" fill="#666">n = ${k+sample.period-1}</text>`;
-    $('proof-chart').setAttribute('viewBox',`0 0 ${width} ${height}`);$('proof-chart').innerHTML=html;
-    $('sampling-window').textContent=`${sample.period} browser-computed states, n = ${k}…${k+sample.period-1}. The dashed bound applies to the mean, not each individual proof.`;
-    const rows=[['U-MMB mean vs. formula',sample.ummbObserved,sample.ummbFormula,'=','amortized-ummb-lemma'],['U-MMB restricted window',sample.restricted,sample.ummbFormula,'≤','amortized-structural-restricted'],['MMB empirical vs. structural',sample.mmbObserved,sample.mmbStructural,'=','amortized-mmb-empirical'],['MMB mean vs. upper bound',sample.mmbObserved,sample.mmbBound,'≤','amortized-mmb-upper-bound']];
-    $('amortized-values').innerHTML=rows.map(([label,a,b,op,source])=>`<div class="comparison-row"><span>${label}</span><strong>${(op==='='?Math.abs(a-b)<1e-10:a<=b+1e-10)?'✓':'✕'} ${fmt(a)} ${op} ${fmt(b)}</strong><small>${source}</small></div>`).join('');
-  }
-
-  function showView(name) {
-    const checks=name==='checks';$('checks-view').hidden=!checks;$('explorer-view').hidden=checks;
-    document.querySelectorAll('[data-view]').forEach(button=>{const active=button.dataset.view===name;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});
-  }
-  document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.view)));
   $('position').addEventListener('input',event=>setPosition(event.target.value));
   $('compute-form').addEventListener('submit',event=>{event.preventDefault();computeTo(Number($('target-n').value));});
-  for(const id of ['cancel-compute','cancel-checks'])$(id).addEventListener('click',()=>{cancelled=true;});
+  $('cancel-compute').addEventListener('click',()=>{cancelled=true;});
   $('append').addEventListener('click',()=>setPosition(position+1));$('back').addEventListener('click',()=>setPosition(position-1));$('reset').addEventListener('click',()=>setPosition(0));
   $('leaf-select').addEventListener('change',event=>selectLeaf(event.target.value));$('tamper').addEventListener('change',renderProof);
   $('leaf-number').addEventListener('input',event=>selectLeaf(event.target.value));
@@ -361,10 +279,6 @@
   $('history').addEventListener('click',historyAction);$('history').addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();historyAction(event);}});
   $('history-range').addEventListener('change',renderHistory);
   $('verify').addEventListener('click',()=>{const ok=MMBLive.verifyProof(position,displayedProof(),current()?.root);$('proof-result').className=`result ${ok?'pass':'fail'}`;$('proof-result').textContent=ok?`Path accepted: Keccak-256 recomputation matches the root and the intervals cover [1, ${position}].`:'Path rejected: the sibling digests or intervals do not reconstruct the expected root.';});
-  $('run-checks').addEventListener('click',runChecks);
-  $('check-limit').addEventListener('change',()=>{$('check-status').className='result muted';$('check-status').textContent='Range changed. Run the checks to update the results.';$('check-results').innerHTML='';});
-  $('recency').innerHTML=[...Array.from({length:16},(_,i)=>i+1),32,64,128,256].map(k=>`<option value="${k}">${k}</option>`).join('');$('recency').value='5';$('recency').addEventListener('change',renderAmortized);
-  $('source-tests').innerHTML=reference.sourceTests.map(t=>`<div class="source-test"><code>${esc(t.name)}</code><span>✓ ${t.assertions} assertions passed</span></div>`).join('');
   new ResizeObserver(updateTransitionLayout).observe($('transition-grid'));
-  render();renderAmortized();
+  render();
 })();

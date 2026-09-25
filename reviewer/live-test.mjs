@@ -62,9 +62,27 @@ for(const ref of data.liveReference.checkpoints){
   for(const leaf of [1,Math.ceil(ref.n/2),ref.n])assert.ok(L.verifyProof(ref.n,engine.proof(ref.n,leaf),ref.root));
 }
 for(const ref of data.amortized)assert.deepEqual(plain(engine.sample(ref.k)),ref,'Clojure recency sample');
-const largestSample=engine.sample(256);
-assert.equal(largestSample.mmbObserved,largestSample.mmbStructural);
-assert.ok(largestSample.mmbObserved<=largestSample.mmbBound);
+// Numerical checks formerly available in the page now run with this suite.
+for(const k of [...Array.from({length:16},(_,i)=>i+1),32,64,128,256]){
+  const sample=engine.sample(k);
+  assert.equal(sample.ummbObserved,sample.ummbFormula,`U-MMB mean formula at k=${k}`);
+  assert.ok(sample.restricted<=sample.ummbFormula,`Restricted U-MMB mean bound at k=${k}`);
+  assert.equal(sample.mmbObserved,sample.mmbStructural,`MMB mean prediction at k=${k}`);
+  assert.ok(sample.mmbObserved<=sample.mmbBound,`MMB mean bound at k=${k}`);
+}
+let intervalProofs=0;
+for(let n=1;n<=1024;n++)for(let leaf=1;leaf<=n;leaf++){
+  const proof=engine.proof(n,leaf);let lo=leaf,hi=leaf;
+  for(const [a,b] of proof.siblings){
+    assert.ok(a<=b,'Ordered sibling interval');
+    if(hi+1===a)hi=b;
+    else if(b+1===lo)lo=a;
+    else assert.fail(`Nonadjacent sibling in proof for leaf ${leaf} at n=${n}`);
+  }
+  assert.equal(lo,1);assert.equal(hi,n,'Proof covers the whole prefix');
+  assert.equal(proof.siblings.length,proof.expectedSize,`Proof size for leaf ${leaf} at n=${n}`);
+  intervalProofs++;
+}
 const saved=engine.states[10].root;
 engine.ensure(L.MAX_LEAVES);
 assert.equal(engine.snapshot(11).root,saved,'Later appends preserve earlier states');
@@ -73,6 +91,15 @@ for(const state of engine.states){
   assert.equal(state.totalHashes,totalHashes);assert.equal(state.maxHashes,maxHashes);
   assert.deepEqual(plain(state.peaks),plain(L.expectedPeaks(state.n)));
   assert.ok(state.hashes<=5,`Hash bound at ${state.n}`);
+  assert.ok(totalHashes/state.n<4,`Mean hash bound at ${state.n}`);
+  const previous=state.n===1?[]:engine.states[state.n-2].peaks;
+  if(previous.length!==state.peaks.length)assert.equal(state.case,'no-merge');
+  else{
+    const index=previous.findIndex((height,i)=>height!==state.peaks[i]);
+    let offset=0,rangeIndex=-1;
+    state.ranges.forEach((range,i)=>{if(index>=offset&&index<offset+range.length)rangeIndex=i;offset+=range.length;});
+    assert.ok(index>=0&&state.peaks[index]===previous[index]+1&&rangeIndex>=state.ranges.length-2,`Merge locality at ${state.n}`);
+  }
 }
 for(const leaf of [1,5000,9999,10000])assert.ok(L.verifyProof(10000,engine.proof(10000,leaf),engine.states[9999].root));
 for(const leaf of [1,Math.floor(L.MAX_LEAVES/2),L.MAX_LEAVES]){
@@ -88,4 +115,4 @@ for(const n of [-1,NaN,1.5,Infinity,L.MAX_LEAVES+1])assert.throws(()=>engine.ens
 assert.throws(()=>engine.append(),/Interactive limit/);
 assert.equal(engine.proof(0,1),null);
 assert.equal(engine.proof(5,6),null);
-console.log(`Live computation verified: every Clojure root and hash count through ${L.MAX_LEAVES} appends; Keccak vectors, ${proofCount} paths and sparse projections, checkpoint hash events, recency samples, altered proofs, and cumulative counts.`);
+console.log(`Live computation verified: every Clojure root and hash count through ${L.MAX_LEAVES} appends; Keccak vectors, ${proofCount} reference paths and sparse projections, ${intervalProofs} interval/size checks through n=1024, merge locality, hash bounds, recency through k=256, checkpoint events, and altered proofs.`);

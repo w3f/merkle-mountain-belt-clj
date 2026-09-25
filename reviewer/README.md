@@ -52,20 +52,23 @@ Hover over a proof step to inspect its digest. Disabling
 the toggle restores collapsed mountains and removes proof highlighting; the
 selected leaf is retained. Large graphs scroll horizontally.
 
-The **Numerical checks** view evaluates peak schedules, merge locality, membership
-path structure, proof-size predictions, and hash-work bounds over computed
-prefixes up to 1,024 leaves. A separate result compares every computed root and
-append hash count in that prefix with the Clojure fixtures. The reference
-construction covers every prefix through 100,000 leaves; the explorer also
-compares the selected state's root and count during navigation. These checks
-generate paths and inspect their
-intervals; the membership panel additionally recomputes the selected proof's
-Keccak root. Recency settings 1–16, 32, 64, 128, and 256 generate fresh paths and
-compare their mean lengths with the formulas in `src/paper_test.clj`.
+The explorer compares the selected state's root and append hash count with the
+Clojure reference construction, which covers every prefix through 100,000 leaves.
+The membership panel recomputes the selected proof's Keccak root. Numerical
+checks of peak schedules, merge locality, proof-size formulas, and hash-work
+bounds are available in the test suites below.
 
-## Reproduce
+## Tests and reproduction
 
-From the repository root, with the Clojure CLI and a compatible JDK installed:
+From the repository root, with the Clojure CLI, JDK 21, and Node.js 18 or newer:
+
+```sh
+clojure -M:test
+```
+
+This runs the Clojure paper and implementation tests, including the numerical
+checks in `src/paper_test.clj`. To rebuild the demo and run the JavaScript
+validation suite against freshly generated Clojure references:
 
 ```sh
 clojure -J-Xmx2g -J-Djava.awt.headless=true -J-Dmmb.verify-shortcuts=true -M reviewer/export.clj
@@ -94,9 +97,9 @@ The Clojure export:
   paths bypass that wrapper, so they produce neither an event nor a count.
 - Generates recency samples and runs five existing source tests:
   `paper-figures-test`, `lemma-16-test`, `lemma-17-hash-count-test`,
-  `membership-proofs-test`, and `membership-proofs-large-test`. The initial
-  artifact reports 30 passing assertions from those tests. It does not claim
-  that the full repository test suite ran.
+  `membership-proofs-test`, and `membership-proofs-large-test`. The
+  export records their results in the reference data. The exporter runs these
+  selected tests; use `clojure -M:test` for the broader suite.
 - Executes the incremental construction with the Keccak backend through 100,000
   appends, exporting every root and structural hash count. Roots are stored as
   concatenated 64-character hexadecimal digests, in increasing prefix order.
@@ -128,6 +131,14 @@ states; larger prefixes have complete root/count coverage and selected proof
 checks. This finite comparison uses leaf-index payloads and is not a proof of
 equivalence for arbitrary inputs.
 
+The same JavaScript suite runs the numerical checks: peak schedules, merge
+locality, and worst-case and mean hash-work bounds through 100,000 leaves;
+interval coverage and predicted length for all 524,800 membership paths across
+prefixes 1–1,024; and proof-size averages and bounds for recencies 1–16, 32, 64,
+128, and 256. Interval checks do not hash every one of those 524,800 paths;
+cryptographic verification covers all 2,080 initial reference paths and selected
+larger proofs as described above.
+
 For optional browser regression tests, install Playwright and its Chromium
 browser in a test environment, then run:
 
@@ -144,7 +155,7 @@ triangular peaks, focused paths, absent-before handling for new leaves,
 keyboard selection, altered paths,
 live computation through 100,000 leaves and its Clojure root/count comparison, cancellation,
 automatic vertical layout, large-state leaf input, full-history plot coverage,
-checks and recency samples beyond the exported ranges, mobile page width, offline file viewing, and
+mobile page width, offline file viewing, and
 the sandboxed web preview's content security policy. It serves the policy test through
 local Playwright interception.
 It also corrupts reference roots and counts, including beyond 4,096 leaves,
@@ -175,10 +186,9 @@ appends performed; the 100,000-leaf limit is an interactive resource bound, not
 a limit of the MMB construction.
 
 The initial exported states are **reference fixtures, not the explorer's data
-source**. All displayed states, hashes, membership paths, and recency samples
+source**. All displayed states, hashes, and membership paths
 are computed locally. The page is not a live JVM test runner, and finite checks
-are not formal proofs. The source-test report remains a result recorded at
-export. Leaf payloads are still indices, not arbitrary user-supplied data.
+are not formal proofs. Leaf payloads are still indices, not arbitrary user-supplied data.
 
 Membership verification hashes the leaf index and the ordered sibling digests,
 checks interval adjacency, and compares the computed digest to the current root.
