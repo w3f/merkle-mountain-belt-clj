@@ -1,0 +1,12 @@
+{
+ "analysed_at": "2026-09-25T10:42:22+00:00",
+ "csv": "data/snowbridge_messages.csv",
+ "rows": 12141,
+ "run_id": "0775b23a-7e73-4dd1-917d-84e520cea62f",
+ "run_at": "2026-09-25T09:28:10+00:00",
+ "collector_commit": "49e730dc63c13bc6ae50f013080ecfdecdf73511",
+ "mmb_reference_impl": {
+  "repo": "merkle-mountain-belt-clj",
+  "commit": "1fa9839b4c79bfbac733ad1d77456884212cb329"
+ }
+}

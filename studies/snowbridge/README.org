@@ -1,0 +1,60 @@
+#+TITLE: Snowbridge study: measured k and MMR-vs-MMB block-inclusion proofs
+
+Empirical companion to the paper's "Cross-chain bridges and Polkadot" paragraph (Table 5).
+For every Polkadot→Ethereum message that Snowbridge's Gateway contract dispatched on Ethereum
+mainnet (June 2024 … September 2026), the scripts recover
+
+- =k=: the position of the proven MMR leaf counted from the newest leaf under the BEEFY root the
+  BeefyClient held when the proof was verified (=k = 1=: newest; the paper's convention),
+- =n=: the MMR leaf count under that root,
+- the on-chain block-inclusion proof length (=leafProof.length=, an MMR proof),
+
+and compare with the exact MMB proof size at the same =(n, k)= from this repository's reference
+implementation (=src/proof_size.clj=, via =clojure -M:mmb-sizes=).
+
+* Files
+| =snowbridge_k.py=        | collector: Etherscan logs, calldata decode, BeefyClient eras, k/n, formula check |
+| =mmr_proof_size.py=      | single-leaf MMR proof size as produced by ckb-mmr / polkadot-sdk; brute-force self-test |
+| =analyse.py=             | tables, figures, =snowbridge-k-analysis.org=; calls =clojure -M:mmb-sizes= for MMB sizes |
+| =report.py=              | narrative report =REPORT-snowbridge-k.org= assembled from the generated CSVs |
+| =test_snowbridge_k.py=   | unit tests (decoding, wrapper scan, era attribution, match keys, MMR formula) |
+| =data/snowbridge_messages.csv= | one row per message (12,141 rows) |
+| =data/mmb_sizes.csv=     | exact MMB / U-MMB sizes at the observed =(n, k)= pairs |
+| =data/run_summary.json=  | provenance and every counter of the collection run |
+| =data/undecoded_dispatches.csv= | dispatches that could not be decoded (none in the shipped run) |
+| =data/k-vs-n-no-phantom-512.csv= | reference MMB proof sizes (rows n = 1..512, columns k = 1..n) from the co-path walk; calibrates =proof-size= |
+| =figures/=               | plots and the CSV tables behind them; =table_polkadot.csv= feeds the paper's Table 5 |
+
+* Reproduce
+From the repository root, inside =nix develop= (JDK, Clojure and the Python packages):
+#+begin_src bash
+cd studies/snowbridge
+python3 mmr_proof_size.py                     # brute-force self-test of the MMR formula
+python3 -m unittest -v test_snowbridge_k
+python3 analyse.py --force-mmb                # recompute MMB sizes with clojure -M:mmb-sizes, regenerate figures/
+python3 report.py
+#+end_src
+To collect the data again (or extend it to newer blocks):
+#+begin_src bash
+export ETHERSCAN_API_KEY=…                                   # event logs (free tier suffices)
+export RPC=https://eth-mainnet.g.alchemy.com/v2/…            # optional: faster transaction fetches
+python3 snowbridge_k.py                                      # writes data/, caches raw results in data/cache/
+#+end_src
+The collector exits non-zero if any on-chain proof length disagrees with the MMR formula, if
+nonces are not contiguous, or if Polkadot's MMR leaf-count offset does not verify.
+
+* Method in one paragraph
+Dispatch logs (=InboundMessageDispatched=, v1 and v2) are only emitted after
+=BeefyClient.verifyMMRLeafProof= succeeded against the single stored root, so the =NewMMRRoot=
+event in force at the log position (per BeefyClient; the Gateway's client is an immutable of each
+implementation, tracked through =Upgraded= events, including the message that carries an upgrade)
+gives =latestBeefyBlock=. The proven leaf is relay block =parentNumber + 1= of the submitted
+=MMRLeafPartial=; Polkadot's =Mmr.NumberOfLeaves(B) = B − 19,551,000= (verified at run time), so
+=n = latestBeefyBlock − 19,551,000= and =k = n − i=. The ckb-mmr proof-size formula
+(=h + #left peaks + [any right peak]=) matches every on-chain =leafProof.length=.
+
+* Results (shipped run)
+See =snowbridge-k-analysis.org= (generated) and =REPORT-snowbridge-k.org=. Headline: median
+=k = 15=, 39% of messages within the 8-leaf band that Snowbridge's on-demand relayer produces when
+BEEFY is caught up (polkadot-sdk =min_block_delta = 8=), mean block-inclusion proof 15.2 hashes with
+MMR versus 8.3 with MMB, median per-message saving 50%.

@@ -26,6 +26,8 @@
             pkgs.clojure
             pkgs.clojure-lsp
             pkgs.git
+            # studies/snowbridge: on-chain data collection and analysis
+            (pkgs.python3.withPackages (ps: [ ps.web3 ps.requests ps.xxhash ps.matplotlib ps.numpy ]))
           ];
           buildInputs = [
             pkgs.clojure

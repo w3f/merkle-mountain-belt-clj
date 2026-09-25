@@ -5,7 +5,11 @@
   com.clojure-goes-fast/clj-async-profiler {:mvn/version "0.5.1"}
   ;; keccak256 for the BEEFY-compatible hash backend (KeccakDigest, NOT SHA3: different padding)
   org.bouncycastle/bcprov-jdk18on {:mvn/version "1.78.1"}}
- :aliases {:profiling
+ :aliases {:mmb-sizes
+           ;; MMB / U-MMB proof sizes for (n, k) pairs; used by studies/snowbridge/analyse.py
+           {:jvm-opts ["-Djava.awt.headless=true"]
+            :main-opts ["-m" "mmb-sizes"]}
+           :profiling
            {:jvm-opts
             ["-Djdk.attach.allowAttachSelf"
              "-XX:+UnlockDiagnosticVMOptions"

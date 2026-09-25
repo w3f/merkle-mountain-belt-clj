@@ -1,0 +1,4 @@
+era,NewMMRRoot_events,messages,roots_used,msgs_per_used_root,gap_p50_s,gap_p90_s,root_same_tx_pct,root_same_block_pct,frac_k_le_8_pct
+era 1 (0x6eD05bAa…),6131,4376,3288,1.33,36,372,0.0,0.0,5.8
+era 2 (0x1817874f…),4954,4837,3716,1.30,24,108,0.0,0.0,71.2
+era 3 (0x7cfc5C8b…),2880,2928,2018,1.45,0,0,93.0,93.0,36.7

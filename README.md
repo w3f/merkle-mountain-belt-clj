@@ -40,6 +40,12 @@ through that limit, plus detailed topologies, membership paths, and hash events
 at the smaller reference states and additional event checkpoints.
 
 The repository's broader Clojure tests can be run with `clojure -M:test`.
+
+The empirical Snowbridge study behind the paper's bridge table lives in
+`studies/snowbridge/` (see its `README.org`): shipped data, unit tests, and
+`python3 analyse.py --force-mmb`, which recomputes MMB proof sizes through
+`clojure -M:mmb-sizes` and regenerates the figures. The Nix development shell
+provides the Python packages it needs.
 Those are separate from the selected tests reported by the page. Cached EDN
 fixtures in `src/` are required by the existing Clojure test code and are included.
 
@@ -53,3 +59,5 @@ fixtures in `src/` are required by the existing Clojure test code and are includ
 - `reviewer/`: browser sources, exporter, and validation tools.
 - `docs/index.html`: generated standalone demonstration.
 - `stats/`: previously generated experimental results, separate from live browser calculations.
+- `src/mmb_sizes.clj`: command-line entry point (`clojure -M:mmb-sizes`) for MMB / U-MMB proof sizes at given `(n, k)`.
+- `studies/snowbridge/`: measured k distribution of Snowbridge Polkadot→Ethereum messages and on-chain MMR versus MMB proof sizes (paper Table 5).

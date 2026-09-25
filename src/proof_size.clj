@@ -37,8 +37,14 @@
 (defn avg [coll]
   (/ (reduce + coll) (count coll)))
 
+(defn ummb-proof-size
+  "U-MMB proof size = peak height of the k-th most recent leaf at state n (k = 1: newest)."
+  [n k]
+  (let [s (p/S-n n)]
+    (nth-reverse s (range-position-flat k s 0 0))))
+
 (defn proof-size
-  "returns the proof size for an MMB size `n` with leaf depth `k`"
+  "returns the proof size for an MMB size `n` with leaf depth `k` (k = 1: newest)"
   [n k]
   (let [S-n (p/S-n n)
         range-splits (range-splits S-n)

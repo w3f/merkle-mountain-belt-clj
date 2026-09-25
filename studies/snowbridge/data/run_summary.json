@@ -1,0 +1,169 @@
+{
+ "version": "2026-09-25",
+ "decoder_version": 2,
+ "run_id": "0775b23a-7e73-4dd1-917d-84e520cea62f",
+ "run_at": "2026-09-25T09:28:10+00:00",
+ "repo_commit": "49e730dc63c13bc6ae50f013080ecfdecdf73511",
+ "source_commits": {
+  "Snowfork/snowbridge": "e65a6a9451a86b027e9d17706ac3917bdbdff697",
+  "paritytech/polkadot-sdk": "cccea0c9393792a97a7814b88ca73a7678c43fc7",
+  "nervosnetwork/merkle-mountain-range": "master 2026-09-24"
+ },
+ "args": {
+  "from_block": 19000000,
+  "to_block": null,
+  "confirmations": 64,
+  "initial_beefy_client": "0x6eD05bAa904df3DE117EcFa638d4CB84e1B8A00C",
+  "workers": 3,
+  "etherscan_rate": 3.0,
+  "dot_rpc": "https://rpc.polkadot.io,https://polkadot-rpc.dwellir.com,https://polkadot.api.onfinality.io/public",
+  "skip_dot": false,
+  "offline": false,
+  "out": "data/snowbridge_messages.csv"
+ },
+ "sources": "logs via Etherscan, tx/call via Rpc",
+ "endpoints": {
+  "etherscan": "https://api.etherscan.io/v2/api",
+  "rpc": "https://eth-mainnet.g.alchemy.com"
+ },
+ "range": [
+  19000000,
+  26053505
+ ],
+ "implementation_eras": [
+  {
+   "block": 19000000,
+   "logIndex": -1,
+   "beefyClient": "0x6eD05bAa904df3DE117EcFa638d4CB84e1B8A00C",
+   "implementation": null
+  },
+  {
+   "block": 20028435,
+   "logIndex": 472,
+   "beefyClient": "0x6eD05bAa904df3DE117EcFa638d4CB84e1B8A00C",
+   "implementation": "0x3FD47faf04393cCCbd1738B7221Ec82e7d5C7718"
+  },
+  {
+   "block": 22037824,
+   "logIndex": 380,
+   "beefyClient": "0x6eD05bAa904df3DE117EcFa638d4CB84e1B8A00C",
+   "implementation": "0x4a4559CCD9195C3CABBd4Da00854A434E8dd2Ea3"
+  },
+  {
+   "block": 23582509,
+   "logIndex": 145,
+   "beefyClient": "0x1817874feAb3ce053d0F40AbC23870DB35C2AFfc",
+   "implementation": "0x8a887783E945233d51881e06835Ec78A8b575eCe"
+  },
+  {
+   "block": 24847176,
+   "logIndex": 715,
+   "beefyClient": "0x7cfc5C8b341991993080Af67D940B6aD19a010E1",
+   "implementation": "0x36e74FCAAcb07773b144Ca19Ef2e32Fc972aC50b"
+  }
+ ],
+ "beefy_client_eras": [
+  {
+   "block": 19000000,
+   "logIndex": -1,
+   "beefyClient": "0x6eD05bAa904df3DE117EcFa638d4CB84e1B8A00C"
+  },
+  {
+   "block": 23582509,
+   "logIndex": 145,
+   "beefyClient": "0x1817874feAb3ce053d0F40AbC23870DB35C2AFfc"
+  },
+  {
+   "block": 24847176,
+   "logIndex": 715,
+   "beefyClient": "0x7cfc5C8b341991993080Af67D940B6aD19a010E1"
+  }
+ ],
+ "unknown_beefy_clients": [],
+ "roots": {
+  "0x1817874feAb3ce053d0F40AbC23870DB35C2AFfc": {
+   "events": 4954,
+   "eth_first": 23429426,
+   "eth_last": 24847167,
+   "beefy_first": 27897427,
+   "beefy_last": 30737846
+  },
+  "0x6eD05bAa904df3DE117EcFa638d4CB84e1B8A00C": {
+   "events": 6131,
+   "eth_first": 20028014,
+   "eth_last": 23582549,
+   "beefy_first": 21088749,
+   "beefy_last": 28206087
+  },
+  "0x7cfc5C8b341991993080Af67D940B6aD19a010E1": {
+   "events": 2880,
+   "eth_first": 24677050,
+   "eth_last": 26053320,
+   "beefy_first": 30397885,
+   "beefy_last": 33151938
+  }
+ },
+ "dispatch_logs": 12141,
+ "stale_decoder_entries": 0,
+ "unique_txs": 11349,
+ "txs_by_method": {
+  "aggregate3": 2119,
+  "direct": 9159,
+  "scan": 71
+ },
+ "upgrade_carriers": [
+  {
+   "block": 22037824,
+   "logIndex": 381
+  },
+  {
+   "block": 23582509,
+   "logIndex": 146
+  },
+  {
+   "block": 24847176,
+   "logIndex": 716
+  }
+ ],
+ "rows": 12141,
+ "anomalies": {
+  "upgrade_carrier": 3,
+  "duplicate_key": 2
+ },
+ "undecoded": [],
+ "rows_by_decode_method": {
+  "direct": 9159,
+  "scan": 71,
+  "aggregate3": 2911
+ },
+ "nonce_gaps": {},
+ "offset_verification": [
+  {
+   "block": 21088749,
+   "leaves": 1537749,
+   "expected": 1537749,
+   "ok": true
+  },
+  {
+   "block": 28782936,
+   "leaves": 9231936,
+   "expected": 9231936,
+   "ok": true
+  },
+  {
+   "block": 33151938,
+   "leaves": 13600938,
+   "expected": 13600938,
+   "ok": true
+  }
+ ],
+ "mmr_offset": 19551000,
+ "k": {
+  "min": 1,
+  "p50": 15,
+  "p90": 322,
+  "p99": 1983,
+  "max": 355082
+ },
+ "mmr_mismatches": 0
+}

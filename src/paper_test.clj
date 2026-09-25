@@ -119,12 +119,17 @@
     (testing "Lemma 16 (lem:close): merge peak in rightmost or second-rightmost range"
       (is (every? merge-peak-in-last-two-ranges? merge-ns)))))
 
-(defn ummb-proof-size
-  "U-MMB proof size = peak height for the k-th most recent leaf at state n."
-  [n k]
-  (let [s (S-n n)
-        flat-pos (proof-size/range-position-flat k s 0 0)]
-    (proof-size/nth-reverse s flat-pos)))
+(def ummb-proof-size
+  "U-MMB proof size = peak height for the k-th most recent leaf at state n (see proof-size)."
+  proof-size/ummb-proof-size)
+
+(deftest proof-size-calibration-test
+  (testing "proof-size n k (k = 1 newest) reproduces the co-path reference table row-for-row (n <= 512)"
+    (let [rows (clojure.string/split-lines (slurp "studies/snowbridge/data/k-vs-n-no-phantom-512.csv"))]
+      (doseq [[n row] (map-indexed (fn [i r] [(inc i) r]) rows)]
+        (is (= (mapv #(Long/parseLong %) (clojure.string/split row #","))
+               (mapv #(proof-size n %) (range 1 (inc n))))
+            (str "n=" n))))))
 
 (defn amortized-ummb-lemma
   "Paper's eqn (Lemma lem:aUMMB) for amortized U-MMB proof size.

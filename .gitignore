@@ -11,3 +11,9 @@ src/cached-large.edn
 target/
 .direnv/
 .envrc
+
+# studies/snowbridge: raw RPC caches and API keys stay local; figures are tracked
+studies/snowbridge/data/cache/
+studies/snowbridge/.env.local
+!studies/snowbridge/figures/*.png
+__pycache__/
