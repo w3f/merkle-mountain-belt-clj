@@ -28,7 +28,9 @@ the root are brown. Hover over a node for its leaf span and digest.
 Black dots mark absent left inputs. The corresponding identity bagging node
 reuses its right child's value and costs no hash. These nodes are shown to match
 the paper's layout; they do not increase the displayed hash counts. The pure
-`reviewer/structure.js` adapter restores them from the computed topology.
+`reviewer/structure.js` adapter restores them from the computed topology. A merged
+peak whose two inputs formed a whole range in the previous state adopts that
+range node's digest and costs no hash either; its tooltip says so.
 
 Enable **Show membership paths** to expand only the selected leaf's route and
 reveal the proof panel. **Peaks remain triangles**, including the peak on the
@@ -88,7 +90,8 @@ The Clojure export:
   against a separate incremental execution with the Keccak backend.
 - Observes the existing counted `hash-union` wrapper without changing its
   behavior; checks the event count against both the implementation counter and
-  `paper-test/hash-counts-per-append`.
+  `paper-test/hash-counts-per-append`. The cached-merge and unchanged-belt reuse
+  paths bypass that wrapper, so they produce neither an event nor a count.
 - Generates recency samples and runs five existing source tests:
   `paper-figures-test`, `lemma-16-test`, `lemma-17-hash-count-test`,
   `membership-proofs-test`, and `membership-proofs-large-test`. The initial
@@ -154,8 +157,10 @@ comparison reports the mismatch.
 append a leaf, merge one pending equal-height pair from a LIFO stack, partition
 the peaks into ranges, and bag ranges and belts from left to right. An absent
 left child is an identity. Range and belt hashes are reused only when their
-operands match the previous state; a mountain merge always counts as a new
-hash, even when a prior bag happened to hash the same pair. Hash event order
+operands match the previous state. A mountain merge reuses a hash in exactly the
+case Algorithm 2 of the paper licenses: the merging pair formed a whole range in
+the previous state, so that range's node already hashed the same two peaks, and
+the merged peak adopts its digest without a counted hash. Hash event order
 can differ from Clojure, but the counted operand/result pairs agree.
 
 The browser scans the short peak and bag chains and builds display/proof data

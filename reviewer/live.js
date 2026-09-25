@@ -89,25 +89,36 @@ const MMBLive = (() => {
     append(){
       if(this.n>=MAX_LEAVES)throw new RangeError(`Interactive limit: ${MAX_LEAVES} leaves`);
       const n=this.n+1,events=[],leaf={lo:n,hi:n,height:0,kind:'mountain',digest:leafHash(n)};
-      const combine=(left,right,kind)=>{
+      // `cached` supplies a digest already computed for exactly these operands: no event.
+      const combine=(left,right,kind,cached=null)=>{
         if(left.hi+1!==right.lo)throw new Error('Nonadjacent children');
-        const digest=nodeHash(left.digest,right.digest);
-        events.push({left:left.digest,right:right.digest,result:digest});
+        const digest=cached?cached.digest:nodeHash(left.digest,right.digest);
+        if(!cached)events.push({left:left.digest,right:right.digest,result:digest});
         return {lo:left.lo,hi:right.hi,kind,digest,left,right};
       };
       const peaks=[...this.peaks,leaf];
       if(this.peaks.at(-1)?.height===0)this.pairs.push(leaf);
-      let merged=false;
+      let merged=false,mergedDigest=null;
       if(this.pairs.length){
         const right=this.pairs.pop(),i=peaks.indexOf(right),left=peaks[i-1];
         if(!left||left.height!==right.height)throw new Error('Invalid merge pair');
-        const peak={...combine(left,right,'mountain'),height:left.height+1};
-        peaks.splice(i-1,2,peak);merged=true;
+        // Algorithm 2's f = Begins(L), read before the merge: L's predecessor A is absent,
+        // two heights taller, or the right half of a pending pair. A fresh merge
+        // (right === leaf) never qualifies, since the leaf was never bagged. When f holds,
+        // the previous append's range node over (L, R) already hashed this pair, so the
+        // merged peak adopts that digest and no hash is counted (linked_peaks.clj
+        // reuse-merge-hash). The memo key is the operand pair, so its presence is the proof.
+        const a=peaks[i-2];
+        const begins=!a||a.height-left.height===2||(!!peaks[i-3]&&peaks[i-3].height===a.height);
+        const cached=right!==leaf&&begins?this.bags.get(`range:${left.digest}:${right.digest}`):null;
+        if(right!==leaf&&begins&&!cached)throw new Error('Missing range node for a merge whose left peak begins its range');
+        const peak={...combine(left,right,'mountain',cached),height:left.height+1};
+        peaks.splice(i-1,2,peak);merged=true;mergedDigest=peak.digest;
         if(peaks[i-2]?.height===peak.height)this.pairs.push(peak);
       }
       const heights=peaks.map(p=>p.height),ranges=rangeSplits(heights),bags=new Map();
-      // Retain only the previous state's range/belt operands. Never reuse a bag
-      // as a mountain merge: that merge is a real counted operation in Clojure.
+      // Retain only the previous state's range/belt operands. The merge above reuses one
+      // of them in exactly the case Algorithm 2 licenses; nothing else crosses layers.
       const bag=(left,right,kind)=>{
         if(!left)return right;
         const key=`${kind}:${left.digest}:${right.digest}`,old=this.bags.get(key);
@@ -120,7 +131,7 @@ const MMBLive = (() => {
         for(let j=0;j<range.length;j++)rangeRoot=bag(rangeRoot,peaks[offset++],'range');
         root=bag(root,rangeRoot,'belt');
       }
-      const state={n,root:root.digest,rootNode:root,leafHash:leaf.digest,hashes:events.length,events,
+      const state={n,root:root.digest,rootNode:root,leafHash:leaf.digest,mergedDigest,hashes:events.length,events,
         totalHashes:(this.states.at(-1)?.totalHashes||0)+events.length,
         maxHashes:Math.max(this.states.at(-1)?.maxHashes||0,events.length),
         peaks:heights,peakNodes:peaks,ranges,expectedPeaks:expectedPeaks(n),case:!merged?'no-merge':n%2?'delayed':'fresh'};

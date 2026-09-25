@@ -283,31 +283,32 @@
          (reduce (fn [acc [k c]] (update-in acc [k c] (fnil inc 0))) {}))))
 
 (deftest lemma-17-hash-count-test
-  ;; lem:hash-d: <=5 hashes worst case, amortized 4. the impl bags each affected node once,
-  ;; post-merge: fresh appends (leaf merges, post-count even) cost merge + range + belt;
-  ;; delayed appends (merge in an older range) additionally bag the new leaf's range and
-  ;; belt. identity absorption (absent child: the node IS its real child, untagged identity
-  ;; encoding) is 0 ops, as is a rebag whose operands are unchanged (reuse-belt-hash), which
-  ;; is why fresh appends cost <=3 and the amortized lands under the paper's 4 (the paper's
-  ;; bound counts identity sites as ops).
-  ;; every bound here has an external source: the paper. no fitted lower bound, which would
-  ;; be n-dependent (mean rises with n) and would need refitting after each real improvement.
-  ;; measuring a real hash is asserted structurally instead: hash-count-ledger pins :keccak
-  ;; itself, so its result must not move with the ambient backend. under the [lo hi] proxy the
-  ;; same code counts materially fewer ops, since its spans can collide where legitimate digests
-  ;; do not.
-  (let [ledger (hash-count-ledger 10000)
+  ;; lem:hash-d: <=5 hashes worst case, base amortized 4, then three independent savings of
+  ;; density 1/4 reduce further to 3.25: 
+  ;;   1. the merged pair was alone in its range -> linked-peaks/reuse-merge-hash, i.e.
+  ;;      alg:mmb-append's `P_mrg.hash <- P_mrg.r.hash` (0 ops);
+  ;;   2. the merged peak ends alone in its new range, and
+  ;;   3. the surviving leaf ends alone in its range -> identity absorption in hashing/node-hash
+  ;;      (absent left child).
+  (let [ledger (hash-count-ledger 16383)                        ; one full period, 2^14 - 1
         mean (/ (double (reduce + (for [[_ cs] ledger [c k] cs] (* c k))))
                 (reduce + (for [[_ cs] ledger [_ k] cs] k)))
-        cmax (fn [cls] (apply max (for [[[c _] cs] ledger :when (= c cls) [cnt _] cs] cnt)))]
+        cells (fn [pred] (for [[k cs] ledger :when (pred k) [cnt occ] cs] [cnt occ]))
+        cmax (fn [pred] (apply max 0 (map first (cells pred))))
+        occurrences (fn [pred] (reduce + 0 (map second (cells pred))))]
     (testing "lem:hash-d: max 5 hashes per append (worst case)"
-      (is (<= (apply max (for [[_ cs] ledger [cnt _] cs] cnt)) 5)))
+      (is (<= (cmax (constantly true)) 5)))
     (testing "fresh appends: at most 3 hashes (paper's n-even schedule)"
-      (is (<= (cmax :fresh) 3)))
+      (is (<= (cmax #(= :fresh (first %))) 3)))
     (testing "delayed appends: at most 5 hashes (paper's n-odd schedule)"
-      (is (<= (cmax :delayed) 5)))
-    (testing "lem:hash-d: amortized is below paper's 4"
-      (is (< mean 4.0)))
+      (is (<= (cmax #(= :delayed (first %))) 5)))
+    (testing "delayed range-join appends: at most 4 hashes (alg:mmb-append reuses the merge hash)"
+      (is (pos? (occurrences #(= [:delayed :range-join] %))))
+      (is (<= (cmax #(= [:delayed :range-join] %)) 4)))
+    (testing "lem:hash-d: amortized at most 3.25 over a full period"
+      (is (<= mean 3.25))
+      (is (or (nil? (System/getProperty "mmb.thorough"))
+              (<= (/ (double (reduce + (hash-counts-per-append 65535))) 65535) 3.25))))
     (testing "counts a real hash: the ledger pins keccak, so the ambient backend cannot move it"
       (is (= (hash-count-ledger 2000)
              (hashing/with-backend :interval (hash-count-ledger 2000)))))))

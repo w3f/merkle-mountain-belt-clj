@@ -81,7 +81,7 @@
     }
     const previousValues=new Set(previous.nodes.map(node=>`${node.kind}:${node.digest}`));
     const fresh=new Set(state?.events.map(event=>event.result)||[]);
-    const mergePeak=next.mountains.find(peak=>peak.height>0&&fresh.has(peak.digest));
+    const mergePeak=state?.mergedDigest?next.mountains.find(peak=>peak.digest===state.mergedDigest):null;
     drawStructure($('graph-before'),before,views[0],{width,minWidth,height,membership,after:false,previousValues,fresh,mergePeak});
     drawStructure($('graph'),state,views[1],{width,minWidth,height,membership,after:true,previousValues,fresh,mergePeak});
   }
@@ -136,7 +136,7 @@
       let fill='#fff';
       if(bag&&(updated||node.id===graph.root))fill='#cda34e';
       else if(after&&!bag&&node.lo===position&&node.hi===position)fill='#80ab83';
-      else if(!bag&&((after&&fresh.has(node.digest))||mergeInput))fill='#c6c6c6';
+      else if(!bag&&((after&&(fresh.has(node.digest)||node.digest===state.mergedDigest))||mergeInput))fill='#c6c6c6';
       if(sibling)fill='#f4d993';if(selected)fill='#397b91';
       const attrs=`class="node-shape" fill="${fill}" stroke="${selected?'#286781':'#272d29'}" stroke-width="1.7"`;
       const shape=triangle?`<polygon ${attrs} points="0,-22 -27,22 27,22"/>`
@@ -148,7 +148,9 @@
       const target=membership&&!bag?(selected?selectedLeaf:node.collapsed?node.lo:null):null;
       const action=target!==null?` data-select-leaf="${target}" tabindex="0" role="button" aria-label="Prove leaf ${target}${node.collapsed?' in subtree '+span([node.lo,node.hi]):''}"`:'';
       const explanation=node.identity?'Identity bagging node: absent left input, reuses right child (0 hashes).'
-        :after&&fresh.has(node.digest)?'Hashed during this append.':mergeInput?'Input mountain to this append’s merge.':'';
+        :after&&fresh.has(node.digest)?'Hashed during this append.'
+        :after&&!bag&&node.digest===state.mergedDigest?'Merged peak: adopts the range node that already hashed this pair (0 hashes).'
+        :mergeInput?'Input mountain to this append’s merge.':'';
       const collapsedMarker=hiddenSubtree?'<g class="subtree-marker" aria-hidden="true"><path d="M0,17 L0,25" stroke="#67736d" stroke-width="1.2" stroke-dasharray="2 2"/><text y="38" text-anchor="middle" font-size="19" fill="#67736d">…</text></g>':'';
       const leafValue=membership&&leaf?`<g class="leaf-value" data-leaf-value="${node.lo}"><path d="M0,${peak?23:15} L0,33" stroke="#9ca99e" stroke-width="1"/><rect x="${-leafLabelWidth/2}" y="33" width="${leafLabelWidth}" height="21" rx="4" fill="#f8f9f3" stroke="#dce1d6"/><text class="leaf-value-label" y="47" text-anchor="middle" font-size="11" fill="${selected?'#286781':'#596a60'}">leaf ${node.lo}</text></g>`:'';
       html+=`<g class="graph-node${sibling?' proof-sibling':''}${onPath(node)?' path-node':''}" data-kind="${node.kind}" data-node="${esc(node.id)}" data-span="${node.lo},${node.hi}"${!bag?` data-node-height="${nodeHeight}"`:''}${peak?` data-peak-height="${nodeHeight}"`:''}${node.collapsed?' data-collapsed="true"':''}${node.identity?' data-identity="true"':''}${selected?` data-leaf="${selectedLeaf}"`:''}${action} transform="translate(${x},${y})"><title>${esc(node.kind)}${!bag?' height '+nodeHeight:''}, leaves ${span([node.lo,node.hi])}\nKeccak-256: ${node.digest}\n${explanation}${hiddenSubtree?'\nCollapsed subtree. Select to follow leaf '+node.lo+'.':''}${node.id===graph.root?'\nMMB root.':''}</title>${shape}${collapsedMarker}${label?`<text class="node-height${peak?' peak-height':''}" text-anchor="middle" y="${triangle?12:6}" fill="${selected?'#fff':'#202924'}" font-size="${triangle?19:17}">${label}</text>`:''}${leafValue}${node.identity?'<circle class="absent-input" cx="-16" r="4" fill="#202924"/>':''}${node.id===graph.root?'<text x="0" y="-26" text-anchor="middle" fill="#6e5930" font-size="10">root</text>':''}</g>`;
@@ -307,7 +309,7 @@
       ['Membership path structure',pathsOK,`${proofCount} paths`,'Generated sibling intervals cover [1, n]. Individual Keccak verification is available in the membership panel.','membership-proofs-test'],
       ['Proof-size prediction',sizesOK,`${proofCount} comparisons`,'Generated co-path lengths match the structural formula.','proof-size / membership-proofs-test'],
       ['Worst-case hash work',max<=5,`${max} ≤ 5`,'Maximum observed structural hashes per append. Leaf hashing is additional.','lemma-17-hash-count-test'],
-      ['Mean hash work',average<4,`${average.toFixed(3)} < 4`,'Observed mean on this finite prefix. This is not an asymptotic proof.','lemma-17-hash-count-test'],
+      ['Mean hash work',average<4,`${average.toFixed(3)} < 4`,'Observed mean on this finite prefix. The paper amortizes to 4, and to 3.25 with unary identities and the cached merge hash, over full periods of 2^k − 1 appends. This is not an asymptotic proof.','lemma-17-hash-count-test'],
       ['Clojure reference',referenceOK,`${limit} counts; ${limit} roots`,'Every root and append hash count in this prefix matches the Clojure construction. References cover all 100,000 supported states.','reviewer/export.clj']
     ];
     $('check-results').innerHTML=results.map(([title,pass,value,detail,source])=>`<article class="check-card"><h3>${esc(title)}</h3><div class="check-value${pass?'':' fail'}">${pass?'✓':'✕'} ${esc(value)}</div><p>${esc(detail)}</p><code>${esc(source)}</code></article>`).join('');
