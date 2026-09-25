@@ -111,12 +111,12 @@
                            count)]
         (>= range-idx (- (count ranges) 2))))))
 
-(deftest lemma-16-test
+(deftest lem-close-test
   (let [{merge-ns true no-merge-ns false}
         (group-by #(:merge (merge-peak-info (S-n (dec %)) (S-n %))) (range 1 10000))]
     (testing "No merge only at n = 2^k - 1"
       (is (every? #(= (inc %) (Long/highestOneBit (inc %))) no-merge-ns)))
-    (testing "Lemma 16 (lem:close): merge peak in rightmost or second-rightmost range"
+    (testing "lem:close: merge peak in rightmost or second-rightmost range"
       (is (every? merge-peak-in-last-two-ranges? merge-ns)))))
 
 (def ummb-proof-size
@@ -197,14 +197,14 @@
 (deftest amortized-proof-size-test
   ;; (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000]]
   (let [test-ks (range 1 1000)]
-    (testing "Lemma 28 (lem:aUMMB) consistency: structural avg over period == formula"
+    (testing "lem:aUMMB consistency: structural avg over period == formula"
       (is (every? #(= (amortized-structural ummb-proof-size % 1) (amortized-ummb-lemma %))
                   test-ks)))
     (testing "Corollary 30 (cor:UMMB-period): restricted-window avg <= formula"
       (is (every? #(<= (amortized-structural-restricted ummb-proof-size %)
                        (amortized-ummb-lemma %))
                   test-ks)))
-    (testing "Lemma 38 (lem:a-mmb): structural MMB amortized <= upper bound"
+    (testing "lem:a-mmb: structural MMB amortized <= upper bound"
       (is (every? #(<= (amortized-structural proof-size % 1)
                        (amortized-mmb-upper-bound %))
                   test-ks)))))
@@ -216,17 +216,17 @@
       (is (every? #(= (amortized-mmb-empirical %)
                       (amortized-structural proof-size % 1))
                   test-ks)))
-    (testing "Lemma 38 (lem:a-mmb): empirical MMB amortized <= upper bound"
+    (testing "lem:a-mmb: empirical MMB amortized <= upper bound"
       (is (every? #(<= (amortized-mmb-empirical %)
                        (amortized-mmb-upper-bound %))
                   test-ks)))))
 
 (comment (let [test-ks [1 2 3 5 7 10 20 50 100 500 1000 1337 2000 5000 10000 50000]]
-           {:lemma28 (map #(identity [(amortized-structural ummb-proof-size % 1) (amortized-ummb-lemma %)]) test-ks)
+           {:aUMMB (map #(identity [(amortized-structural ummb-proof-size % 1) (amortized-ummb-lemma %)]) test-ks)
             :corollary30 (map #(- (amortized-ummb-lemma %) (amortized-structural-restricted ummb-proof-size %)) test-ks)
-            :lemma38 (map (juxt #(amortized-structural proof-size % 1)
+            :a-mmb (map (juxt #(amortized-structural proof-size % 1)
                                 #(amortized-mmb-upper-bound %)) test-ks)
-            :lemma38diffs (map #(* -1 (- (amortized-structural proof-size % 1)
+            :a-mmb-diffs (map #(* -1 (- (amortized-structural proof-size % 1)
                                          (amortized-mmb-upper-bound %))) test-ks)})
 
          (let [test-ks (range 1 1000)]
@@ -249,7 +249,7 @@
                              (fn [k] [k (distance-upper-bound k periods)]) test-ks) (str "lemma-38-diffs" periods "-periods-" (apply min test-ks) "-" (apply max test-ks) "-k" (if (not (every? #{1} (map - (rest test-ks) test-ks))) "-sample" nil) ".csv")))
                 test-kss)))
 
-;; TODO check min/max of lemma38's diffs
+;; TODO check min/max of the lem:a-mmb diffs
 (comment ((juxt #(apply min %) #(apply max %)) (pmap #(distance-upper-bound % 10000) (range 1 100))))
 
 (defn hash-counts-per-append
@@ -287,7 +287,7 @@
                    [[class (if range-join? :range-join :normal)] @state/hash-count])))
          (reduce (fn [acc [k c]] (update-in acc [k c] (fnil inc 0))) {}))))
 
-(deftest lemma-17-hash-count-test
+(deftest lem-hash-d-test
   ;; lem:hash-d: <=5 hashes worst case, base amortized 4, then three independent savings of
   ;; density 1/4 reduce further to 3.25: 
   ;;   1. the merged pair was alone in its range -> linked-peaks/reuse-merge-hash, i.e.

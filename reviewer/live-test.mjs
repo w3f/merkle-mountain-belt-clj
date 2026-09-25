@@ -91,7 +91,7 @@ for(const state of engine.states){
   assert.equal(state.totalHashes,totalHashes);assert.equal(state.maxHashes,maxHashes);
   assert.deepEqual(plain(state.peaks),plain(L.expectedPeaks(state.n)));
   assert.ok(state.hashes<=5,`Hash bound at ${state.n}`);
-  assert.ok(totalHashes/state.n<4,`Mean hash bound at ${state.n}`);
+  assert.ok(totalHashes/state.n<=3.25,`Mean hash bound (lem:hash-d, amortized 3.25) at ${state.n}`);
   const previous=state.n===1?[]:engine.states[state.n-2].peaks;
   if(previous.length!==state.peaks.length)assert.equal(state.case,'no-merge');
   else{

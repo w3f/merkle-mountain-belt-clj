@@ -96,7 +96,7 @@ The Clojure export:
   `paper-test/hash-counts-per-append`. The cached-merge and unchanged-belt reuse
   paths bypass that wrapper, so they produce neither an event nor a count.
 - Generates recency samples and runs five existing source tests:
-  `paper-figures-test`, `lemma-16-test`, `lemma-17-hash-count-test`,
+  `paper-figures-test`, `lem-close-test`, `lem-hash-d-test`,
   `membership-proofs-test`, and `membership-proofs-large-test`. The
   export records their results in the reference data. The exporter runs these
   selected tests; use `clojure -M:test` for the broader suite.
@@ -201,7 +201,7 @@ Structural hash counts exclude the one leaf hash per append, debug validation
 hashes, visualization, and proof generation. Leaf indices use the implementation's
 8-byte little-endian encoding. Counts come from the browser's Keccak execution because
 the interval backend can collapse equal-span values and undercount work.
-Lemma labels follow the source tests and may differ between paper revisions.
+Tests are named after the paper's stable labels (`lem:close`, `lem:hash-d`, `lem:aUMMB`, `lem:a-mmb`), not after lemma numbers, which change between revisions.
 
 Only `docs/index.html` is needed for viewing. If the web preview is unavailable,
 download that file and open it locally.

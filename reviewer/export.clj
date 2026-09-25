@@ -118,7 +118,7 @@
         (range 1 17)))
 
 (def test-symbols
-  '[paper-figures-test lemma-16-test lemma-17-hash-count-test
+  '[paper-figures-test lem-close-test lem-hash-d-test
     membership-proofs-test membership-proofs-large-test])
 
 (defn source-test-results []
